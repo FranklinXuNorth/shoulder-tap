@@ -61,6 +61,9 @@ function mintId(prefix: "t" | "h", taken: Set<string>): string {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
+/** 「Shoulder Tap」「ShoulderTap」「shoulder tap」是同一个东西，别为空格吵架。 */
+const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+
 /** 在用户自己的 workspace 里找那个叫 Shoulder Tap 的 data source。 */
 export async function findDataSource(token: string): Promise<string> {
   const hit = dsCache.get(token);
@@ -72,9 +75,7 @@ export async function findDataSource(token: string): Promise<string> {
     page_size: 20,
   });
 
-  const match = (res.results ?? []).find(
-    (r: any) => plain(r.title).toLowerCase() === DB_TITLE.toLowerCase(),
-  );
+  const match = (res.results ?? []).find((r: any) => norm(plain(r.title)) === norm(DB_TITLE));
   if (!match) {
     throw new NotionError(
       404,
@@ -87,39 +88,77 @@ export async function findDataSource(token: string): Promise<string> {
   return match.id;
 }
 
-/** 建库。schema 是这个服务唯一「拥有」的东西，建完就全是用户的了。 */
+/** 这个服务唯一「拥有」的东西：一份 schema。建完就全是用户的了。 */
+function schema() {
+  return {
+    Name: { title: {} },
+    Kind: {
+      select: {
+        options: [
+          { name: KIND.task, color: "blue" },
+          { name: KIND.habit, color: "purple" },
+        ],
+      },
+    },
+    ID: { rich_text: {} },
+    Order: { number: {} },
+    Status: {
+      select: {
+        options: [
+          { name: STATUS.pending, color: "default" },
+          { name: STATUS.done, color: "green" },
+          { name: STATUS.dropped, color: "gray" },
+        ],
+      },
+    },
+    Day: { date: {} },
+    EveryMinutes: { number: {} },
+    Last: { date: {} },
+    Note: { rich_text: {} },
+  } as Record<string, any>;
+}
+
+/**
+ * 接管一个已经存在的库：只补缺的字段，不碰已有的。
+ * 用户自己先建好了库再来接的情况很常见，不该逼他重建一个。
+ */
+export async function adoptDatabase(token: string, databaseId: string) {
+  const db = await notion<any>(token, "GET", `/databases/${databaseId}`);
+  const dsId = db.data_sources?.[0]?.id;
+  if (!dsId) throw new Error("这个库里没有 data source，可能是个链接视图（linked view），换原始库试试。");
+
+  const ds = await notion<any>(token, "GET", `/data_sources/${dsId}`);
+  const have = new Set(Object.keys(ds.properties ?? {}));
+
+  const missing: Record<string, any> = {};
+  for (const [k, v] of Object.entries(schema())) {
+    // title 字段每个库必有一个，名字不同也不能再加一个，跳过。
+    if (k === "Name" || have.has(k)) continue;
+    missing[k] = v;
+  }
+
+  if (Object.keys(missing).length) {
+    await notion(token, "PATCH", `/data_sources/${dsId}`, { properties: missing });
+  }
+
+  dsCache.set(token, dsId);
+  return {
+    databaseId: db.id,
+    dataSourceId: dsId,
+    url: db.url as string | undefined,
+    added: Object.keys(missing),
+    title: plain(db.title),
+  };
+}
+
+/** 在一个页面下面新建库。 */
 export async function createDatabase(token: string, parentPageId: string) {
   const db = await notion<any>(token, "POST", "/databases", {
     parent: { type: "page_id", page_id: parentPageId },
     title: text(DB_TITLE),
     icon: { type: "emoji", emoji: "👀" },
     initial_data_source: {
-      properties: {
-        Name: { title: {} },
-        Kind: {
-          select: {
-            options: [
-              { name: KIND.task, color: "blue" },
-              { name: KIND.habit, color: "purple" },
-            ],
-          },
-        },
-        ID: { rich_text: {} },
-        Order: { number: {} },
-        Status: {
-          select: {
-            options: [
-              { name: STATUS.pending, color: "default" },
-              { name: STATUS.done, color: "green" },
-              { name: STATUS.dropped, color: "gray" },
-            ],
-          },
-        },
-        Day: { date: {} },
-        EveryMinutes: { number: {} },
-        Last: { date: {} },
-        Note: { rich_text: {} },
-      },
+      properties: schema(),
     },
   });
 

@@ -6,6 +6,7 @@ import {
   DB_TITLE,
   addHabit,
   addItem,
+  adoptDatabase,
   createDatabase,
   current,
   listDay,
@@ -247,16 +248,30 @@ const handler = createMcpHandler(
         inputSchema: z.object({
           notion_page: z
             .string()
-            .describe("建在哪个页面下面 —— Notion 页面链接或 ID。这个页面必须已经连接了用户的 integration。"),
+            .describe(
+              "Notion 链接或 ID。给页面 → 在它下面新建库；给已有的库 → 直接接管它，只补缺的字段。" +
+                "不管哪种，那个东西都必须已经在 ⋯ → Connections 里连上了用户的 integration。",
+            ),
         }),
       },
       async ({ notion_page }, ctx: any) =>
         guard(async () => {
-          const res = await createDatabase(tokenOf(ctx), pageIdFrom(notion_page));
+          const token = tokenOf(ctx);
+          const id = pageIdFrom(notion_page);
+
+          // 先当成已有的库试着接管；不是库才走新建。
+          const adopted = await adoptDatabase(token, id).catch(() => undefined);
+          const head = adopted
+            ? `接管了你已有的库「${adopted.title}」：${adopted.url ?? adopted.databaseId}\n` +
+              (adopted.added.length
+                ? `补上了这些字段：${adopted.added.join("、")}\n`
+                : "字段本来就是齐的，什么都没改。\n")
+            : `建好了：${(await createDatabase(token, id)).url ?? id}\n`;
+
           return ok(
-            `建好了：${res.url ?? res.databaseId}\n` +
+            head +
               "一个库装两种行：Kind=task 是今天要做的事，Kind=habit 是隔多久该干一次的事。\n" +
-              "里面现在是空的 —— 不预设任何习惯。问用户想盯哪几个，再用 add_habit 加。\n" +
+              "里面没有任何预设 —— 想盯什么习惯，问用户，再用 add_habit 加。\n" +
               "数据全部在用户自己的 Notion 里，这个服务不留副本。",
           );
         }),
