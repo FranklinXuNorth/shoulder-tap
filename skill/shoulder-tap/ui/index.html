@@ -1,57 +1,98 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>shoulder-tap · 敲屏幕</title>
+<title>shoulder-tap · tap tap</title>
 <style>
-:root{color-scheme:dark;--bg:#101819;--ink:#e4ece9;--muted:#9aaead;--line:#334746;--panel:#1a292a}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 system-ui,sans-serif}body.light{color-scheme:light;--bg:#eef1f2;--ink:#243534;--muted:#526966;--line:#bcccca;--panel:#fff}main{max-width:800px;margin:auto;padding:64px 28px}h1{font-size:32px;margin:4px 0 14px;font-weight:550}p{color:var(--muted)}.eyebrow{color:#4bb5b2;font:13px monospace;letter-spacing:2px}.controls{display:flex;gap:12px;flex-wrap:wrap;margin:30px 0 18px}button,select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 14px}button{cursor:pointer}button:hover{border-color:#4bb5b2}label{display:block;font-size:13px;color:var(--muted);margin-bottom:8px}input{width:100%}:focus-visible{outline:2px solid #4bb5b2;outline-offset:5px}#stage{margin-top:30px;min-height:230px;border:1px dashed var(--line);border-radius:16px;padding:40px;cursor:pointer}#stage strong{font-size:22px;font-weight:500}kbd{border:1px solid var(--line);border-bottom-width:3px;border-radius:5px;padding:2px 9px}.note{font-size:13px}#overlay{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:10}#notice{position:absolute;right:24px;top:calc(50% + 90px);max-height:40vh;overflow:auto;width:min(350px,calc(100vw - 48px));background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 48px 18px 20px;pointer-events:auto}#notice[hidden]{display:none}#message{margin:5px 0 0;color:var(--ink);font-size:14px;overflow-wrap:anywhere}#title{color:var(--muted);font-size:12px}#close{position:absolute;right:8px;top:8px;border:0;padding:3px 10px;background:transparent}#hand{position:absolute;right:-12px;top:calc(50% - 85px);width:220px;height:170px;transform:translateX(110%)}#hand.play{animation:knock 1700ms ease-in-out both}#marks{opacity:0}.play #marks{animation:marks 1700ms steps(1) both}
-@keyframes knock{0%,100%{transform:translateX(110%)}20%,40%,58%,76%{transform:translateX(12px) rotate(0deg)}30%,48%,66%{transform:translateX(-9px) rotate(-7deg)}83%{transform:translateX(12px)}}
+:root{color-scheme:light;--bg:#fff;--ink:#181818;--muted:#666;--line:#ddd;--panel:#fafafa}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 system-ui,sans-serif}body.dark{color-scheme:dark;--bg:#171717;--ink:#fafafa;--muted:#aaa;--line:#444;--panel:#222}
+main{max-width:780px;margin:auto;padding:64px 28px}h1{font-size:34px;margin:8px 0 12px;font-weight:550;letter-spacing:-1px}p{color:var(--muted)}.eyebrow{font:12px monospace;letter-spacing:2px}.controls{display:flex;gap:10px;flex-wrap:wrap;margin:28px 0 18px}button,select,input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:9px 12px}button{cursor:pointer}button:hover{border-color:var(--ink)}label{display:block;font-size:13px;color:var(--muted);margin-bottom:8px}input{width:100%}:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
+#stage{margin-top:26px;border:1px dashed var(--line);border-radius:12px;padding:30px;cursor:pointer}#stage strong{font-size:20px;font-weight:500}kbd{border:1px solid var(--line);border-bottom-width:3px;border-radius:4px;padding:2px 7px}.note{font-size:12px}
+.ascii-panel{margin-top:28px;border-top:1px solid var(--line);padding-top:20px}.ascii-panel header{display:flex;align-items:center;justify-content:space-between;gap:16px}.ascii-panel h2{font-size:15px;font-weight:500}pre{font:15px/1.25 Consolas,monospace;white-space:pre;overflow:auto}#ascii-message{font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}#copy-status{font-size:12px;color:var(--muted)}
+#overlay{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:10}
+#hand{position:absolute;right:0;top:calc(40% - 95px);width:220px;height:190px;opacity:0;overflow:visible;color:var(--ink)}#hand.play{animation:appear 1700ms linear both}.play #gesture{animation:tap 1700ms ease-in-out both}#marks{opacity:0}.play #marks{animation:marks 1700ms steps(1) both}
+#notice{position:absolute;right:24px;top:calc(40% + 105px);max-height:45vh;overflow:auto;width:min(350px,calc(100vw - 48px));background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:18px 46px 18px 20px;pointer-events:auto}#notice[hidden]{display:none}#message{margin:5px 0 0;color:var(--ink);font-size:14px;overflow-wrap:anywhere}#title{color:var(--muted);font-size:12px}#close{position:absolute;right:8px;top:8px;border:0;padding:3px 10px}
+@keyframes appear{0%,100%{opacity:0}12%,86%{opacity:1}}
+/* Fingertip rests at x=199; +18px reaches the edge marker at x=217. The hand never leaves the viewport. */
+@keyframes tap{0%,20%,40%,58%,78%,100%{transform:translateX(0)}30%,48%,66%{transform:translateX(18px)}}
 @keyframes marks{0%,35%,53%,71%,100%{opacity:0}30%,48%,66%{opacity:1}}
-@media(prefers-reduced-motion:reduce){#hand.play{animation:none;transform:translateX(0)}.play #marks{animation:none}}
+@media(prefers-reduced-motion:reduce){#hand.play{animation:none;opacity:1}.play #gesture,.play #marks{animation:none}}
+@media(max-width:520px){main{padding:32px 20px}h1{font-size:28px}}
 </style>
+</head>
+<body>
 <main>
-<span class="eyebrow">SHOULDER TAP / 01</span>
-<h1>轻敲一下，想起要做的事。</h1>
-<p>屏幕边缘伸出一只手，咚、咚、咚。<br>跑偏的时候，或你设定的提醒到点的时候。</p>
-<div class="controls"><select id="kind" aria-label="提醒类型"><option value="off-task">偏离计划</option><option value="due">该做某事了</option></select><button id="trigger">敲一下</button><button id="theme">切换浅色背景</button></div>
-<label for="copy">提醒内容 · 可以换成你自己的计划或习惯</label>
+<span class="eyebrow">SHOULDER TAP / 02</span>
+<h1>tap, tap.</h1>
+<p>一只手在屏幕里面，用食指轻点边缘。<br>提醒你回到计划，或想起该做的事。</p>
+<div class="controls">
+<select id="kind" aria-label="提醒类型"><option value="off-task">偏离计划</option><option value="due">该做某事了</option></select>
+<select id="output" aria-label="呈现方式"><option value="both">动画 + ASCII</option><option value="animation">仅动画</option><option value="ascii">仅 ASCII</option></select>
+<button id="trigger">轻点一下</button><button id="theme">切换深色背景</button>
+</div>
+<label for="copy">提醒内容 · 你的计划或习惯</label>
 <input id="copy" value="先停一下。你说好要写完接口文档，现在要回去继续，还是调整计划？">
-<div id="stage" tabindex="0" role="button" aria-label="敲屏幕演示，按 Tab、Enter 或空格触发" aria-describedby="hint"><strong>点击这里，按 <kbd>Tab</kbd> 试试。</strong><p id="hint">同一个手势，两种提醒。<br>Shift + Tab 离开这块区域，Escape 收起提醒。</p></div>
-<p class="note">浏览器内的交互原型 · 无声音 · 尚未连接模型和桌面悬浮窗</p>
+<div id="stage" tabindex="0" role="button" aria-label="轻点屏幕演示，按 Tab、Enter 或空格触发" aria-describedby="hint"><strong>点击这里，按 <kbd>Tab</kbd> 试试。</strong><p id="hint">轻点三下，停住，然后淡出。<br>Shift + Tab 离开这里，Escape 收起提醒。</p></div>
+<section class="ascii-panel" aria-label="聊天中的纯文本版本">
+<header><h2>同一条提醒，也能出现在聊天里。</h2><button id="copy-ascii">复制 ASCII 提醒</button></header>
+<pre id="ascii-art" aria-label="一只向右伸食指、轻点屏幕边缘的手">                 tap tap
+       __________       |
+  ____/  ________/)   .  |
+ /      (___            |
+|       (___)           |
+ \______(__)            |</pre>
+<p id="ascii-message" role="status" aria-live="polite">按 Tab，试一次提醒。</p><span id="copy-status" role="status"></span>
+</section>
+<p class="note">浏览器内原型 · 无声音 · 尚未接入桌面悬浮窗或模型</p>
 </main>
 <div id="overlay">
-<svg id="hand" viewBox="0 0 220 170" aria-hidden="true">
-<g id="marks" fill="none" stroke="#c1471d" stroke-width="4" stroke-linecap="round"><path d="M24 52l-9-9M18 75H5M24 98l-10 9"/></g>
-<g stroke="#2a3435" stroke-width="3.5" stroke-linejoin="round">
-<path d="M224 66H135V122H224" fill="#0e7c7b"/><path d="M141 64h17v61h-17z" fill="#4bb5b2"/>
-<path d="M142 71l-26-8-19-19c-7-7-18-5-20 3-11-8-21-3-20 8-11-2-18 4-16 15-10 3-10 14-5 22l14 20c6 9 18 14 31 12l32-7 29 1z" fill="#e8b88a"/>
-<path d="M48 97c11 12 25 15 41 9l24-9 29 6v15l-29-1-32 7c-13 2-25-3-31-12z" fill="#c08c5e" stroke="none"/>
-<path d="M77 47l16 18M57 55l19 22M41 70l20 22" fill="none" stroke-linecap="round"/>
-<path d="M112 84L87 73c-12-6-21 7-11 15l18 12" fill="#e8b88a" stroke-linecap="round"/>
+<svg id="hand" viewBox="0 0 220 190" aria-hidden="true">
+<!-- A small marker sits at the inside edge of the viewport. -->
+<path d="M217 30v74" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+<g id="marks" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M203 43l-5-6M209 35v-7M203 86l-5 6"/></g>
+<g id="gesture" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+<!-- Wrist and curled fingers remain inside the screen; the index points right. -->
+<path d="M28 139L47 104C51 95 60 85 72 78L91 63C96 59 103 57 112 57H187C194 57 199 60 199 65S194 73 187 73H119L117 80H139C149 80 151 94 142 98C153 104 148 117 138 119C145 128 139 139 128 140H108C98 151 84 156 69 155L58 169Z" fill="var(--bg)"/>
+<path d="M117 80H103C96 80 90 86 93 92C96 99 105 101 114 98H142M114 98C106 102 107 112 114 116L138 119M114 116C105 121 108 133 117 136L128 140M63 115C73 110 81 102 86 94M28 139l30 30M34 129l32 29" fill="none"/>
 </g></svg>
 <aside id="notice" hidden><span id="title"></span><p id="message" role="status" aria-live="polite"></p><button id="close" aria-label="收起提醒">×</button></aside>
 </div>
 <script>
-const byId = id => document.getElementById(id);
-const hand = byId('hand'), notice = byId('notice'), stage = byId('stage');
-const examples = {'off-task':'先停一下。你说好要写完接口文档，现在要回去继续，还是调整计划？',due:'你设定的提醒到点了：离开屏幕，休息一会儿。'};
+const byId=id=>document.getElementById(id);
+const hand=byId('hand'),notice=byId('notice'),stage=byId('stage');
+const examples={'off-task':byId('copy').value,due:'你设定的提醒到点了：离开屏幕，休息一会儿。'};
 let timer;
 function dismiss(){clearTimeout(timer);hand.classList.remove('play');notice.hidden=true;if(document.activeElement===byId('close'))stage.focus()}
 function tap(){
- clearTimeout(timer);
- byId('title').textContent=byId('kind').value==='off-task'?'先回到计划上？':'你给自己的提醒';
- byId('message').textContent=byId('copy').value.trim()||'看看你给自己的提醒。';
- notice.hidden=false;
- hand.classList.remove('play');void hand.getBoundingClientRect();hand.classList.add('play');
- timer=setTimeout(()=>hand.classList.remove('play'),1700);
+ dismiss();
+ const message=byId('copy').value.trim()||'看看你给自己的提醒。';
+ const output=byId('output').value;
+ byId('copy-status').textContent='';
+ if(output!=='animation')byId('ascii-message').textContent=message;
+ if(output!=='ascii'){
+  byId('title').textContent=byId('kind').value==='off-task'?'先回到计划上？':'你给自己的提醒';
+  byId('message').textContent=message;notice.hidden=false;
+  void hand.getBoundingClientRect();hand.classList.add('play');
+  timer=setTimeout(()=>hand.classList.remove('play'),1700);
+ }
 }
 byId('trigger').addEventListener('click',tap);
 stage.addEventListener('click',()=>{stage.focus();tap()});
-stage.addEventListener('keydown',event=>{if(!event.repeat&&!event.shiftKey&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&['Tab','Enter',' '].includes(event.key)){event.preventDefault();tap()}});
+stage.addEventListener('keydown',event=>{if(!event.shiftKey&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&['Tab','Enter',' '].includes(event.key)){event.preventDefault();if(!event.repeat)tap()}});
 document.addEventListener('keydown',event=>{if(event.key==='Escape')dismiss()});
 byId('close').addEventListener('click',dismiss);
 byId('kind').addEventListener('change',()=>{byId('copy').value=examples[byId('kind').value]});
 byId('copy').addEventListener('input',()=>{examples[byId('kind').value]=byId('copy').value});
-byId('theme').addEventListener('click',()=>{const light=document.body.classList.toggle('light');byId('theme').textContent=light?'切换深色背景':'切换浅色背景'});
+byId('output').addEventListener('change',()=>{dismiss();document.querySelector('.ascii-panel').hidden=byId('output').value==='animation'});
+byId('theme').addEventListener('click',()=>{const dark=document.body.classList.toggle('dark');byId('theme').textContent=dark?'切换浅色背景':'切换深色背景'});
+byId('copy-ascii').addEventListener('click',async()=>{
+ const message=byId('copy').value.trim()||'看看你给自己的提醒。';
+ byId('ascii-message').textContent=message;
+ const text=byId('ascii-art').textContent+'\n\n'+message;
+ try{await navigator.clipboard.writeText(text);byId('copy-status').textContent='已复制，可以粘贴到聊天里。'}
+ catch{byId('copy-status').textContent='浏览器未允许复制，请手动选择上面的文字。'}
+});
 </script>
+</body>
 </html>

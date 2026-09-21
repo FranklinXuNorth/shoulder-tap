@@ -1,47 +1,85 @@
 ---
 name: shoulder-tap
-description: 接上 shoulder-tap 这个 MCP（第一次用要登录、填 Notion 密钥、在 Notion 里建库），以及在用户跑偏时把他拉回来。当用户说「登录 shoulder-tap」「接上 shoulder-tap」「设置一下专注」，或者 shoulder-tap 的工具报 not_set_up / 401 时使用。
+description: 接上 shoulder-tap（第一次用要配 MCP、接 Notion、建库），以及在用户跑偏时把他拉回来。当用户说「登录 shoulder-tap」「接上 shoulder-tap」「设置一下专注」，或者 shoulder-tap 的工具报 not_set_up 时使用。
 ---
 
 # shoulder-tap
 
-用户今天说好要做的事存在**他自己的 Notion** 里。这个 skill 负责把通路接上；接上之后，
-真正干活的是 `shoulder-tap` 这个 MCP 的 `check_focus` 工具。
+用户今天说好要做的事，存在**他自己的 Notion** 里。你负责在他动手之前看一眼：
+现在要做的这件事，和今天说好的对得上吗？
 
-## 一、还没接上时（登录）
+## 数据在哪，判断在哪
 
-先看一眼 `claude mcp list` 里有没有 `shoulder-tap`。没有，就按下面走，**一步一步问**，不要一次问完：
+- **数据**：用户自己的 Notion。你直接去读写，shoulder-tap 那台服务器看不到任何一个字。
+- **判断**：你自己做。没有第二个模型替你判，也没有服务端替你判。
+- **服务端**：只给你两样东西 —— 一套判断规程（`focus_protocol`），和一个纯算术的到期判断
+  （`due_check`，只收 ID 和分钟数，收不到名字）。
 
-1. **要 Notion 密钥。** 让用户去 <https://www.notion.so/profile/integrations> 建一个
-   internal integration，把 `ntn_` 开头的密钥给你。
-   顺便提醒他：这个密钥只会存在他自己电脑的 Claude 配置里，服务端不保存。
-2. **接上。** 拿到密钥后执行（把 `<URL>` 换成部署地址，`<KEY>` 换成他给的密钥）：
+所以：**不要把任务文字、习惯名字传给 shoulder-tap 的任何工具。** 传 ID 就够了。
+
+## 一、还没接上时
+
+先看 `claude mcp list` 里有没有 `shoulder-tap`。没有就按下面走，**一步一步问**：
+
+1. **接 MCP**（不需要任何密钥）：
 
    ```bash
-   claude mcp add --transport http shoulder-tap <URL>/api/mcp -s user -H "Authorization: Bearer <KEY>"
+   claude mcp add --transport http shoulder-tap https://shoulder-tap.vercel.app/mcp -s user
    ```
 
-   `-s user` 是关键：装到用户级，之后每个项目、每个对话都能用。
-   如果服务端设了门禁，再加一个 `-H "X-Shoulder-Tap-Key: <门禁密钥>"`。
-3. **建库。** 让用户随便挑一个 Notion 页面，在页面右上角 ⋯ → Connections 里把刚才那个
-   integration 加进去，然后把页面链接给你。拿到链接后调用 `setup` 工具。
-   （漏了 Connections 这步，Notion 会报 `object_not_found`，这是最常见的坑。）
-4. 告诉用户重启一下会话让 MCP 生效，然后说一句「今天打算做什么」就能开始。
+   如果服务端设了门禁，加 `-H "X-Shoulder-Tap-Key: <门禁密钥>"`。
 
-## 二、接上之后（这才是重点）
+2. **接 Notion**。用户需要能让你读写他的 Notion —— 装 Notion 官方的 MCP，或者他已有的任何
+   Notion 通路都行。密钥存在他自己机器上，不经过 shoulder-tap。
 
-- **动手之前先 `check_focus`。** 用户提出一个要做的事，先把它作为 `activity` 传进去，
-  按返回的 A / B / C 指示走。返回里怎么说就怎么做，**不要自己放水**。
-- **他说「今天要做 X、Y、Z」** → `set_focus`，按他说的先后顺序记下来。顺序是这东西的意义所在。
-- **用户说某条做完了** → `complete_focus`，然后告诉他下一条是什么。
-  注意：**只有他说完成才算完成**。你把活干完了不等于这条能勾掉——想勾就问一句，等他点头。
-- **临时插队的急事** → 先问清楚这是不是真的急，再 `add_focus`，别替他决定。
+3. **建库**。在他的 Notion 里建一个叫 `Shoulder Tap` 的数据库（空格可有可无），字段见下。
+   他要是已经建了一个，补齐缺的字段就行，别让他重建。
 
-## 三、拦人的时候怎么说话
+4. 告诉他重启会话让 MCP 生效，然后说一句「今天打算做什么」就能开始。
 
-拦是为了让他想起来，不是为了教育他。一句话点破 + 一个问题，然后闭嘴等他回答：
+## 二、库长什么样
+
+一个库装两种行，靠 `Kind` 区分：
+
+| 字段 | 类型 | `task` 行 | `habit` 行 |
+| --- | --- | --- | --- |
+| `Name` | title | 步骤本身 | 习惯名 |
+| `Kind` | select | `task` | `habit` |
+| `ID` | rich_text | `t-a3f91c` | `h-8b12d4` |
+| `Order` | number | 第几条，顺序靠它 | — |
+| `Status` | select | `pending` / `done` / `dropped` | — |
+| `Day` | date | 哪一天 | — |
+| `EveryMinutes` | number | — | 隔多久提醒一次 |
+| `Last` | date | — | 上次做的时间 |
+| `Note` | rich_text | 执行细节 | 备注 |
+
+新建行时自己签一个短 ID（`t-` / `h-` 加六位十六进制），**签之前跟库里已有的比一遍，别撞**。
+
+## 三、接上之后（这才是重点）
+
+动手做实质性的事之前，调 `focus_protocol` 拿规程，然后照它说的走。规程会让你：
+
+1. 去 Notion 读今天的 task 行，找出当前这条（第一个 `Status ≠ done` 的）。
+2. 把用户现在要做的事跟当前这条比，判成三档之一：
+
+   - **related** —— 就是这条，或是完成它必需的一步 → 直接干活，什么都别提。
+   - **partial** —— 沾边但不是这条 → 一句话点破，问他插队还是放着，然后照他说的办。
+   - **unrelated** —— 完全对不上 → **不动手**，说出来，问他，等他回答。
+
+3. 把 habit 行剥成 `{id, every_minutes, last}` 传给 `due_check`，到点的在回答末尾轻轻带一句。
+
+写回 Notion 的时机：
+
+- 用户说「今天要做 A、B、C」→ 按顺序写 task 行，`Day` 是今天。
+- **用户明确说某条做完了** → 把 `Status` 改成 `done`。你自己觉得做完了不算数，最多问一句。
+- 用户说他刚做了某个习惯 → 把那行的 `Last` 改成现在。他没说，就是没做。
+- 用户说要盯一个新习惯 → 加一行 `Kind=habit`，名字用他自己的说法，**不要给建议清单**。
+
+## 四、拦人的时候怎么说话
+
+拦是为了让他想起来，不是为了教育他。一句话点破 + 一个问题，然后闭嘴等回答：
 
 > 你今天说的第 2 条是「把接口文档写完」，还没动。现在这个是插队的急事，还是先回去写文档？
 
-不要说教，不要列一堆理由，不要在他已经决定之后还反复提。他说改计划就改计划——
-用 `set_focus` 重排，然后照新的来。
+不说教，不列理由，不在他已经决定之后反复提。他说「无视」就无视 —— 能被说服是故意的设计，
+真锁住他，他下次就不装这个东西了。

@@ -3,9 +3,13 @@
 
 ## 专注
 
-我装了 `shoulder-tap` 这个 MCP，用来盯住我今天说好要做的事。
+我装了 `shoulder-tap`。今天说好要做的事在我自己的 Notion 里（库名 `Shoulder Tap`）。
 
-- 每个新会话里，第一次我让你做实质性的事情时，先调用 `shoulder-tap` 的 `check_focus`，
-  把我要做的事作为 `activity` 传进去，然后**按它返回的 A / B / C 指示执行**。
-- 同一个会话里后面再冒出新的、明显不同的任务，再 call 一次。琐碎的追问不用每次都 call。
-- 它说拦，就拦住问我，不要先帮我做了再说。这是我自己要求的。
+- 每个新会话里，第一次我让你做实质性的事情时：先调 `shoulder-tap` 的 `focus_protocol`
+  拿判断规程，再去我的 Notion 读今天的 task 行，然后**按规程判三档**（related /
+  partial / unrelated）执行。
+- 同一会话里后面再冒出明显不同的任务，重新判一次。琐碎的追问不用每次都判。
+- 判成 unrelated 就拦住问我，不要先帮我做了再说。这是我自己要求的。
+- 顺手把 habit 行剥成 `{id, every_minutes, last}` 调一次 `due_check`，到点的在回答最后
+  轻轻带一句就行。
+- **不要把任务文字或习惯名字传给 shoulder-tap 的工具**，那台服务器不该看到我的内容。

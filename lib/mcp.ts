@@ -19,6 +19,7 @@ import {
   tzOffset,
 } from "@/lib/focus";
 import { renderCheck, renderPlan } from "@/lib/render";
+import { protocolText, tapEvent, whatIsDue } from "@/lib/protocol";
 
 /**
  * Bearer token 就是调用方自己的 Notion integration secret。
@@ -73,6 +74,63 @@ const handler = createMcpHandler(
           ].join("\n"),
         ),
     );
+
+    // ---- 零内容通道：这两个工具看不到你的任何任务文字，只收 ID 和数字 ----
+
+    server.registerTool(
+      "focus_protocol",
+      {
+        title: "取一次判断规程",
+        description:
+          "动手做实质性的事之前先调这个，拿到该怎么判、判出三档各自怎么办。" +
+          "它不需要凭据、也收不到你的任何内容 —— 数据你自己去用户的 Notion 里读。" +
+          "新会话第一次干活时调一次；会话中途冒出明显不同的新任务时再调一次。",
+        inputSchema: z.object({}),
+      },
+      async () => ok(protocolText()),
+    );
+
+    server.registerTool(
+      "due_check",
+      {
+        title: "哪些习惯到点了",
+        description:
+          "纯算术：给它每条习惯的 ID、间隔分钟、上次时间，它回哪些 ID 到点了、超了多久。" +
+          "**只传 ID 和数字，绝对不要传习惯名字或任何文字** —— 名字留在用户自己的 Notion 里，" +
+          "拿返回的 ID 自己对回去。",
+        inputSchema: z.object({
+          habits: z
+            .array(
+              z.object({
+                id: z.string().describe("短 ID，比如 h-8b12d4。不要传名字。"),
+                every_minutes: z.number(),
+                last: z.string().optional().describe("上次做的时间，ISO 8601"),
+              }),
+            )
+            .describe("从 Notion 读到的 habit 行，剥掉名字只留这三个字段"),
+        }),
+      },
+      async ({ habits }) => {
+        const due = whatIsDue(habits);
+        if (!due.length) return ok("没有到点的。什么都不用提。");
+        return ok(
+          [
+            JSON.stringify(tapEvent("due", due.map((d) => d.id))),
+            "",
+            ...due.map((d) =>
+              d.overdue_minutes < 0
+                ? `  ${d.id} —— 从来没记录过，第一次`
+                : `  ${d.id} —— 超了 ${d.overdue_minutes} 分钟`,
+            ),
+            "",
+            "拿这些 ID 回 Notion 查名字，在你正常回答的最后轻轻带一句。一句话，不说教。",
+            "他说做了，就把那行的 Last 更新成现在；他没说，就是没做。",
+          ].join("\n"),
+        );
+      },
+    );
+
+    // ---- 以下是「让服务端代劳 Notion」的路径，跟上面二选一 ----
 
     server.registerTool(
       "check_focus",
@@ -282,14 +340,10 @@ const handler = createMcpHandler(
   },
 );
 
-const verifyToken = async (req: Request, bearer?: string): Promise<AuthInfo | undefined> => {
-  // 可选的门禁：只用来挡住路人蹭这台 Vercel，跟用户数据无关。
-  const gate = process.env.SHOULDER_TAP_KEY;
-  if (gate && req.headers.get("x-shoulder-tap-key") !== gate) return undefined;
-
+const verifyToken = async (_req: Request, bearer?: string): Promise<AuthInfo | undefined> => {
   // Notion 的 internal integration secret 长这样：ntn_xxx（老的是 secret_xxx）。
+  // 只有「让服务端代劳 Notion」那条路径才需要它。零内容路径完全不用给。
   if (!bearer || !/^(ntn_|secret_)/.test(bearer)) return undefined;
-
   return { token: bearer, scopes: ["notion"], clientId: "shoulder-tap" };
 };
 
@@ -300,8 +354,27 @@ const verifyToken = async (req: Request, bearer?: string): Promise<AuthInfo | un
  *  2. 在 Vercel 环境变量里设 SHOULDER_TAP_AUTH=on 再 Redeploy → 立刻变成必须带 token。
  *     不用改代码，也不用重新 push。
  */
-export const mcpHandler = AUTH_ON
-  ? withMcpAuth(handler, verifyToken, { required: true })
-  : handler;
+/**
+ * 鉴权有两层，互不相干：
+ *
+ * 门禁 SHOULDER_TAP_KEY —— 挡路人蹭这台 Vercel 的额度。跟用户数据无关，
+ *   零内容路径也要过这道，因为它防的是滥用不是泄密。
+ *
+ * Bearer（Notion secret）—— 只有「让服务端代劳 Notion」那条路径才需要。
+ *   默认 required=false：不给 token 也能连，只是碰 Notion 的工具会明确报错。
+ *   SHOULDER_TAP_AUTH=on 则强制必须给 —— 只在你完全走代劳路径时才这么设。
+ */
+const authed = withMcpAuth(handler, verifyToken, { required: AUTH_ON });
+
+export const mcpHandler = async (req: Request): Promise<Response> => {
+  const gate = process.env.SHOULDER_TAP_KEY;
+  if (gate && req.headers.get("x-shoulder-tap-key") !== gate) {
+    return new Response(JSON.stringify({ error: "bad or missing x-shoulder-tap-key" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  return authed(req);
+};
 
 export { AUTH_ON };
