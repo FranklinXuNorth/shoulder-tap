@@ -35,14 +35,22 @@ export type Habit = {
 const dsCache = new Map<string, string>();
 
 /**
- * 时区一律用 IANA 名字（America/New_York、Asia/Shanghai），不用偏移小时数。
+ * 时区一律用 IANA 名字（America/New_York、Asia/Shanghai），不用偏移小时数 ——
+ * 偏移会因为夏令时变，名字不会。
  *
- * 之前这里写死了 UTC+8，结果给美东用户算出的"今天"整整差一天 ——
- * 任务被写进明天，然后他查今天什么都查不到。猜时区就是在制造这种 bug，
- * 所以现在：调用方传，传什么用什么；没传才退回 DEFAULT_TIMEZONE，
- * 而且每次返回都会把用到的时区说出来，错了一眼能看见。
+ * 没有服务端默认时区，这是故意的。
+ * 猜一个就等于写死一个 —— 用户飞一趟，数据就静悄悄错一整天，而且没人会发现。
+ * 调用方跑在用户机器上，它知道；它不说，就报错，别替它编。
  */
-export const DEFAULT_TZ = process.env.DEFAULT_TIMEZONE || "UTC";
+export function requireTz(tz?: string): string {
+  if (!tz) {
+    throw new Error(
+      "没传 tz。从用户机器上读 Intl.DateTimeFormat().resolvedOptions().timeZone（node -p 一行就出来），" +
+        "把 IANA 名字传进来。服务端不猜时区 —— 猜错就是整整一天的错数据。",
+    );
+  }
+  return assertTz(tz);
+}
 
 type Parts = Record<string, string>;
 
@@ -73,17 +81,32 @@ export function assertTz(tz: string): string {
   }
 }
 
-/** 那个时区此刻的 UTC 偏移，形如 -04:00。夏令时会自己跟着变。 */
+/** 那个时区在某一刻的 UTC 偏移，形如 -04:00。夏令时会自己跟着变。 */
 export function offsetOf(tz: string, at = new Date()): string {
   const name = partsIn(tz, at).timeZoneName ?? "GMT";
   const m = /GMT([+-]\d{2}:\d{2})/.exec(name);
   return m ? m[1] : "+00:00";
 }
 
-/** 带偏移的本地时间戳。存这个而不是 UTC 的 Z，Notion 里显示的才是你看表的时间。 */
-export function nowIso(tz: string): string {
-  const p = partsIn(tz, new Date());
-  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}${offsetOf(tz)}`;
+function offsetMinutes(tz: string, at: Date): number {
+  const [h, m] = offsetOf(tz, at).split(":");
+  const sign = h.startsWith("-") ? -1 : 1;
+  return sign * (Math.abs(Number(h)) * 60 + Number(m));
+}
+
+/**
+ * 一切都存 UTC。
+ *
+ * 存本地日期 / 带偏移的时间戳，等于把「当时在哪」腌进了数据里：
+ * 你从纽约飞回上海，同一行记录的含义就变了，而且再也没法还原。
+ * 所以写进去的永远是 UTC 瞬时，要哪个时区的日子，读的时候再换算。
+ */
+export const nowUtc = () => new Date().toISOString();
+
+/** 把某个时区的墙上时间换成 UTC 瞬时。 */
+function wallToUtc(tz: string, wall: string): Date {
+  const guess = new Date(`${wall}Z`);
+  return new Date(guess.getTime() - offsetMinutes(tz, guess) * 60_000);
 }
 
 /**
@@ -99,13 +122,44 @@ export function dayStartHour(): number {
   return Number.isFinite(n) && n >= 0 && n < 12 ? n : 4;
 }
 
-/** 今天是哪天：先取那个时区的本地日期，不到日切时间就还算前一天。 */
+/** 今天是哪天（那个时区的本地日期，不到日切时间就还算前一天）。只用来显示和查询，不入库。 */
 export function today(tz: string, day?: string): string {
   if (day) return day;
   const p = partsIn(assertTz(tz), new Date());
   const midnight = Date.parse(`${p.year}-${p.month}-${p.day}T00:00:00Z`);
   const shifted = Number(p.hour) < dayStartHour() ? midnight - 86_400_000 : midnight;
   return new Date(shifted).toISOString().slice(0, 10);
+}
+
+export type DayWindow = { day: string; startUtc: string; endUtc: string; midUtc: string };
+
+/**
+ * 「那一天」在 UTC 上对应的区间：[本地 4:00, 次日本地 4:00)。
+ * 查询靠它，写入也靠它 —— 记录只认 UTC，日子是算出来的，不是存下来的。
+ */
+export function dayWindow(tz: string, day?: string): DayWindow {
+  const zone = assertTz(tz);
+  const d = today(zone, day);
+  const h = String(dayStartHour()).padStart(2, "0");
+  const start = wallToUtc(zone, `${d}T${h}:00:00`);
+  const end = new Date(start.getTime() + 86_400_000);
+  return {
+    day: d,
+    startUtc: start.toISOString(),
+    endUtc: end.toISOString(),
+    midUtc: new Date(start.getTime() + 43_200_000).toISOString(),
+  };
+}
+
+/**
+ * 这一行该写哪个 UTC 瞬时。
+ * 就是当天就写"现在"；补录别的日子，写那天的正午 —— 落在区间中间，
+ * 不会因为夏令时差半小时就掉到隔壁去。
+ */
+function dayStamp(win: DayWindow): string {
+  const now = Date.now();
+  const inside = now >= Date.parse(win.startUtc) && now < Date.parse(win.endUtc);
+  return inside ? new Date(now).toISOString() : win.midUtc;
 }
 
 /** 签一个短 ID。撞上已有的就重签 —— taken 是调用方手上已经有的那一批。 */
@@ -250,13 +304,14 @@ function parseTask(page: any): Item {
   };
 }
 
-export async function listDay(token: string, day: string): Promise<Item[]> {
+export async function listDay(token: string, win: DayWindow): Promise<Item[]> {
   const ds = await findDataSource(token);
   const res = await notion<any>(token, "POST", `/data_sources/${ds}/query`, {
     filter: {
       and: [
         { property: "Kind", select: { equals: KIND.task } },
-        { property: "Day", date: { equals: day } },
+        { property: "Day", date: { on_or_after: win.startUtc } },
+        { property: "Day", date: { before: win.endUtc } },
         { property: "Status", select: { does_not_equal: STATUS.dropped } },
       ],
     },
@@ -269,7 +324,7 @@ export async function listDay(token: string, day: string): Promise<Item[]> {
 async function createTask(
   token: string,
   ds: string,
-  day: string,
+  win: DayWindow,
   order: number,
   task: string,
   note: string,
@@ -284,7 +339,7 @@ async function createTask(
       ID: { rich_text: text(sid) },
       Order: { number: order },
       Status: { select: { name: STATUS.pending } },
-      Day: { date: { start: day } },
+      Day: { date: { start: dayStamp(win) } },
       TZ: { rich_text: text(tz) },
       Note: { rich_text: text(note) },
     },
@@ -294,12 +349,12 @@ async function createTask(
 /** 重设今天：旧的扔进回收站，按给的顺序重新写一遍。 */
 export async function setDay(
   token: string,
-  day: string,
+  win: DayWindow,
   tasks: { task: string; note?: string }[],
   tz: string,
 ): Promise<Item[]> {
   const ds = await findDataSource(token);
-  const old = await listDay(token, day);
+  const old = await listDay(token, win);
   for (const it of old) {
     await notion(token, "PATCH", `/pages/${it.id}`, { in_trash: true });
   }
@@ -307,28 +362,28 @@ export async function setDay(
   const taken = new Set<string>();
   let order = 1;
   for (const t of tasks) {
-    await createTask(token, ds, day, order++, t.task, t.note ?? "", mintId("t", taken), tz);
+    await createTask(token, ds, win, order++, t.task, t.note ?? "", mintId("t", taken), tz);
   }
-  return listDay(token, day);
+  return listDay(token, win);
 }
 
 /** 插一条。position 不给就排到最后；给了就插在那个位置，后面的顺延。 */
 export async function addItem(
   token: string,
-  day: string,
+  win: DayWindow,
   task: string,
   note: string,
   position: number | undefined,
   tz: string,
 ): Promise<Item[]> {
   const ds = await findDataSource(token);
-  const items = await listDay(token, day);
+  const items = await listDay(token, win);
   const sid = mintId("t", new Set(items.map((i) => i.sid)));
 
   if (position === undefined || position > items.length) {
     const last = items.length ? items[items.length - 1].order : 0;
-    await createTask(token, ds, day, last + 1, task, note, sid, tz);
-    return listDay(token, day);
+    await createTask(token, ds, win, last + 1, task, note, sid, tz);
+    return listDay(token, win);
   }
 
   const at = Math.max(1, position);
@@ -339,23 +394,23 @@ export async function addItem(
       });
     }
   }
-  await createTask(token, ds, day, at, task, note, sid, tz);
-  return listDay(token, day);
+  await createTask(token, ds, win, at, task, note, sid, tz);
+  return listDay(token, win);
 }
 
 export async function setStatus(
   token: string,
-  day: string,
+  win: DayWindow,
   position: number,
   status: "done" | "dropped",
 ): Promise<{ items: Item[]; hit: Item | undefined }> {
-  const items = await listDay(token, day);
+  const items = await listDay(token, win);
   const hit = items.find((i) => i.order === position);
   if (!hit) return { items, hit: undefined };
   await notion(token, "PATCH", `/pages/${hit.id}`, {
     properties: { Status: { select: { name: STATUS[status] } } },
   });
-  return { items: await listDay(token, day), hit };
+  return { items: await listDay(token, win), hit };
 }
 
 export const current = (items: Item[]) => items.find((i) => !i.done);
@@ -423,7 +478,7 @@ export async function addHabit(
       Kind: { select: { name: KIND.habit } },
       ID: { rich_text: text(sid) },
       EveryMinutes: { number: everyMinutes },
-      Last: { date: { start: nowIso(tz) } },
+      Last: { date: { start: nowUtc() } },
       TZ: { rich_text: text(tz) },
       Note: { rich_text: text(note) },
     },
@@ -441,7 +496,7 @@ export async function logHabit(token: string, name: string, tz: string): Promise
     habits.find((h) => h.name.includes(needle) || needle.includes(h.name));
   if (!hit) return undefined;
 
-  const at = nowIso(tz);
+  const at = nowUtc();
   await notion(token, "PATCH", `/pages/${hit.id}`, {
     properties: { Last: { date: { start: at } }, TZ: { rich_text: text(tz) } },
   });

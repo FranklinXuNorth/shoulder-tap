@@ -119,7 +119,9 @@ async function callTool(env, name, args) {
  * 其余（清单、当前是第几条、三档规则、到期习惯）都只取决于 Notion 的状态。
  */
 async function refresh(env) {
-  const plan = await callTool(env, "check_focus", { activity: ACTIVITY_SLOT });
+  // 时区从这台机器上读，不写死 —— 哨兵跑在用户身边，它比服务端清楚用户在哪。
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const plan = await callTool(env, "check_focus", { activity: ACTIVITY_SLOT, tz });
   if (plan) writeState({ plan, planAt: Date.now() });
 }
 

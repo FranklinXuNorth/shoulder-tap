@@ -48,10 +48,10 @@ description: 接上 shoulder-tap（第一次用要配 MCP、接 Notion、建库�
 | `ID` | rich_text | `t-a3f91c` | `h-8b12d4` |
 | `Order` | number | 第几条，顺序靠它 | — |
 | `Status` | select | `pending` / `done` / `dropped` | — |
-| `Day` | date | 哪一天（**用户本地时区**的日期） | — |
+| `Day` | date | **UTC 瞬时**，属于哪天靠读时换算 | — |
 | `TZ` | rich_text | 写这行时用的 IANA 时区 | 同左 |
 | `EveryMinutes` | number | — | 隔多久提醒一次 |
-| `Last` | date | — | 上次做的时间 |
+| `Last` | date | — | 上次做的时间，**UTC** |
 | `Note` | rich_text | 执行细节 | 备注 |
 
 新建行时自己签一个短 ID（`t-` / `h-` 加六位十六进制），**签之前跟库里已有的比一遍，别撞**。
@@ -69,7 +69,9 @@ node -p "Intl.DateTimeFormat().resolvedOptions().timeZone"
 
 - 调工具时**每次都传 `tz`**。返回里会回显用了哪个时区，对不上当场能看见。
 - **一天从凌晨 4 点开始，不是午夜。** 本地 01:30 还算前一天。
-- 每行都写 `TZ` 字段 —— 他换城市之后，只有这个字段能解释「这条当时算的是哪天」。
+- **写进去的时间一律 UTC**，「今天」是读的时候按他当下的时区算出来的。
+  存本地日期或带偏移的时间戳 = 把「当时在哪」腌进数据，他一飞就错且无法还原。
+- `TZ` 字段只记「写这行时他在哪个时区」，给人看的线索，不参与筛选。
 
 ## 四、接上之后（这才是重点）
 

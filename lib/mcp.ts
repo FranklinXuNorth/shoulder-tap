@@ -16,9 +16,9 @@ import {
   setDay,
   setStatus,
   dayStartHour,
-  assertTz,
-  DEFAULT_TZ,
+  dayWindow,
   offsetOf,
+  requireTz,
   today,
 } from "@/lib/focus";
 import { renderCheck, renderPlan } from "@/lib/render";
@@ -54,16 +54,16 @@ const tzArg = z
   .string()
   .optional()
   .describe(
-    "用户所在时区的 IANA 名字，比如 America/New_York、Asia/Shanghai。" +
-      "**每次都传** —— 你能从用户的机器上读到它（Intl.DateTimeFormat().resolvedOptions().timeZone），" +
-      "服务端猜不出来。不传就退回服务端默认值，很可能整整差一天。",
+    "**必传。** 用户所在时区的 IANA 名字，比如 America/New_York、Asia/Shanghai。" +
+      "从用户机器上读：node -p \"Intl.DateTimeFormat().resolvedOptions().timeZone\"。" +
+      "不要写死、不要凭印象填、也不要用你上下文里的日期反推 —— 服务端不猜，不传直接报错。",
   );
 
-/** 用哪个时区，以及一句给人看的说明。时区错了必须一眼能看见，不能静悄悄。 */
-function tzOf(tz?: string): { tz: string; line: string } {
-  const use = assertTz(tz || DEFAULT_TZ);
-  const guessed = tz ? "" : "（没传 tz，用的是服务端默认值 —— 不对的话每次调用都带上）";
-  return { tz: use, line: `时区：${use} UTC${offsetOf(use)}${guessed}` };
+/** 用哪个时区，以及一句给人看的回显。时区错了必须一眼能看见。 */
+function zoneOf(tz: string | undefined, day?: string) {
+  const use = requireTz(tz);
+  const win = dayWindow(use, day);
+  return { tz: use, win, line: `时区 ${use}（UTC${offsetOf(use)}）→ 今天是 ${win.day}` };
 }
 
 const dayArg = z
@@ -94,9 +94,8 @@ const handler = createMcpHandler(
             `零内容工具（focus_protocol / due_check）：不需要任何凭据`,
             `代劳 Notion 的工具：要在 Authorization 头里带 Notion secret`,
             `服务器时间（UTC）：${new Date().toISOString()}`,
-            `服务端默认时区：${DEFAULT_TZ} → 那边现在算今天是 ${today(DEFAULT_TZ)}`,
             `一天从 ${dayStartHour()} 点开始，不是午夜。`,
-            `调用别的工具时请带上用户真实时区的 IANA 名字，服务端猜不出来。`,
+            `记录一律存 UTC；「今天」由你传的 tz 现算。服务端没有默认时区，不传 tz 会直接报错。`,
           ].join("\n"),
         ),
     );
@@ -224,15 +223,14 @@ const handler = createMcpHandler(
       async ({ activity, day, tz }, ctx: any) =>
         guard(async () => {
           const token = tokenOf(ctx);
-          const zone = tzOf(tz);
-          const d = today(zone.tz, day);
+          const zone = zoneOf(tz, day);
           const [items, habits] = await Promise.all([
-            listDay(token, d),
+            listDay(token, zone.win),
             overdueHabits(token).catch(() => []),
           ]);
           return ok(`${zone.line}
 
-${renderCheck(items, d, activity, habits)}`);
+${renderCheck(items, zone.win.day, activity, habits)}`);
         }),
     );
 
@@ -259,10 +257,9 @@ ${renderCheck(items, d, activity, habits)}`);
       },
       async ({ tasks, day, tz }, ctx: any) =>
         guard(async () => {
-          const zone = tzOf(tz);
-          const d = today(zone.tz, day);
-          const items = await setDay(tokenOf(ctx), d, tasks, zone.tz);
-          return ok(`记下了。${zone.line}\n\n${renderPlan(items, d)}`);
+          const zone = zoneOf(tz, day);
+          const items = await setDay(tokenOf(ctx), zone.win, tasks, zone.tz);
+          return ok(`记下了。${zone.line}\n\n${renderPlan(items, zone.win.day)}`);
         }),
     );
 
@@ -287,10 +284,9 @@ ${renderCheck(items, d, activity, habits)}`);
       },
       async ({ task, note, position, day, tz }, ctx: any) =>
         guard(async () => {
-          const zone = tzOf(tz);
-          const d = today(zone.tz, day);
-          const items = await addItem(tokenOf(ctx), d, task, note ?? "", position, zone.tz);
-          return ok(`加上了。${zone.line}\n\n${renderPlan(items, d)}`);
+          const zone = zoneOf(tz, day);
+          const items = await addItem(tokenOf(ctx), zone.win, task, note ?? "", position, zone.tz);
+          return ok(`加上了。${zone.line}\n\n${renderPlan(items, zone.win.day)}`);
         }),
     );
 
@@ -310,21 +306,21 @@ ${renderCheck(items, d, activity, habits)}`);
       },
       async ({ position, dropped, day, tz }, ctx: any) =>
         guard(async () => {
-          const d = today(tzOf(tz).tz, day);
+          const zone = zoneOf(tz, day);
           const { items, hit } = await setStatus(
             tokenOf(ctx),
-            d,
+            zone.win,
             position,
             dropped ? "dropped" : "done",
           );
-          if (!hit) return ok(`今天没有第 ${position} 条。\n\n${renderPlan(items, d)}`);
+          if (!hit) return ok(`今天没有第 ${position} 条。\n\n${renderPlan(items, zone.win.day)}`);
 
           const next = current(items);
           const head = dropped ? `放弃了：${hit.task}` : `✓ ${hit.task}`;
           const tail = next
             ? `下一条是第 ${next.order} 条：${next.task}`
             : "今天说好的都做完了。";
-          return ok(`${head}\n\n${renderPlan(items, d)}\n\n${tail}`);
+          return ok(`${head}\n\n${renderPlan(items, zone.win.day)}\n\n${tail}`);
         }),
     );
 
@@ -344,7 +340,7 @@ ${renderCheck(items, d, activity, habits)}`);
       },
       async ({ name, every_minutes, note, tz }, ctx: any) =>
         guard(async () => {
-          const habits = await addHabit(tokenOf(ctx), name, every_minutes, note ?? "", tzOf(tz).tz);
+          const habits = await addHabit(tokenOf(ctx), name, every_minutes, note ?? "", requireTz(tz));
           return ok(
             `加上了：${name}，每 ${every_minutes} 分钟。\n\n现在盯着这些：\n` +
               habits.map((h) => `  · ${h.name} —— 每 ${h.everyMin} 分钟`).join("\n"),
@@ -367,7 +363,7 @@ ${renderCheck(items, d, activity, habits)}`);
       async ({ habit, tz }, ctx: any) =>
         guard(async () => {
           const token = tokenOf(ctx);
-          const hit = await logHabit(token, habit, tzOf(tz).tz);
+          const hit = await logHabit(token, habit, requireTz(tz));
           if (hit) return ok(`记下了：${hit.name}，下次提醒在 ${hit.everyMin} 分钟后。`);
 
           const all = await listHabits(token).catch(() => []);
