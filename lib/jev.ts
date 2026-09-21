@@ -12,8 +12,8 @@
  * 各种转售网关）就必须改成对应的 base —— key 和 base 对不上就是 401，
  * 这个错看起来像密钥失效，其实只是敲错了门。
  */
-const BASE = process.env.JEV_BASE_URL || "https://tokenra.io";
-const ENDPOINT = `${BASE.replace(/\/+$/, "")}/v1/decisions`;
+const BASE = process.env.JEV_BASE_URL || "https://api.typesafe.ai";
+const ENDPOINT = `${BASE.replace(/\/+$/, "")}/v1/systemone`;
 
 export const JEV_ON = !!process.env.JEV_API_KEY;
 
