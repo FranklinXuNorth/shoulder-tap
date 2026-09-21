@@ -1,0 +1,409 @@
+<title>shoulder-tap 数据流</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #eef1f2;
+    --surface: #ffffff;
+    --surface-2: #f6f8f8;
+    --ink: #14191a;
+    --muted: #5d6b6d;
+    --line: #d3dbdc;
+    --line-strong: #aebabc;
+    --accent: #0e7c7b;
+    --accent-soft: #d9ecec;
+    --signal: #c1471d;
+    --signal-soft: #f9e4dc;
+    --warn: #8a6a12;
+    --warn-soft: #f5ecd2;
+    --radius: 10px;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1213;
+      --surface: #161c1d;
+      --surface-2: #1b2223;
+      --ink: #e6ecec;
+      --muted: #94a3a4;
+      --line: #2a3435;
+      --line-strong: #3d4a4b;
+      --accent: #4bb5b2;
+      --accent-soft: #123231;
+      --signal: #e98055;
+      --signal-soft: #35201a;
+      --warn: #d4ae5a;
+      --warn-soft: #2d2618;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1213;
+    --surface: #161c1d;
+    --surface-2: #1b2223;
+    --ink: #e6ecec;
+    --muted: #94a3a4;
+    --line: #2a3435;
+    --line-strong: #3d4a4b;
+    --accent: #4bb5b2;
+    --accent-soft: #123231;
+    --signal: #e98055;
+    --signal-soft: #35201a;
+    --warn: #d4ae5a;
+    --warn-soft: #2d2618;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", "Microsoft YaHei UI", ui-sans-serif, system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 0 16px; padding-block: 48px 72px; }
+
+  h1 { font-size: clamp(26px, 5vw, 36px); font-weight: 600; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+  .sub { color: var(--muted); margin: 10px 0 0; max-width: 60ch; }
+  h2 {
+    font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 4px;
+  }
+  .sec { margin-top: 56px; }
+  .sec > p.lead { margin: 0 0 20px; color: var(--muted); max-width: 62ch; }
+  .sec-title { font-size: 21px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+  code, .mono { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+
+  /* 三条泳道 */
+  .lanes { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 0; align-items: stretch; }
+  @media (max-width: 760px) { .lanes { grid-template-columns: 1fr; } }
+  .lane {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .lane.mid { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .lane-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .lane-name { font-weight: 600; font-size: 15px; }
+  .lane-tag { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .node {
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px;
+    padding: 9px 11px; font-size: 13.5px;
+  }
+  .node b { font-weight: 600; }
+  .node span { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .hop { display: grid; place-items: center; padding: 0 10px; color: var(--line-strong); }
+  .hop span { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; display: block; }
+  .hop .arrow { font-size: 20px; color: var(--accent); line-height: 1; }
+  @media (max-width: 760px) {
+    .hop { padding: 10px 0; }
+    .hop .arrow { transform: rotate(90deg); }
+  }
+
+  .note {
+    margin-top: 18px; border-left: 3px solid var(--accent); background: var(--accent-soft);
+    padding: 12px 14px; border-radius: 0 7px 7px 0; font-size: 14px;
+  }
+  .note.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+
+  /* 往返步骤 */
+  ol.trace { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; counter-reset: s; }
+  ol.trace li {
+    counter-increment: s; display: grid; grid-template-columns: 30px 1fr; gap: 14px;
+    padding: 14px 0; border-top: 1px solid var(--line);
+  }
+  ol.trace li:first-child { border-top: none; }
+  ol.trace li::before {
+    content: counter(s); font-family: var(--mono); font-size: 12px; font-weight: 500;
+    color: var(--accent); border: 1px solid var(--line-strong); border-radius: 50%;
+    width: 26px; height: 26px; display: grid; place-items: center; margin-top: 2px;
+  }
+  .step-title { font-weight: 600; }
+  .step-where { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+  .step-body { color: var(--muted); font-size: 14px; margin-top: 5px; }
+  pre.wire {
+    font-family: var(--mono); font-size: 12px; line-height: 1.6; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 7px; padding: 11px 13px; margin: 9px 0 0;
+    overflow-x: auto; color: var(--ink);
+  }
+
+  /* 分支 */
+  .branches { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  .branch { border: 1px solid var(--line); border-radius: var(--radius); padding: 15px; background: var(--surface); }
+  .branch h4 { margin: 0 0 6px; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .pill {
+    font-family: var(--mono); font-size: 11px; padding: 2px 7px; border-radius: 20px;
+    background: var(--surface-2); border: 1px solid var(--line); color: var(--muted);
+  }
+  .branch p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .branch.go { border-left: 4px solid var(--accent); }
+  .branch.hold { border-left: 4px solid var(--warn); }
+  .branch.stop { border-left: 4px solid var(--signal); background: var(--signal-soft); }
+  .branch.stop p { color: var(--ink); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  th, td { text-align: left; padding: 11px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.yes { color: var(--signal); font-weight: 500; }
+  td.no { color: var(--accent); font-weight: 500; }
+  .tools td:first-child { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+
+  .checks { display: flex; flex-direction: column; gap: 10px; }
+  .check {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 11px 14px;
+  }
+  @media (max-width: 560px) { .check { grid-template-columns: auto 1fr; } .check .code { grid-column: 2; } }
+  .check .n { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .check .what { font-size: 14px; }
+  .check .what span { color: var(--muted); display: block; font-size: 13px; }
+  .check .code { font-family: var(--mono); font-size: 11.5px; color: var(--signal); white-space: nowrap; }
+
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>shoulder-tap 数据流</h1>
+    <p class="sub">
+      你今天说好要做的事存在<b>你自己的 Notion</b> 里。Vercel 上那台服务只是一段通路：
+      它拿着你随请求带来的 token，去读写你自己的库，返回一段给模型看的判断规则，然后什么都不留。
+      这页把每一跳都画出来。
+    </p>
+  </header>
+
+  <section class="sec">
+    <h2>01 — 拓扑</h2>
+    <p class="sec-title">数据只在三个地方待过</p>
+    <p class="lead">左边是你的电脑，右边是你的 Notion，中间那台服务器两头都碰得到，但两头的东西它都不保留。</p>
+
+    <div class="lanes">
+      <div class="lane">
+        <div class="lane-head"><span class="lane-name">你的电脑</span><span class="lane-tag">local</span></div>
+        <div class="node"><b>Claude Code</b><span>做语义判断的就是它，不是服务端</span></div>
+        <div class="node"><b>skill / CLAUDE.md</b><span>什么时候该去 check，怎么开口拦你</span></div>
+        <div class="node"><b>~/.claude.json</b><span>你的 Notion 密钥只存在这里</span></div>
+      </div>
+
+      <div class="hop">
+        <span class="arrow">→</span>
+        <span>HTTPS<br>Bearer ntn_…</span>
+      </div>
+
+      <div class="lane mid">
+        <div class="lane-head"><span class="lane-name">Vercel</span><span class="lane-tag">无状态函数</span></div>
+        <div class="node"><b>/api/mcp</b><span>mcp-handler，Streamable HTTP</span></div>
+        <div class="node"><b>withMcpAuth</b><span>验门禁 + 验 token 长得对不对</span></div>
+        <div class="node"><b>lib/focus.ts</b><span>翻译成 Notion 的读写</span></div>
+        <div class="node"><b>lib/render.ts</b><span>产出那段判断规则</span></div>
+      </div>
+
+      <div class="hop">
+        <span class="arrow">→</span>
+        <span>HTTPS<br>同一个 token</span>
+      </div>
+
+      <div class="lane">
+        <div class="lane-head"><span class="lane-name">你的 Notion</span><span class="lane-tag">你的账号</span></div>
+        <div class="node"><b>Shoulder Tap</b><span>Task / Order / Status / Day / Note</span></div>
+        <div class="node"><b>Shoulder Tap Habits</b><span>Habit / EveryMinutes / Last</span></div>
+        <div class="node"><b>你自己</b><span>随时手改，加视图、改间隔、手机上勾</span></div>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>没有数据库，没有 Redis，没有常驻进程。</b>
+      服务端不认识你是谁——它只认这次请求里带来的那个 token，用完就忘。
+      你不用它的时候，那台函数根本没在跑。
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>02 — 主回路</h2>
+    <p class="sec-title">一次 check_focus 的完整往返</p>
+    <p class="lead">你说「帮我改一下落地页的配色」，在模型动手之前发生的事：</p>
+
+    <ol class="trace">
+      <li>
+        <div>
+          <div class="step-title">模型决定先查一下</div>
+          <div class="step-where">Claude Code · 依据 ~/.claude/CLAUDE.md 里那几行</div>
+          <div class="step-body">把你要做的事原样塞进 <code>activity</code>。这一步是规则驱动的，不是服务端能强制的——所以那几行必须粘到全局 CLAUDE.md 里。</div>
+        </div>
+      </li>
+      <li>
+        <div>
+          <div class="step-title">发请求</div>
+          <div class="step-where">local → vercel</div>
+<pre class="wire">POST /api/mcp
+Authorization: Bearer ntn_••••••••          ← 你的 Notion 密钥
+X-Shoulder-Tap-Key: ••••                    ← 可选门禁
+
+{"method":"tools/call","params":{
+  "name":"check_focus",
+  "arguments":{"activity":"改落地页配色"}}}</pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <div class="step-title">两道核查</div>
+          <div class="step-where">withMcpAuth · 见下一节</div>
+          <div class="step-body">门禁头对不上、或者 token 不是 <code>ntn_</code> / <code>secret_</code> 开头 → 直接 401，连 Notion 都不会碰。</div>
+        </div>
+      </li>
+      <li>
+        <div>
+          <div class="step-title">找库</div>
+          <div class="step-where">vercel → api.notion.com/v1/search</div>
+          <div class="step-body">拿你的 token 搜你自己 workspace 里那个叫 Shoulder Tap 的 data source。热实例里缓存住，冷启动重来一次。</div>
+        </div>
+      </li>
+      <li>
+        <div>
+          <div class="step-title">读今天 + 读习惯</div>
+          <div class="step-where">POST /v1/data_sources/{id}/query · 并发两条</div>
+<pre class="wire">filter: Day = 2026-09-21 且 Status ≠ Dropped
+sorts:  Order 升序</pre>
+          <div class="step-body">习惯库读失败不影响主流程——没建过就当没这回事。</div>
+        </div>
+      </li>
+      <li>
+        <div>
+          <div class="step-title">拼出给模型看的那段话</div>
+          <div class="step-where">lib/render.ts · 产品其实就是这个文件</div>
+<pre class="wire">2026-09-21 说好要做的事：
+  ✓ 1. 给房东打电话确认退租时间
+  ▸ 2. 打包厨房的锅碗   ← 现在该做这条
+    3. 约搬家车
+进度 1/3
+
+用户现在要做的是：「改落地页配色」
+
+【先判断，再动手】…… A / B / C</pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <div class="step-title">SSE 回到模型</div>
+          <div class="step-where">text/event-stream</div>
+          <div class="step-body">服务端的活到此为止。它没有判断你有没有跑偏——它只是把事实和规则摆到模型面前。</div>
+        </div>
+      </li>
+      <li>
+        <div>
+          <div class="step-title">模型判断，然后决定拦不拦</div>
+          <div class="step-where">Claude Code · 本地，不花服务端一个 token</div>
+          <div class="step-body">「改落地页配色」和「打包厨房的锅碗」语义上毫无关系 → 走 C。</div>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section class="sec">
+    <h2>03 — 判断</h2>
+    <p class="sec-title">三条分支，规则写死在返回里</p>
+    <p class="lead">模型拿到的不是一句「请自行判断」，而是三条带动作的指令。拿不准时默认走最严的那条。</p>
+    <div class="branches">
+      <div class="branch go">
+        <h4>A 放行 <span class="pill">就是当前这条</span></h4>
+        <p>直接干活，一个字都不要提这次检查。但<b>不会替你勾掉</b>——只有你明确说这条完成了，模型才调 <code>complete_focus</code>；它至多问一句「这条算完成了吗」。</p>
+      </div>
+      <div class="branch hold">
+        <h4>B 顺序不对 <span class="pill">在清单里，但靠后</span></h4>
+        <p>不动手。提醒你前面还有一条没做完，问你是先做完那条，还是真要改顺序（那就 <code>set_focus</code> 重排）。等你回答。</p>
+      </div>
+      <div class="branch stop">
+        <h4>C 拦下 <span class="pill">压根不在清单里</span></h4>
+        <p>不动手，也不做任何一步。点破你在偏离，复述当前那条，问你：这是必须插队的急事（<code>add_focus</code>），还是你该回去做那条？等你回答。</p>
+      </div>
+    </div>
+    <div class="note warn">
+      <b>模型可以被说服，这是故意的。</b>
+      你说一句「无视，这个更急」，它就放你过去。这东西是为了让你<i>想起来</i>，不是为了锁住你——
+      真要锁，你下次就不装它了。
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>04 — 核查</h2>
+    <p class="sec-title">一个请求要过几关</p>
+    <div class="checks">
+      <div class="check">
+        <span class="n">01</span>
+        <span class="what">门禁头 <code>X-Shoulder-Tap-Key</code><span>只在你设了 SHOULDER_TAP_KEY 时才检查。防的是路人蹭额度，跟数据无关。</span></span>
+        <span class="code">401</span>
+      </div>
+      <div class="check">
+        <span class="n">02</span>
+        <span class="what">Bearer 前缀是不是 <code>ntn_</code> / <code>secret_</code><span>拦掉明显不是 Notion 密钥的东西，省一次外部请求。真假由 Notion 判。</span></span>
+        <span class="code">401</span>
+      </div>
+      <div class="check">
+        <span class="n">03</span>
+        <span class="what">缺了必需的 scope<span>mcp-handler 按 RFC 9728 回 WWW-Authenticate 挑战。</span></span>
+        <span class="code">403</span>
+      </div>
+      <div class="check">
+        <span class="n">04</span>
+        <span class="what">Notion 认不认这个 token<span>假密钥在这里现原形：<code>API token is invalid</code>。</span></span>
+        <span class="code">unauthorized</span>
+      </div>
+      <div class="check">
+        <span class="n">05</span>
+        <span class="what">搜不到那个库<span>要么没建过，要么页面没在 ⋯ → Connections 里连上 integration。返回会直接告诉模型去调 <code>setup</code>。</span></span>
+        <span class="code">not_set_up</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>05 — 谁看得见什么</h2>
+    <p class="sec-title">经过 Vercel 的东西，一样不落</p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>东西</th><th>存在哪</th><th>Vercel 看得到吗</th><th>落盘吗</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Notion 密钥</td><td>你电脑上的 <code>~/.claude.json</code></td><td class="yes">看得到（每次请求都带）</td><td class="no">不落盘</td></tr>
+          <tr><td>今天的任务</td><td>你的 Notion</td><td class="yes">看得到（读出来拼文本）</td><td class="no">不落盘</td></tr>
+          <tr><td>你说的那句 activity</td><td>没有存</td><td class="yes">看得到（拼进返回）</td><td class="no">不落盘</td></tr>
+          <tr><td>习惯和上次时间</td><td>你的 Notion</td><td class="yes">看得到</td><td class="no">不落盘</td></tr>
+          <tr><td>token → 库 id 的缓存</td><td>函数实例内存</td><td class="yes">看得到</td><td class="no">实例回收即消失</td></tr>
+          <tr><td>对话内容</td><td>你的电脑</td><td class="no">看不到</td><td class="no">从不经过</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <b>诚实的说法是这样：</b>数据不在我这儿存着，但请求经过我这儿的那一瞬间，进程内存里确实有你的 token 和你今天的任务——
+      任何中转都绕不开这一点。想彻底绕开，就自己 fork 一份部署到你自己的账号下，代码全在这儿。
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>06 — 副回路</h2>
+    <p class="sec-title">身体上的提醒走同一趟车</p>
+    <p class="lead">不额外开定时器，也不弹系统通知。每次 <code>check_focus</code> 顺手算一遍：<code>now − Last &gt; EveryMinutes</code> 的挂在返回末尾，让模型在正常回答的最后轻轻带一句。</p>
+    <div class="scroll">
+      <table class="tools">
+        <thead><tr><th>工具</th><th>做什么</th><th>落到 Notion 的哪</th></tr></thead>
+        <tbody>
+          <tr><td>check_focus</td><td>拦路 + 顺带报超时的习惯</td><td>只读</td></tr>
+          <tr><td>set_focus</td><td>按顺序重设今天，旧的进回收站</td><td>Shoulder Tap</td></tr>
+          <tr><td>add_focus</td><td>插一条，可插队，后面顺延</td><td>Shoulder Tap</td></tr>
+          <tr><td>complete_focus</td><td>勾掉或放弃第 N 条</td><td>Shoulder Tap</td></tr>
+          <tr><td>log_habit</td><td>你说喝了，才把计时清零</td><td>Shoulder Tap Habits</td></tr>
+          <tr><td>setup</td><td>第一次建两个库 + 三条默认习惯</td><td>你指定的页面下</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note warn">
+      <b>模型只在你跟它说话的时候才知道现在几点。</b>
+      所以提醒永远是「你刚才开口时，顺便说一句」，不是「到点了弹你一下」。
+      要真的到点弹窗，得靠本地那层——那是另一条路，还没修。
+    </div>
+  </section>
+
+  <footer>
+    shoulder-tap · Next.js App Router + mcp-handler v2 · Notion API 2025-09-03 · 部署在 Vercel Hobby
+  </footer>
+</div>
