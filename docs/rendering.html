@@ -307,14 +307,16 @@
       <li class="done"><span class="mark">✓</span><span>九帧素材画完并导出<span class="what">tap-glove.aseprite / sheet / preview，draw-glove.lua 可重新生成</span></span></li>
       <li class="done"><span class="mark">✓</span><span>overlay 原型能跑<span class="what">skill/shoulder-tap/ui/index.html，两类提醒 + ASCII 通道 + 深浅背景</span></span></li>
       <li class="done"><span class="mark">✓</span><span>事件契约定好了<span class="what">{kind, message}，kind 只有 off-task 和 due</span></span></li>
-      <li class="todo-item"><span class="mark">○</span><span>原型换成真素材<span class="what">现在画的还是 SVG，sheet 没接上去</span></span></li>
-      <li class="todo-item"><span class="mark">○</span><span>模型侧发事件<span class="what">判成 unrelated / 拿到 due 之后，目前只出文字，不发事件</span></span></li>
-      <li class="todo-item"><span class="mark">○</span><span>桌面容器<span class="what">浏览器窗口置不了顶，也盖不到别的应用上面</span></span></li>
+      <li class="done"><span class="mark">✓</span><span>聊天介入的规则进了规程<span class="what">unrelated 打手并停住；习惯提醒等停顿再提</span></span></li>
+      <li class="todo-item"><span class="mark">○</span><span>原型换成真素材<span class="what">index.html 里画的还是 SVG，sheet 没接上去</span></span></li>
+      <li class="todo-item"><span class="mark">—</span><span>桌面容器<span class="what">暂不做，先验证聊天里拦得准不准</span></span></li>
     </ul>
     <div class="note warn">
-      <b>最后那条是这个方向真正的坎。</b>
-      你跑偏的那一刻，注意力在别的窗口上 —— 敲在终端里的那只手，你大概率看不见。
-      在上真正的桌面容器（Tauri / Electron）之前，这个假设还没被验证过。
+      <b>桌面弹窗先不做，这是个判断。</b>
+      浏览器窗口置不了顶、盖不住别的应用；要真做就得上 Tauri / Electron，那是一整个容器的成本。
+      而在「拦得准不准」这件事还没被验证之前，花那个成本是本末倒置 ——
+      所以介入先全部走聊天：判成 unrelated 就把手打在对话里，然后停住。
+      上面的九帧素材留着，等聊天这层证明有用了再接桌面。
     </div>
   </section>
 

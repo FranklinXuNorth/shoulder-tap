@@ -1,4 +1,5 @@
 import { Habit, Item, current } from "./focus";
+import { offTaskBanner } from "./ascii";
 
 /** 把今天的清单画出来。当前那条用 ▸ 标出来，模型和人都一眼能看见。 */
 export function renderPlan(items: Item[], day: string): string {
@@ -25,7 +26,11 @@ export function renderHabits(habits: Habit[]): string {
     ...habits.map(
       (h) => `  · ${h.name} —— 超了 ${h.overdueMin} 分钟（说好每 ${h.everyMin} 分钟一次）`,
     ),
-    "在你正常回答的最后轻轻带一句就行，一句话。不要说教、不要追问、不要为这个打断正事。",
+    "**不要现在就说。** 等当前这条任务做完、或者长任务做到一半有自然停顿时，再打出那只手加一句话：",
+    "",
+    offTaskBanner(),
+    "",
+    "一句话就够。不说教、不追问、不为这个打断正在推进的事。",
     "他说做了就调用 log_habit 记一笔；他说别烦我，这次就别提了。",
   ].join("\n");
 }
@@ -88,9 +93,14 @@ export function renderCheck(
     `B. 不是，但它是清单里靠后的某一条 → 不要动手。告诉他前面第 ${cur.order} 条还没做完，` +
       "问他是先做完那条，还是确实要改顺序（改的话用 set_focus 重排）。等他回答。",
     "",
-    "C. 完全不在清单里 → 不要动手，也不要帮他做任何一步。直接说出来：他正在偏离今天说好的事。" +
-      `复述当前这条（第 ${cur.order} 条：${cur.task}），然后问他——这是必须插队的急事（那就用 add_focus 加进来），` +
-      "还是他其实该回去做这条？等他回答。",
+    "C. 完全不在清单里 → 这是唯一会打断他的情况。先原样打出这只手（代码块，一个字符都别改）：",
+    "",
+    offTaskBanner(),
+    "",
+    `   然后一句话点破他在偏离，复述当前这条（第 ${cur.order} 条：${cur.task}），` +
+      "再问一句：这是必须插队的急事，还是该回去做这条？",
+    "   **这一轮不要做任何实质性的工作。** 只有他明确改优先级（set_focus 重排 / add_focus 插队），" +
+      `或者明确说第 ${cur.order} 条已经做完了（complete_focus），才放行。光是把请求重复一遍不算。`,
     "",
     "判断标准是语义上的真实相关，不是字面相似。拿不准就按 C 处理：拦下来问他，这正是他装这个东西的原因。",
     nudge,
