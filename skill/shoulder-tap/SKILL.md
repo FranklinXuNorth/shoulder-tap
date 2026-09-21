@@ -69,6 +69,20 @@ description: 接上 shoulder-tap（第一次用要配 MCP、接 Notion、建库�
 3. 把 habit 行剥成 `{id, every_minutes, last}` 传给 `due_check`。**到点了不等于现在就说**，
    等一条任务做完、或长任务做到一半有自然停顿时再提。
 
+### 本地哨兵（watch.mjs）
+
+`watch.mjs` 挂在两个 hook 上，替模型在确定的时刻去看一眼，把结果直接塞进上下文 ——
+**模型没有跳过的余地**，这是整套东西唯一不依赖模型自觉的部分：
+
+| Hook | 时机 | 行为 |
+| --- | --- | --- |
+| `UserPromptSubmit` | 用户每次开口 | 带上他这句话去查，注入清单 + 判断规则。不节流。 |
+| `PostToolUse` | 每次工具调用后 | 节流到十分钟一次，**只在真有到期习惯时才出声**。 |
+
+装法：`watch.mjs` 和 `.env`（照 `.env.example` 填 `NOTION_TOKEN`）放进
+`~/.claude/skills/shoulder-tap/`，两个 hook 指向它。脚本永远 exit 0、有 4 秒超时、
+没话说就一个字不输出 —— 哨兵坏了绝不能把用户的会话也搞坏。
+
 ### 介入长什么样
 
 介入一律走聊天，**不做桌面弹窗**（盖不住别的窗口，你跑偏时根本看不见）。
