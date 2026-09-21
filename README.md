@@ -64,7 +64,9 @@ MCP 配置里的 Bearer token 就是**你自己的 Notion integration secret**�
 
 Vercel 导入本仓库即可，不需要数据库。两个可选环境变量：
 
-- `SHOULDER_TAP_AUTH=on` —— 打开鉴权。不设 = 端点开放，只有 `ping` 能用，用来验证部署。
-- `SHOULDER_TAP_KEY` —— 门禁，挡路人蹭额度。客户端对应带 `X-Shoulder-Tap-Key` 头。
+- `SHOULDER_TAP_KEY` —— 门禁，挡路人蹭额度。客户端对应带 `X-Shoulder-Tap-Key` 头。不过用回 403
+  而不是 401：MCP 客户端把 401 读成「请走 OAuth」，然后整个服务器会显示连不上。
+- `JEV_API_KEY` —— 配了才有 `classify_focus`。代价是两行文字会离开这台机器。
+- `TIMEZONE_OFFSET_HOURS` —— 算「今天」用，默认 8。
 
 记得在 Settings → Deployment Protection 关掉 Vercel Authentication，否则 MCP 客户端会被重定向到登录页。

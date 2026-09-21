@@ -1,4 +1,3 @@
-import { AUTH_ON } from "@/lib/mcp";
 import { today, tzOffset } from "@/lib/focus";
 
 // 每次都要现算，不然时间会被静态化成构建那一刻。
@@ -55,7 +54,8 @@ export default function Health() {
 
       <Row k="版本" v="0.1.0" />
       <Row k="MCP 端点" v="/mcp" />
-      <Row k="鉴权" v={AUTH_ON ? "on · 必须带 Notion token" : "off · 端点开放，只有 ping 能用"} good={AUTH_ON} />
+      <Row k="零内容工具" v="focus_protocol · due_check · ping" good />
+      <Row k="需要 Notion secret 的" v="check_focus · set_focus · setup …" />
       <Row k="服务器时间 (UTC)" v={now.toISOString().replace("T", " ").slice(0, 19)} />
       <Row k="时区偏移" v={`UTC+${tzOffset()}`} />
       <Row k="按该时区的今天" v={today()} />

@@ -37,8 +37,6 @@ function tokenOf(ctx: any): string {
 
 const ok = (text: string) => ({ content: [{ type: "text" as const, text }] });
 
-const AUTH_ON = process.env.SHOULDER_TAP_AUTH === "on";
-
 /** 工具里的报错要说人话，而且要告诉模型下一步能做什么。 */
 async function guard(fn: () => Promise<{ content: { type: "text"; text: string }[] }>) {
   try {
@@ -62,7 +60,7 @@ const handler = createMcpHandler(
       {
         title: "看看服务活着没",
         description:
-          "不需要任何凭据的健康检查。返回服务版本、当前鉴权模式和服务器时间。" +
+          "不需要任何凭据的健康检查。返回服务版本、哪些工具要凭据、以及服务器时间。" +
           "部署完先用它确认链路通不通，平时用不到。",
         inputSchema: z.object({}),
       },
@@ -70,7 +68,8 @@ const handler = createMcpHandler(
         ok(
           [
             "shoulder-tap 0.1.0 活着。",
-            `鉴权：${AUTH_ON ? "开（必须带 Notion token）" : "关 —— 端点是开放的，只有 ping 能用"}`,
+            `零内容工具（focus_protocol / due_check）：不需要任何凭据`,
+            `代劳 Notion 的工具：要在 Authorization 头里带 Notion secret`,
             `服务器时间：${new Date().toISOString()}（按 UTC+${tzOffset()} 算今天 = ${today()}）`,
           ].join("\n"),
         ),
@@ -396,33 +395,22 @@ const verifyToken = async (_req: Request, bearer?: string): Promise<AuthInfo | u
 };
 
 /**
- * 分两步上线：
- *  1. 不设 SHOULDER_TAP_AUTH  → 端点开放，任何人能连上调 ping，用来验证部署本身通不通。
- *     其它工具照样没用 —— 它们要拿调用方的 Notion token 才能干活，没 token 会直接报错。
- *  2. 在 Vercel 环境变量里设 SHOULDER_TAP_AUTH=on 再 Redeploy → 立刻变成必须带 token。
- *     不用改代码，也不用重新 push。
- */
-/**
- * 鉴权有两层，互不相干：
+ * Bearer（Notion secret）永远是可选的：零内容路径根本不需要凭据，
+ * 代劳 Notion 的那几个工具没拿到 token 会自己报一句人话。
  *
- * 门禁 SHOULDER_TAP_KEY —— 挡路人蹭这台 Vercel 的额度。跟用户数据无关，
- *   零内容路径也要过这道，因为它防的是滥用不是泄密。
- *
- * Bearer（Notion secret）—— 只有「让服务端代劳 Notion」那条路径才需要。
- *   默认 required=false：不给 token 也能连，只是碰 Notion 的工具会明确报错。
- *   SHOULDER_TAP_AUTH=on 则强制必须给 —— 只在你完全走代劳路径时才这么设。
+ * 这里**绝对不能回 401**。MCP 客户端把 401 读成「请走 OAuth」，
+ * 于是它会去做动态客户端注册，撞上一个 404 HTML 页面，然后整个服务器显示连不上 ——
+ * 一个本来只是「密钥没给对」的情况，看起来像服务挂了。所以门禁不过用 403。
  */
-const authed = withMcpAuth(handler, verifyToken, { required: AUTH_ON });
+const authed = withMcpAuth(handler, verifyToken, { required: false });
 
 export const mcpHandler = async (req: Request): Promise<Response> => {
   const gate = process.env.SHOULDER_TAP_KEY;
   if (gate && req.headers.get("x-shoulder-tap-key") !== gate) {
-    return new Response(JSON.stringify({ error: "bad or missing x-shoulder-tap-key" }), {
-      status: 401,
-      headers: { "content-type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: "bad or missing x-shoulder-tap-key" }),
+      { status: 403, headers: { "content-type": "application/json" } },
+    );
   }
   return authed(req);
 };
-
-export { AUTH_ON };
