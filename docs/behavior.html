@@ -1,0 +1,293 @@
+<title>shoulder-tap 行为契约</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #eef1f2; --surface: #ffffff; --surface-2: #f6f8f8;
+    --ink: #14191a; --muted: #5d6b6d; --line: #d3dbdc; --line-strong: #aebabc;
+    --accent: #0e7c7b; --accent-soft: #d9ecec;
+    --signal: #c1471d; --signal-soft: #f9e4dc;
+    --warn: #8a6a12; --warn-soft: #f5ecd2;
+    --radius: 10px;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1213; --surface: #161c1d; --surface-2: #1b2223;
+      --ink: #e6ecec; --muted: #94a3a4; --line: #2a3435; --line-strong: #3d4a4b;
+      --accent: #4bb5b2; --accent-soft: #123231;
+      --signal: #e98055; --signal-soft: #35201a;
+      --warn: #d4ae5a; --warn-soft: #2d2618;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1213; --surface: #161c1d; --surface-2: #1b2223;
+    --ink: #e6ecec; --muted: #94a3a4; --line: #2a3435; --line-strong: #3d4a4b;
+    --accent: #4bb5b2; --accent-soft: #123231;
+    --signal: #e98055; --signal-soft: #35201a;
+    --warn: #d4ae5a; --warn-soft: #2d2618;
+  }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: "IBM Plex Sans", "Microsoft YaHei UI", ui-sans-serif, system-ui, sans-serif;
+    font-size: 15px; line-height: 1.65;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 16px; padding-block: 48px 72px; }
+
+  h1 { font-size: clamp(26px, 5vw, 36px); font-weight: 600; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+  .sub { color: var(--muted); margin: 10px 0 0; max-width: 60ch; }
+  h2 { font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin: 0 0 4px; }
+  .sec { margin-top: 56px; }
+  .sec > p.lead { margin: 0 0 20px; color: var(--muted); max-width: 62ch; }
+  .sec-title { font-size: 21px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  a { color: var(--accent); }
+
+  .thesis {
+    background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius);
+    padding: 22px 24px; box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .thesis p.big { font-size: 20px; font-weight: 600; margin: 0 0 10px; line-height: 1.5; text-wrap: balance; }
+  .thesis p { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+  .note { margin-top: 18px; border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 14px; border-radius: 0 7px 7px 0; font-size: 14px; }
+  .note.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .note.stop { border-left-color: var(--signal); background: var(--signal-soft); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .card { border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; background: var(--surface); }
+  .card h4 { margin: 0 0 8px; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .card.go { border-left: 4px solid var(--accent); }
+  .card.hold { border-left: 4px solid var(--warn); }
+  .card.stop { border-left: 4px solid var(--signal); }
+  .pill { font-family: var(--mono); font-size: 11px; padding: 2px 7px; border-radius: 20px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); font-weight: 400; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  th, td { text-align: left; padding: 10px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.who { font-weight: 500; white-space: nowrap; }
+  td.you { color: var(--accent); }
+  td.model { color: var(--muted); }
+
+  /* 决定记录 */
+  .dec { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 16px 18px; margin-bottom: 12px; }
+  .dec h4 { margin: 0 0 4px; font-size: 15.5px; font-weight: 600; }
+  .dec .because { color: var(--muted); font-size: 13.5px; margin: 0 0 10px; }
+  .dec .cost { font-size: 13px; padding-top: 9px; border-top: 1px dashed var(--line); color: var(--ink); }
+  .dec .cost b { color: var(--signal); font-weight: 600; }
+
+  ul.no { list-style: none; padding: 0; margin: 0; }
+  ul.no li { display: grid; grid-template-columns: 20px 1fr; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  ul.no li:first-child { border-top: none; }
+  ul.no .x { color: var(--signal); font-family: var(--mono); }
+  ul.no span.why { color: var(--muted); font-size: 13px; display: block; margin-top: 2px; }
+
+  pre.ascii { font-family: var(--mono); font-size: 12px; line-height: 1.35; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 12px 14px; margin: 14px 0 0; overflow-x: auto; color: var(--ink); }
+
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>shoulder-tap 行为契约</h1>
+    <p class="sub">
+      它会怎么对你，不会怎么对你，以及每个决定背后放弃了什么。
+      数据怎么走看 <a href="architecture.html">数据流</a> 和 <a href="pipeline.html">数据处理</a>，
+      那只手怎么画看 <a href="rendering.html">渲染流程</a>。
+    </p>
+  </header>
+
+  <section class="sec">
+    <div class="thesis">
+      <p class="big">它不碰你的方向盘，只是不肯闭嘴。</p>
+      <p>
+        你要做什么，它照做，做完整。但只要今天说好的那条还没动，
+        每一轮回答的最后都会多出一只手和一句话 —— 直到你完成它、重排它、或者宣布今天不做了。
+        压力来自重复，不来自阻拦。
+      </p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>01 — 三档</h2>
+    <p class="sec-title">你开口之后，它先判一件事</p>
+    <p class="lead">
+      拿「你现在要做的」去比「今天清单上当前那条」。语义上的真实相关，不是字面像不像。
+      拿不准就按最严的那档处理 —— 反正也不拦你，代价只是末尾多一句。
+    </p>
+    <div class="cards">
+      <div class="card go">
+        <h4>related <span class="pill">就是当前这条</span></h4>
+        <p>直接干活。不提这次检查、不念清单、不邀功。你甚至不会知道它查过。</p>
+      </div>
+      <div class="card hold">
+        <h4>partial <span class="pill">沾边，但不是这条</span></h4>
+        <p>照做，但先用一句话点破顺序：前面那条还没完，这件事算插进来还是先放着？你答了就照办。</p>
+      </div>
+      <div class="card stop">
+        <h4>unrelated <span class="pill">压根对不上</span></h4>
+        <p>照做，干完整。然后在回答**最末尾**敲三下，一句话点名那条还没动。不问问题、不等回答。</p>
+      </div>
+    </div>
+    <pre class="ascii">                 tap tap
+       __________       |
+  ____/  ________/)   .  |
+ /      (___            |
+|       (___)           |
+ \______(__)            |
+
+今天说好的第 1 条「把接口文档写完」还没动。</pre>
+    <div class="note warn">
+      <b>烦在频率，不在长度。</b>
+      每次只能是最后那一句 —— 一句话，说完就停。不说教、不列理由、不在你已经决定之后反复讲。
+      但只要那条没完成，下一轮照提，做十件无关的事就提十次。
+      提一次就算了的提醒，等于没提醒。
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>02 — 权力</h2>
+    <p class="sec-title">谁能决定什么</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>这件事</th><th>谁说了算</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>今天做哪几件、什么顺序</td><td class="who you">你</td><td>模型只负责拆成动作和记下来</td></tr>
+          <tr><td><b>某条算不算做完了</b></td><td class="who you">你</td><td>模型觉得做完了，最多问一句「这条算完成了吗」</td></tr>
+          <tr><td>要不要插队</td><td class="who you">你</td><td>模型不替你决定什么算急事</td></tr>
+          <tr><td>盯哪些习惯、多久一次</td><td class="who you">你</td><td>不预设任何习惯，名字用你自己的说法</td></tr>
+          <tr><td>习惯算不算做了</td><td class="who you">你</td><td>你没说做，就是没做</td></tr>
+          <tr><td>这件事算不算跑偏</td><td class="who model">模型</td><td>但判错的代价只是末尾多一句，不会挡你</td></tr>
+          <tr><td>什么时候提醒习惯</td><td class="who model">模型</td><td>等一件事做完、或有自然停顿时</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <b>一条贯穿始终的线：凡是「判断你的状态」的事，模型可以做；凡是「替你做决定」的事，它不能。</b>
+      最要紧的是勾掉完成的权力 —— 清单一旦失真，后面所有判断跟着全错。
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>03 — 时间</h2>
+    <p class="sec-title">一天从凌晨 4 点开始</p>
+    <p class="lead">
+      不是午夜。你 23:00 列好清单干到凌晨一点，那不是新的一天，那是同一个晚上 ——
+      让清单在你还坐着的时候翻页，是让人不再信任它的最快办法。
+    </p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>本地时间</th><th>算哪天</th></tr></thead>
+        <tbody>
+          <tr><td>9 月 21 日 23:30</td><td>9 月 21 日</td></tr>
+          <tr><td>9 月 22 日 01:00</td><td>9 月 21 日 —— 过了午夜，但还没到 4 点</td></tr>
+          <tr><td>9 月 22 日 03:59</td><td>9 月 21 日</td></tr>
+          <tr><td>9 月 22 日 04:01</td><td>9 月 22 日</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note warn">
+      <b>还有一个坑埋在时区里。</b>
+      模型上下文里的日期常常是 UTC，跟你本地差一天；它要是好心把这个日期传给工具，
+      查到的就是空的一天，然后告诉你「今天还没记录任何事」。
+      所以工具参数现在明说：除非用户问的是别的日子，否则别传，服务端算得比你准。
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>04 — 决定记录</h2>
+    <p class="sec-title">每一条都放弃了什么</p>
+
+    <div class="dec">
+      <h4>服务端不存任何内容</h4>
+      <p class="because">
+        任务文字和习惯名字留在你自己的 Notion，中转那台机器只拿得到 ID 和分钟数。
+        这样「我不碰你的数据」才是一句能一口气讲完、也能被验证的话。
+      </p>
+      <p class="cost"><b>代价：</b>服务端做不了任何统计、排行、跨用户分析 —— 它连你有几条任务都不知道。</p>
+    </div>
+
+    <div class="dec">
+      <h4>从「拦住不做」改成「做完了烦你」</h4>
+      <p class="because">
+        第一版会扣住整轮不干活，直到你解释自己。那是在跟你抢方向盘 ——
+        你让它做事它不做，那不叫提醒，叫对抗。没人会留着这样的工具。
+      </p>
+      <p class="cost"><b>代价：</b>约束力弱了。它现在只能靠烦，你完全可以一路忽略到底。</p>
+    </div>
+
+    <div class="dec">
+      <h4>桌面弹窗先不做</h4>
+      <p class="because">
+        浏览器窗口盖不住别的应用，真做要上 Tauri / Electron，那是一整个容器的成本。
+        而「拦得准不准」还没验证过，先花那个钱是本末倒置。
+      </p>
+      <p class="cost"><b>代价：</b>你跑偏的那一刻注意力在别的窗口，敲在聊天里的手你可能根本看不见。九帧素材已经画好了，等聊天这层证明有用再接。</p>
+    </div>
+
+    <div class="dec">
+      <h4>不预设任何习惯</h4>
+      <p class="because">
+        建库出来是空的。喝水、走动、拉伸这些一个都不给 ——
+        没人有资格规定你该养什么习惯，包括这个工具。
+      </p>
+      <p class="cost"><b>代价：</b>开箱即用性差一截，你得自己说一句「每 45 分钟提醒我抬头看看窗外」。</p>
+    </div>
+
+    <div class="dec">
+      <h4>两类提醒共用一只手</h4>
+      <p class="because">
+        跑偏和习惯到点用同一个动作、同一张图，只换文字。
+        统一的介入信号，你一眼就知道「有人在叫我」，不用先分辨是哪一类。
+      </p>
+      <p class="cost"><b>代价：</b>表现力少了 —— 不能用不同的动画区分严重程度。</p>
+    </div>
+
+    <div class="dec">
+      <h4>不做激励系统</h4>
+      <p class="because">
+        没有连续天数、没有完成率、没有积分和排行榜。
+        这东西的用途是「让你想起来」，不是让你为了数字好看而做事。
+      </p>
+      <p class="cost"><b>代价：</b>少了一整套留存手段。按 Day 的历史数据还在你自己的 Notion 里，你想自己统计随时可以。</p>
+    </div>
+
+    <div class="dec">
+      <h4>语义判断放在你本地的模型里</h4>
+      <p class="because">
+        服务端不跑模型、不花 token。判断的是那个已经在跟你对话、已经知道上下文的模型。
+        它本来就最清楚你在干什么。
+      </p>
+      <p class="cost"><b>代价：</b>判断质量取决于那个模型，也会被对话上下文带偏。想要一个不受上下文影响的第二意见，才需要 Jev —— 但那会把两行字送出你的机器。</p>
+    </div>
+
+    <div class="dec">
+      <h4>永远不回 401</h4>
+      <p class="because">
+        MCP 客户端把 401 读成「请去走 OAuth」，然后去做动态客户端注册、撞上 404，
+        最后报告整个服务器连不上 —— 而实际上只是少了一个可选凭据。门禁不过用 403。
+      </p>
+      <p class="cost"><b>代价：</b>不能用标准的 OAuth 流程。对一个「你自己带自己钥匙」的服务来说，本来也不需要。</p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>05 — 明确不做</h2>
+    <p class="sec-title">这些不是还没做，是决定不做</p>
+    <ul class="no">
+      <li><span class="x">×</span><span>锁屏、禁用网站、强制番茄钟<span class="why">对抗式的东西你会卸载，而且它管不住你换台设备</span></span></li>
+      <li><span class="x">×</span><span>连续天数、完成率、积分、排行榜<span class="why">为数字好看而做事，就不是在做事了</span></span></li>
+      <li><span class="x">×</span><span>替你排优先级、替你判断什么是急事<span class="why">那是你的判断，它只负责记住你说过什么</span></span></li>
+      <li><span class="x">×</span><span>自动把任务标成完成<span class="why">清单一失真，后面所有判断跟着错</span></span></li>
+      <li><span class="x">×</span><span>到点主动弹窗<span class="why">模型只在你跟它说话时才知道现在几点；真要主动推送得上桌面容器</span></span></li>
+      <li><span class="x">×</span><span>跨用户的任何数据<span class="why">服务端根本没地方存</span></span></li>
+    </ul>
+  </section>
+
+  <footer>
+    shoulder-tap · 三档判断 · 一天从 4 点开始 · 烦在频率不在长度
+  </footer>
+</div>

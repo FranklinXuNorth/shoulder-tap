@@ -15,6 +15,7 @@ MCP 配置里的 Bearer token 就是**你自己的 Notion integration secret**�
 
 文档：
 
+- [docs/behavior.html](docs/behavior.html) —— 行为契约：它怎么对你、谁说了算、每个决定放弃了什么
 - [docs/architecture.html](docs/architecture.html) —— 数据流：哪一跳交出了什么
 - [docs/pipeline.html](docs/pipeline.html) —— 数据处理：字段归谁管、ID 什么时候签、手改会怎样
 - [docs/rendering.html](docs/rendering.html) —— 渲染流程：那一下「拍肩」怎么落到聊天里
