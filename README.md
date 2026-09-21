@@ -13,7 +13,11 @@ MCP 配置里的 Bearer token 就是**你自己的 Notion integration secret**�
 服务器拿着它读写**你自己的** Notion 库，返回结果，然后什么都不留。
 这里提供的只有一份 schema 和一条通路。
 
-完整的数据流、鉴权核查和拦截逻辑：[docs/architecture.html](docs/architecture.html)
+文档：
+
+- [docs/architecture.html](docs/architecture.html) —— 数据流：哪一跳交出了什么
+- [docs/rendering.html](docs/rendering.html) —— 渲染流程：那一下「拍肩」怎么落到屏幕上
+- [docs/ASSETS.md](docs/ASSETS.md) —— 素材需求
 
 ## 用起来
 

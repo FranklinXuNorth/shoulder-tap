@@ -1,0 +1,333 @@
+<title>shoulder-tap 渲染流程</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #eef1f2; --surface: #ffffff; --surface-2: #f6f8f8;
+    --ink: #14191a; --muted: #5d6b6d; --line: #d3dbdc; --line-strong: #aebabc;
+    --accent: #0e7c7b; --accent-soft: #d9ecec;
+    --signal: #c1471d; --signal-soft: #f9e4dc;
+    --warn: #8a6a12; --warn-soft: #f5ecd2;
+    --radius: 10px;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1213; --surface: #161c1d; --surface-2: #1b2223;
+      --ink: #e6ecec; --muted: #94a3a4; --line: #2a3435; --line-strong: #3d4a4b;
+      --accent: #4bb5b2; --accent-soft: #123231;
+      --signal: #e98055; --signal-soft: #35201a;
+      --warn: #d4ae5a; --warn-soft: #2d2618;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1213; --surface: #161c1d; --surface-2: #1b2223;
+    --ink: #e6ecec; --muted: #94a3a4; --line: #2a3435; --line-strong: #3d4a4b;
+    --accent: #4bb5b2; --accent-soft: #123231;
+    --signal: #e98055; --signal-soft: #35201a;
+    --warn: #d4ae5a; --warn-soft: #2d2618;
+  }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: "IBM Plex Sans", "Microsoft YaHei UI", ui-sans-serif, system-ui, sans-serif;
+    font-size: 15px; line-height: 1.65;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 16px; padding-block: 48px 72px; }
+
+  h1 { font-size: clamp(26px, 5vw, 36px); font-weight: 600; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+  .sub { color: var(--muted); margin: 10px 0 0; max-width: 62ch; }
+  h2 { font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin: 0 0 4px; }
+  .sec { margin-top: 56px; }
+  .sec > p.lead { margin: 0 0 20px; color: var(--muted); max-width: 64ch; }
+  .sec-title { font-size: 21px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+
+  .note { margin-top: 18px; border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 14px; border-radius: 0 7px 7px 0; font-size: 14px; }
+  .note.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .note.stop { border-left-color: var(--signal); background: var(--signal-soft); }
+
+  /* 管线 */
+  .pipe { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .stage { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 13px 14px; position: relative; }
+  .stage .where { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+  .stage b { display: block; font-size: 14.5px; margin-top: 3px; }
+  .stage span { display: block; color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+  .stage.remote { border-color: var(--line-strong); background: var(--surface-2); }
+
+  /* 播放器 */
+  .player { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+  .screen {
+    position: relative; width: 168px; height: 140px; flex: none;
+    border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-2);
+    overflow: hidden; display: grid; place-items: center end;
+  }
+  .screen::before {
+    content: ""; position: absolute; inset: 8px 8px 8px 8px;
+    border-right: 2px dashed var(--line-strong); opacity: 0.55;
+  }
+  .glove {
+    width: 96px; height: 80px; margin-right: 4px;
+    background-image: url("tap-glove-sheet.png");
+    background-repeat: no-repeat; background-size: 864px 80px; background-position: 0 0;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  :root:not([data-theme="light"]) .glove { }
+  .glove.play { animation: tap 1300ms step-end 1 both; }
+  @keyframes tap {
+    0%      { background-position-x: 0; }
+    19.23%  { background-position-x: -96px; }
+    26.15%  { background-position-x: -192px; }
+    33.08%  { background-position-x: -288px; }
+    44.62%  { background-position-x: -384px; }
+    51.54%  { background-position-x: -480px; }
+    58.46%  { background-position-x: -576px; }
+    70%     { background-position-x: -672px; }
+    76.92%  { background-position-x: -768px; }
+    100%    { background-position-x: -768px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .glove.play { animation: none; background-position-x: -288px; }
+  }
+  .player-copy { flex: 1 1 260px; min-width: 0; }
+  .player-copy p { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; }
+  button.replay {
+    font: inherit; font-size: 13px; cursor: pointer; padding: 7px 14px; border-radius: 7px;
+    border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--ink);
+  }
+  button.replay:hover { border-color: var(--accent); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  th, td { text-align: left; padding: 10px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.hit td { background: var(--signal-soft); }
+  tr.hit td:first-child { font-weight: 600; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+  .card { border: 1px solid var(--line); border-radius: var(--radius); padding: 15px; background: var(--surface); }
+  .card h4 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+  .card p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .card.go { border-left: 4px solid var(--accent); }
+  .card.hold { border-left: 4px solid var(--warn); }
+  .card.stop { border-left: 4px solid var(--signal); }
+
+  pre.wire, pre.ascii {
+    font-family: var(--mono); font-size: 12px; line-height: 1.6; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 7px; padding: 12px 14px; margin: 0;
+    overflow-x: auto; color: var(--ink);
+  }
+  pre.ascii { line-height: 1.35; }
+
+  ul.todo { list-style: none; padding: 0; margin: 0; }
+  ul.todo li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  ul.todo li:first-child { border-top: none; }
+  ul.todo .mark { font-family: var(--mono); font-size: 13px; }
+  ul.todo .done .mark { color: var(--accent); }
+  ul.todo .todo-item .mark { color: var(--muted); }
+  ul.todo span.what { color: var(--muted); font-size: 13px; display: block; margin-top: 2px; }
+
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>shoulder-tap 渲染流程</h1>
+    <p class="sub">
+      判断出结果之后，那一下「拍肩」是怎么落到屏幕上的：谁决定播、播哪九帧、播多久、
+      怎么收起、以及在不能动画的地方退成什么样。配套读
+      <a href="architecture.html" style="color: var(--accent)">数据流</a> 和
+      <code>docs/ASSETS.md</code>。
+    </p>
+  </header>
+
+  <section class="sec">
+    <h2>01 — 管线</h2>
+    <p class="sec-title">从一次判断到一屏敲击</p>
+    <p class="lead">五步，横跨三个地方。注意第三步：名字是在本地才贴回去的，服务端自始至终只见过 ID。</p>
+
+    <div class="pipe">
+      <div class="stage">
+        <span class="where">local · 模型</span>
+        <b>判出一档</b>
+        <span>related / partial / unrelated</span>
+      </div>
+      <div class="stage remote">
+        <span class="where">vercel</span>
+        <b>due_check</b>
+        <span>回 {kind:"due", ids:[…]}</span>
+      </div>
+      <div class="stage">
+        <span class="where">local · Notion</span>
+        <b>ID 贴回名字</b>
+        <span>h-8b12d4 → 你自己起的那个名字</span>
+      </div>
+      <div class="stage">
+        <span class="where">local · 渲染层</span>
+        <b>拼成事件</b>
+        <span>{kind, message}</span>
+      </div>
+      <div class="stage">
+        <span class="where">local · overlay</span>
+        <b>敲三下</b>
+        <span>1300ms，播一次，不循环</span>
+      </div>
+    </div>
+
+    <pre class="wire" style="margin-top: 18px">// 渲染层收到的就是这么点东西，文字全在本地拼
+{ "kind": "off-task", "message": "你今天说的第 2 条是「把接口文档写完」，还没动。" }
+{ "kind": "due",      "message": "抬头看看窗外 —— 说好每 45 分钟一次。" }</pre>
+  </section>
+
+  <section class="sec">
+    <h2>02 — 闸门</h2>
+    <p class="sec-title">四种结果，只有两种会让手伸出来</p>
+    <p class="lead">
+      动画是打断，打断要省着用。做对了不播、沾边了不播 —— 只有真跑偏和真到点才值得敲你一下。
+    </p>
+    <div class="cards">
+      <div class="card go">
+        <h4>related → 不播</h4>
+        <p>你在做对的事。连「检查过了」都不该提，更不用说弹个东西出来邀功。</p>
+      </div>
+      <div class="card hold">
+        <h4>partial → 不播，只说一句</h4>
+        <p>沾边的事值得提醒一句顺序，但不值得打断。走文字通道，不走动画。</p>
+      </div>
+      <div class="card stop">
+        <h4>unrelated → <code>off-task</code></h4>
+        <p>真跑偏了。敲三下 + 一句话点破 + 一个问题，然后停住等你回答。</p>
+      </div>
+      <div class="card stop">
+        <h4>到点的习惯 → <code>due</code></h4>
+        <p>同一只手、同一段动画，只换文字。它不代表你做错了什么。</p>
+      </div>
+    </div>
+    <div class="note warn">
+      <b>两类提醒共用一个动作，是故意的。</b>
+      不按内容画不同的动画 —— 没有喝水杯子、没有走路小人、没有完成礼花。
+      一个统一的介入信号，你一眼就知道「有人在叫我」，不用先分辨是哪一类。
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>03 — 帧</h2>
+    <p class="sec-title">九帧，1300 毫秒，三下</p>
+    <p class="lead">
+      下面是真的素材在按真的时长播（<code>tap-glove-sheet.png</code>，864×80，九等分）。
+      虚线是屏幕边缘。
+    </p>
+
+    <div class="player">
+      <div class="screen"><div class="glove play" id="glove"></div></div>
+      <div class="player-copy">
+        <p>
+          伸手 → 敲 → 收，三次触边落在第 3、6、8 帧。节奏是「快两下、停一拍、再一下」，
+          比匀速三下更像真有人在敲你。末帧 300ms 是收手后的留白，让文字有时间被读到。
+        </p>
+        <button class="replay" id="replay" type="button">再播一次</button>
+      </div>
+    </div>
+
+    <div class="scroll" style="margin-top: 16px">
+      <table>
+        <thead><tr><th>帧</th><th>时长</th><th>累计</th><th>在做什么</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td class="num">250 ms</td><td class="num">250</td><td>手在画面里待命</td></tr>
+          <tr><td class="num">2</td><td class="num">90 ms</td><td class="num">340</td><td>伸出去</td></tr>
+          <tr class="hit"><td class="num">3</td><td class="num">90 ms</td><td class="num">430</td><td>触边 · 第一下</td></tr>
+          <tr><td class="num">4</td><td class="num">150 ms</td><td class="num">580</td><td>回弹</td></tr>
+          <tr><td class="num">5</td><td class="num">90 ms</td><td class="num">670</td><td>再伸</td></tr>
+          <tr class="hit"><td class="num">6</td><td class="num">90 ms</td><td class="num">760</td><td>触边 · 第二下</td></tr>
+          <tr><td class="num">7</td><td class="num">150 ms</td><td class="num">910</td><td>回弹</td></tr>
+          <tr class="hit"><td class="num">8</td><td class="num">90 ms</td><td class="num">1000</td><td>触边 · 第三下</td></tr>
+          <tr><td class="num">9</td><td class="num">300 ms</td><td class="num">1300</td><td>收手，留白</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>渲染要求：</b><code>image-rendering: pixelated</code>（最近邻缩放，别让它糊）、
+      整数倍放大、只用黑白和全透明三种像素、深浅背景都要能看清。
+      <b>播一次就停</b> —— 循环敲个不停是骚扰，不是提醒。
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>04 — 通道</h2>
+    <p class="sec-title">同一条提醒，三种落地方式</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>通道</th><th>用在哪</th><th>现状</th></tr></thead>
+        <tbody>
+          <tr><td><b>overlay 动画</b></td><td>有图形界面、且允许动的地方</td><td>原型可跑（SVG 版）</td></tr>
+          <tr><td><b>聊天里的 ASCII</b></td><td>纯终端、或者提醒本来就该出现在对话里</td><td>原型可跑，可一键复制</td></tr>
+          <tr><td><b>纯文字</b></td><td>降级兜底；partial 也走这条</td><td>已经在用</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <pre class="ascii" style="margin-top: 16px">                 tap tap
+       __________       |
+  ____/  ________/)   .  |
+ /      (___            |
+|       (___)           |
+ \______(__)            |
+
+你今天说的第 2 条是「把接口文档写完」，还没动。</pre>
+  </section>
+
+  <section class="sec">
+    <h2>05 — 收起</h2>
+    <p class="sec-title">它必须很容易被赶走</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>情况</th><th>行为</th></tr></thead>
+        <tbody>
+          <tr><td>按 Escape</td><td>立刻收起，动画中断</td></tr>
+          <tr><td>连续触发</td><td>先 dismiss 再重播，<b>不堆叠</b>、不排队</td></tr>
+          <tr><td>动画结束</td><td>手消失，<b>文字留着</b> —— 你可能正好没在看</td></tr>
+          <tr><td>overlay 之外的区域</td><td>不拦点击、不抢焦点，你该干嘛干嘛</td></tr>
+          <tr><td><code>prefers-reduced-motion</code></td><td>不播动画，直接显示触边那一帧</td></tr>
+          <tr><td>读屏</td><td>文字挂在 <code>aria-live="polite"</code> 上，不打断当前朗读</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note stop">
+      <b>这一节比动画本身重要。</b>
+      一个赶不走的提醒，用户只会用卸载来赶它。能被一秒关掉，它才有机会留在你桌面上。
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>06 — 现状</h2>
+    <p class="sec-title">哪些接上了，哪些还没有</p>
+    <ul class="todo">
+      <li class="done"><span class="mark">✓</span><span>九帧素材画完并导出<span class="what">tap-glove.aseprite / sheet / preview，draw-glove.lua 可重新生成</span></span></li>
+      <li class="done"><span class="mark">✓</span><span>overlay 原型能跑<span class="what">skill/shoulder-tap/ui/index.html，两类提醒 + ASCII 通道 + 深浅背景</span></span></li>
+      <li class="done"><span class="mark">✓</span><span>事件契约定好了<span class="what">{kind, message}，kind 只有 off-task 和 due</span></span></li>
+      <li class="todo-item"><span class="mark">○</span><span>原型换成真素材<span class="what">现在画的还是 SVG，sheet 没接上去</span></span></li>
+      <li class="todo-item"><span class="mark">○</span><span>模型侧发事件<span class="what">判成 unrelated / 拿到 due 之后，目前只出文字，不发事件</span></span></li>
+      <li class="todo-item"><span class="mark">○</span><span>桌面容器<span class="what">浏览器窗口置不了顶，也盖不到别的应用上面</span></span></li>
+    </ul>
+    <div class="note warn">
+      <b>最后那条是这个方向真正的坎。</b>
+      你跑偏的那一刻，注意力在别的窗口上 —— 敲在终端里的那只手，你大概率看不见。
+      在上真正的桌面容器（Tauri / Electron）之前，这个假设还没被验证过。
+    </div>
+  </section>
+
+  <footer>
+    shoulder-tap · 素材 864×80 九帧 · 1300ms 播一次 · 事件 {kind, message}
+  </footer>
+</div>
+
+<script>
+  const glove = document.getElementById("glove");
+  document.getElementById("replay").addEventListener("click", () => {
+    glove.classList.remove("play");
+    void glove.offsetWidth; // 强制回流，否则同一个动画不会重播
+    glove.classList.add("play");
+  });
+</script>
