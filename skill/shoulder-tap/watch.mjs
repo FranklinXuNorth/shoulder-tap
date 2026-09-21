@@ -6,38 +6,80 @@
  * 这个脚本换了个方向：让 harness 在两个确定的时刻替模型去看一眼，
  * 把结果直接塞进它的上下文 —— 模型没有跳过的余地。
  *
- *   UserPromptSubmit  你每次开口     → 带上你这句话去查，拿回清单和判断规则
- *   PostToolUse       每次工具调用后 → 节流到十分钟一次，只在真有到期习惯时才出声
+ *   UserPromptSubmit  你每次开口     → 读本地缓存，立刻返回，网络甩到后台
+ *   PostToolUse       每次工具调用后 → 写操作立即刷新；否则十分钟一次，且只在有到期习惯时出声
+ *
+ * 为什么读缓存：网络那一趟是 400ms，而它**卡在你按回车到模型开口之间**。
+ * 今天的清单一天才变几次，用几分钟前的副本判断「这件事相不相关」，结论一模一样。
  *
  * 三条硬规矩：
  *   1. 永远 exit 0。哨兵坏了不能把你的会话也搞坏。
- *   2. 有超时。Vercel 或 Notion 慢了，宁可这次不查。
+ *   2. 有超时。Vercel 或 Notion 慢了，宁可用旧的。
  *   3. 没话说就一个字都不输出。上下文很贵。
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const STATE = path.join(HERE, ".watch-state.json");
-const TICK_MINUTES = 10; // PostToolUse 的节流间隔
+const SELF = fileURLToPath(import.meta.url);
+
+/**
+ * 状态放在 skill 目录**外面**：skill 目录是装进来的代码，以后更新会整个覆盖；
+ * 跑出来的数据混在里面迟早被连带清掉。~/.claude 本来就是全局的，任何项目都读同一份。
+ */
+const STATE_DIR = path.join(os.homedir(), ".claude", "shoulder-tap");
+const STATE = path.join(STATE_DIR, "state.json");
+
+const TICK_MINUTES = 10; // PostToolUse 定时那一档的节流
+const REFRESH_COOLDOWN_MS = 20_000; // 防止后台刷新扎堆
 const TIMEOUT_MS = 4000;
+
+/** 缓存里存的是带占位符的整段返回，注入前把这一处换成你当下说的话。 */
+const ACTIVITY_SLOT = "__SHOULDER_TAP_ACTIVITY__";
+
+/** 这些工具会改 Notion，调完立刻刷新，不等十分钟。 */
+const WRITE_TOOLS = ["set_focus", "add_focus", "complete_focus", "add_habit", "log_habit", "setup"];
 
 // ---------- 配置：skill 自己的 .env，不进仓库，不上传任何地方 ----------
 
 function loadEnv() {
   const out = { ...process.env };
-  for (const file of [path.join(HERE, ".env"), path.join(os.homedir(), ".claude", "skills", "shoulder-tap", ".env")]) {
+  const files = [
+    path.join(HERE, ".env"),
+    path.join(os.homedir(), ".claude", "skills", "shoulder-tap", ".env"),
+    path.join(STATE_DIR, ".env"),
+  ];
+  for (const file of files) {
     try {
       for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+        if (line.trim().startsWith("#")) continue;
         const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
-        if (m && !line.trim().startsWith("#")) out[m[1]] = m[2].replace(/^["']|["']$/g, "");
+        if (m) out[m[1]] = m[2].replace(/^["']|["']$/g, "");
       }
     } catch {}
   }
   return out;
+}
+
+// ---------- 状态 ----------
+
+function readState() {
+  try {
+    return JSON.parse(fs.readFileSync(STATE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeState(patch) {
+  try {
+    fs.mkdirSync(STATE_DIR, { recursive: true });
+    fs.writeFileSync(STATE, JSON.stringify({ ...readState(), ...patch }, null, 2), "utf8");
+  } catch {}
 }
 
 // ---------- 跟 MCP 说话 ----------
@@ -72,20 +114,26 @@ async function callTool(env, name, args) {
   return "";
 }
 
-// ---------- 节流 ----------
-
-function tickIsDue() {
-  try {
-    const { lastTick = 0 } = JSON.parse(fs.readFileSync(STATE, "utf8"));
-    return Date.now() - lastTick >= TICK_MINUTES * 60_000;
-  } catch {
-    return true; // 没有状态文件 = 第一次，查
-  }
+/**
+ * 去拿一份新的。活动那一行用占位符填，因为整段返回里只有那一行跟「你当下说什么」有关，
+ * 其余（清单、当前是第几条、三档规则、到期习惯）都只取决于 Notion 的状态。
+ */
+async function refresh(env) {
+  const plan = await callTool(env, "check_focus", { activity: ACTIVITY_SLOT });
+  if (plan) writeState({ plan, planAt: Date.now() });
 }
 
-function markTick() {
+/** 把刷新甩到一个独立进程里，本进程立刻退出，不让你等。 */
+function spawnRefresh(force = false) {
+  const { refreshAt = 0 } = readState();
+  if (!force && Date.now() - refreshAt < REFRESH_COOLDOWN_MS) return;
+  writeState({ refreshAt: Date.now() });
   try {
-    fs.writeFileSync(STATE, JSON.stringify({ lastTick: Date.now() }), "utf8");
+    spawn(process.execPath, [SELF, "--refresh"], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    }).unref();
   } catch {}
 }
 
@@ -100,15 +148,30 @@ function say(event, text) {
   );
 }
 
-/** 从完整返回里只抠出「顺便提一句」那一段。定时那一档只关心习惯。 */
+/** 从整段里只抠出「顺便提一句」那一节。定时那一档只关心习惯。 */
 function habitsOnly(full) {
-  const i = full.indexOf("【顺便提一句】");
+  const i = full?.indexOf("【顺便提一句】") ?? -1;
   return i < 0 ? "" : full.slice(i);
+}
+
+/** 缓存里那句占位的活动，换成你真正说的话。 */
+function fillActivity(plan, prompt) {
+  if (!plan) return "";
+  const activity = (prompt || "").replace(/\s+/g, " ").slice(0, 300);
+  return activity ? plan.split(ACTIVITY_SLOT).join(activity) : plan;
 }
 
 // ---------- 主流程 ----------
 
 async function main() {
+  const env = loadEnv();
+
+  // 后台刷新进程走这条，不读 stdin、不输出任何东西。
+  if (process.argv.includes("--refresh")) {
+    await refresh(env);
+    return;
+  }
+
   let input = "";
   for await (const chunk of process.stdin) input += chunk;
 
@@ -118,23 +181,37 @@ async function main() {
   } catch {}
 
   const event = payload.hook_event_name || "PostToolUse";
-  const env = loadEnv();
+  const state = readState();
 
   if (event === "UserPromptSubmit") {
-    // 你开口了 —— 这是最该查的时刻，不节流。把你这句话一起带去。
-    const prompt = (payload.prompt || "").slice(0, 400);
-    const full = await callTool(env, "check_focus", prompt ? { activity: prompt } : {});
-    markTick(); // 刚查过，定时那档可以歇十分钟
-    say(event, full);
+    // 有缓存就立刻用，同时甩一个后台刷新。你感觉到的只有 node 的启动时间。
+    if (state.plan) {
+      say(event, fillActivity(state.plan, payload.prompt));
+      spawnRefresh();
+      return;
+    }
+    // 第一次跑，没有缓存可用，只能同步等一次。
+    await refresh(env).catch(() => {});
+    say(event, fillActivity(readState().plan, payload.prompt));
     return;
   }
 
-  // 工具调用之后：节流。绝大多数时候这里直接返回，不发任何请求。
-  if (!tickIsDue()) return;
-  markTick();
+  // 工具调用之后。
+  const tool = payload.tool_name || "";
+  if (WRITE_TOOLS.some((t) => tool.includes(t))) {
+    // 你刚说「做完了」之类的话 —— 立刻去拿新的，别等十分钟。
+    // 不直接拿工具返回写缓存：那几个工具回的是「记下了 + 清单」，
+    // 形状跟缓存里那整段不一样，硬拼容易错。重新拉一次最稳，反正是后台。
+    spawnRefresh(true);
+    return;
+  }
 
-  const full = await callTool(env, "check_focus", {});
-  say(event, habitsOnly(full));
+  const { lastTick = 0 } = state;
+  if (Date.now() - lastTick < TICK_MINUTES * 60_000) return;
+  writeState({ lastTick: Date.now() });
+
+  spawnRefresh();
+  say(event, habitsOnly(state.plan)); // 用缓存里的，不等网络
 }
 
 main().catch(() => {

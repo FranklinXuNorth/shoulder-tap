@@ -76,8 +76,14 @@ description: 接上 shoulder-tap（第一次用要配 MCP、接 Notion、建库�
 
 | Hook | 时机 | 行为 |
 | --- | --- | --- |
-| `UserPromptSubmit` | 用户每次开口 | 带上他这句话去查，注入清单 + 判断规则。不节流。 |
-| `PostToolUse` | 每次工具调用后 | 节流到十分钟一次，**只在真有到期习惯时才出声**。 |
+| `UserPromptSubmit` | 用户每次开口 | **读本地缓存立刻返回**（~120ms），网络甩到后台进程 |
+| `PostToolUse` · 写工具 | 改完 Notion | 立即后台刷新，不等十分钟。静默。 |
+| `PostToolUse` · 其它 | 每次工具调用后 | 节流十分钟，**只在缓存里真有到期习惯时才出声** |
+
+缓存在 `~/.claude/shoulder-tap/state.json`（**在 skill 目录外面** —— skill 是装进来的代码，
+更新时会整个覆盖，状态混在里面迟早被连带清掉）。存的是带占位符的整段返回；
+注入前只把「用户现在要做的是」那一行换成他当下说的话 —— 整段里只有那一行跟当下有关，
+其余都只取决于 Notion 的状态，所以放几分钟完全够用。
 
 装法：`watch.mjs` 和 `.env`（照 `.env.example` 填 `NOTION_TOKEN`）放进
 `~/.claude/skills/shoulder-tap/`，两个 hook 指向它。脚本永远 exit 0、有 4 秒超时、
