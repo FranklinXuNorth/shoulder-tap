@@ -4,11 +4,12 @@ import { z } from "zod";
 import { NotionError, pageIdFrom } from "@/lib/notion";
 import {
   DB_TITLE,
+  addHabit,
   addItem,
   createDatabase,
-  createHabitsDatabase,
   current,
   listDay,
+  listHabits,
   logHabit,
   overdueHabits,
   setDay,
@@ -187,23 +188,51 @@ const handler = createMcpHandler(
     );
 
     server.registerTool(
+      "add_habit",
+      {
+        title: "加一个要盯的习惯",
+        description:
+          "用户说「每 N 分钟提醒我做某件事」时用。名字完全自由，用他自己的说法原样记，" +
+          "不要给他任何建议清单。只有他自己提出来才加 —— 没人有资格规定他该养什么习惯。",
+        inputSchema: z.object({
+          name: z.string().describe("习惯名，用户自己的说法，原样记"),
+          every_minutes: z.number().int().min(1).describe("隔多少分钟提醒一次"),
+          note: z.string().optional().describe("备注，没有就不传"),
+        }),
+      },
+      async ({ name, every_minutes, note }, ctx: any) =>
+        guard(async () => {
+          const habits = await addHabit(tokenOf(ctx), name, every_minutes, note ?? "");
+          return ok(
+            `加上了：${name}，每 ${every_minutes} 分钟。\n\n现在盯着这些：\n` +
+              habits.map((h) => `  · ${h.name} —— 每 ${h.everyMin} 分钟`).join("\n"),
+          );
+        }),
+    );
+
+    server.registerTool(
       "log_habit",
       {
         title: "记一笔「刚做了」",
         description:
-          "用户说他喝水了 / 起来走了 / 拉伸了，就调用这个，把计时清零。名字模糊匹配，" +
-          "对不上会告诉你他的习惯库里都有哪些。不要替他记——他没说做，就是没做。",
+          "用户说他刚做了某个习惯，就调用这个，把计时清零。名字或短 ID 模糊匹配。" +
+          "不要替他记——他没说做，就是没做。",
         inputSchema: z.object({
-          habit: z.string().describe("习惯名，比如「喝水」。跟 Notion 习惯库里的名字模糊匹配。"),
+          habit: z.string().describe("习惯名或短 ID，用用户自己的说法，跟库里的名字模糊匹配"),
         }),
       },
       async ({ habit }, ctx: any) =>
         guard(async () => {
-          const hit = await logHabit(tokenOf(ctx), habit);
+          const token = tokenOf(ctx);
+          const hit = await logHabit(token, habit);
+          if (hit) return ok(`记下了：${hit.name}，下次提醒在 ${hit.everyMin} 分钟后。`);
+
+          const all = await listHabits(token).catch(() => []);
           return ok(
-            hit
-              ? `记下了：${hit.name}，下次提醒在 ${hit.everyMin} 分钟后。`
-              : `习惯库里没有「${habit}」这一条。让用户自己去 Notion 的 Shoulder Tap Habits 里加一行，或者换个叫法。`,
+            `没找到「${habit}」。` +
+              (all.length
+                ? `他盯着的是这些：${all.map((h) => h.name).join("、")}。`
+                : "他还没加过任何习惯 —— 想加就用 add_habit，名字他自己定。"),
           );
         }),
     );
@@ -223,17 +252,12 @@ const handler = createMcpHandler(
       },
       async ({ notion_page }, ctx: any) =>
         guard(async () => {
-          const token = tokenOf(ctx);
-          const pageId = pageIdFrom(notion_page);
-          const res = await createDatabase(token, pageId);
-          // 习惯库建不出来不算失败 —— 主线是任务，提醒是附赠的。
-          const habits = await createHabitsDatabase(token, pageId).catch(() => undefined);
+          const res = await createDatabase(tokenOf(ctx), pageIdFrom(notion_page));
           return ok(
             `建好了：${res.url ?? res.databaseId}\n` +
-              (habits
-                ? `习惯提醒库：${habits.url}（喝水 / 走动 / 拉伸，间隔在 Notion 里随便改）\n`
-                : "习惯提醒库没建成，不影响主线，之后想要再单独建。\n") +
-              `以后不用再管它，直接用 check_focus / set_focus。数据全部在用户自己的 Notion 里，这个服务不留副本。`,
+              "一个库装两种行：Kind=task 是今天要做的事，Kind=habit 是隔多久该干一次的事。\n" +
+              "里面现在是空的 —— 不预设任何习惯。问用户想盯哪几个，再用 add_habit 加。\n" +
+              "数据全部在用户自己的 Notion 里，这个服务不留副本。",
           );
         }),
     );

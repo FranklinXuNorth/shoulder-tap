@@ -191,7 +191,7 @@
 
       <div class="lane mid">
         <div class="lane-head"><span class="lane-name">Vercel</span><span class="lane-tag">无状态函数</span></div>
-        <div class="node"><b>/api/mcp</b><span>mcp-handler，Streamable HTTP</span></div>
+        <div class="node"><b>/mcp</b><span>mcp-handler，Streamable HTTP</span></div>
         <div class="node"><b>withMcpAuth</b><span>验门禁 + 验 token 长得对不对</span></div>
         <div class="node"><b>lib/focus.ts</b><span>翻译成 Notion 的读写</span></div>
         <div class="node"><b>lib/render.ts</b><span>产出那段判断规则</span></div>
@@ -234,7 +234,7 @@
         <div>
           <div class="step-title">发请求</div>
           <div class="step-where">local → vercel</div>
-<pre class="wire">POST /api/mcp
+<pre class="wire">POST /mcp
 Authorization: Bearer ntn_••••••••          ← 你的 Notion 密钥
 X-Shoulder-Tap-Key: ••••                    ← 可选门禁
 

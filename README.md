@@ -20,7 +20,7 @@ MCP 配置里的 Bearer token 就是**你自己的 Notion integration secret**�
 1. [建一个 Notion integration](https://www.notion.so/profile/integrations)，拿 `ntn_` 开头的密钥。
 2. 挑一个 Notion 页面，⋯ → **Connections** → 把这个 integration 加进去。（漏这步必报 `object_not_found`。）
 3. ```bash
-   claude mcp add --transport http shoulder-tap https://<你的部署>.vercel.app/api/mcp \
+   claude mcp add --transport http shoulder-tap https://shoulder-tap.vercel.app/mcp \
      -s user -H "Authorization: Bearer ntn_你的密钥"
    ```
 4. 让模型调 `setup`，把第 2 步那个页面的链接给它——它会在那底下建好库。
@@ -31,12 +31,30 @@ MCP 配置里的 Bearer token 就是**你自己的 Notion integration secret**�
 
 | | |
 | --- | --- |
-| `check_focus(activity?)` | 拦路的那个。返回今天的清单和一段判断规则：相关就放行，不相关就停下来问你。 |
+| `check_focus(activity?)` | 拦路的那个。返回今天的清单和一段判断规则：相关就放行，不相关就停下来问你。顺带报超时的习惯。 |
 | `set_focus` / `add_focus` / `complete_focus` | 按顺序记、插队、勾掉。只有你说完成才算完成。 |
-| `log_habit` | 喝水、走动这类提醒，随 `check_focus` 顺路带出来。 |
+| `add_habit` / `log_habit` | 盯一个习惯（名字你自己定，不预设任何东西）／记一笔刚做了。 |
 | `setup` / `ping` | 建库 / 健康检查。 |
 
 语义判断是**调用方的模型**做的，服务端不跑模型、不花 token。
+
+## Notion 里长什么样
+
+一个库 `Shoulder Tap`，靠 `Kind` 区分两种行：
+
+| 字段 | 类型 | `task` 行 | `habit` 行 |
+| --- | --- | --- | --- |
+| `Name` | title | 步骤本身 | 习惯名 |
+| `Kind` | select | `task` | `habit` |
+| `ID` | rich_text | `t-a3f91c` | `h-8b12d4` |
+| `Order` | number | 第几条，顺序靠它 | — |
+| `Status` | select | pending / done / dropped | — |
+| `Day` | date | 哪一天 | — |
+| `EveryMinutes` | number | — | 隔多久提醒一次 |
+| `Last` | date | — | 上次做的时间 |
+| `Note` | rich_text | 执行细节 | 备注 |
+
+建完就是普通的 Notion 数据库，加视图、改间隔、手机上勾，都随你。
 
 ## 自己部署
 

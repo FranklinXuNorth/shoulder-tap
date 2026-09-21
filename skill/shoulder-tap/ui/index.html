@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>shoulder-tap · 敲屏幕</title>
+<style>
+:root{color-scheme:dark;--bg:#101819;--ink:#e4ece9;--muted:#9aaead;--line:#334746;--panel:#1a292a}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 system-ui,sans-serif}body.light{color-scheme:light;--bg:#eef1f2;--ink:#243534;--muted:#526966;--line:#bcccca;--panel:#fff}main{max-width:800px;margin:auto;padding:64px 28px}h1{font-size:32px;margin:4px 0 14px;font-weight:550}p{color:var(--muted)}.eyebrow{color:#4bb5b2;font:13px monospace;letter-spacing:2px}.controls{display:flex;gap:12px;flex-wrap:wrap;margin:30px 0 18px}button,select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 14px}button{cursor:pointer}button:hover{border-color:#4bb5b2}label{display:block;font-size:13px;color:var(--muted);margin-bottom:8px}input{width:100%}:focus-visible{outline:2px solid #4bb5b2;outline-offset:5px}#stage{margin-top:30px;min-height:230px;border:1px dashed var(--line);border-radius:16px;padding:40px;cursor:pointer}#stage strong{font-size:22px;font-weight:500}kbd{border:1px solid var(--line);border-bottom-width:3px;border-radius:5px;padding:2px 9px}.note{font-size:13px}#overlay{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:10}#notice{position:absolute;right:24px;top:calc(50% + 90px);max-height:40vh;overflow:auto;width:min(350px,calc(100vw - 48px));background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 48px 18px 20px;pointer-events:auto}#notice[hidden]{display:none}#message{margin:5px 0 0;color:var(--ink);font-size:14px;overflow-wrap:anywhere}#title{color:var(--muted);font-size:12px}#close{position:absolute;right:8px;top:8px;border:0;padding:3px 10px;background:transparent}#hand{position:absolute;right:-12px;top:calc(50% - 85px);width:220px;height:170px;transform:translateX(110%)}#hand.play{animation:knock 1700ms ease-in-out both}#marks{opacity:0}.play #marks{animation:marks 1700ms steps(1) both}
+@keyframes knock{0%,100%{transform:translateX(110%)}20%,40%,58%,76%{transform:translateX(12px) rotate(0deg)}30%,48%,66%{transform:translateX(-9px) rotate(-7deg)}83%{transform:translateX(12px)}}
+@keyframes marks{0%,35%,53%,71%,100%{opacity:0}30%,48%,66%{opacity:1}}
+@media(prefers-reduced-motion:reduce){#hand.play{animation:none;transform:translateX(0)}.play #marks{animation:none}}
+</style>
+<main>
+<span class="eyebrow">SHOULDER TAP / 01</span>
+<h1>轻敲一下，想起要做的事。</h1>
+<p>屏幕边缘伸出一只手，咚、咚、咚。<br>跑偏的时候，或你设定的提醒到点的时候。</p>
+<div class="controls"><select id="kind" aria-label="提醒类型"><option value="off-task">偏离计划</option><option value="due">该做某事了</option></select><button id="trigger">敲一下</button><button id="theme">切换浅色背景</button></div>
+<label for="copy">提醒内容 · 可以换成你自己的计划或习惯</label>
+<input id="copy" value="先停一下。你说好要写完接口文档，现在要回去继续，还是调整计划？">
+<div id="stage" tabindex="0" role="button" aria-label="敲屏幕演示，按 Tab、Enter 或空格触发" aria-describedby="hint"><strong>点击这里，按 <kbd>Tab</kbd> 试试。</strong><p id="hint">同一个手势，两种提醒。<br>Shift + Tab 离开这块区域，Escape 收起提醒。</p></div>
+<p class="note">浏览器内的交互原型 · 无声音 · 尚未连接模型和桌面悬浮窗</p>
+</main>
+<div id="overlay">
+<svg id="hand" viewBox="0 0 220 170" aria-hidden="true">
+<g id="marks" fill="none" stroke="#c1471d" stroke-width="4" stroke-linecap="round"><path d="M24 52l-9-9M18 75H5M24 98l-10 9"/></g>
+<g stroke="#2a3435" stroke-width="3.5" stroke-linejoin="round">
+<path d="M224 66H135V122H224" fill="#0e7c7b"/><path d="M141 64h17v61h-17z" fill="#4bb5b2"/>
+<path d="M142 71l-26-8-19-19c-7-7-18-5-20 3-11-8-21-3-20 8-11-2-18 4-16 15-10 3-10 14-5 22l14 20c6 9 18 14 31 12l32-7 29 1z" fill="#e8b88a"/>
+<path d="M48 97c11 12 25 15 41 9l24-9 29 6v15l-29-1-32 7c-13 2-25-3-31-12z" fill="#c08c5e" stroke="none"/>
+<path d="M77 47l16 18M57 55l19 22M41 70l20 22" fill="none" stroke-linecap="round"/>
+<path d="M112 84L87 73c-12-6-21 7-11 15l18 12" fill="#e8b88a" stroke-linecap="round"/>
+</g></svg>
+<aside id="notice" hidden><span id="title"></span><p id="message" role="status" aria-live="polite"></p><button id="close" aria-label="收起提醒">×</button></aside>
+</div>
+<script>
+const byId = id => document.getElementById(id);
+const hand = byId('hand'), notice = byId('notice'), stage = byId('stage');
+const examples = {'off-task':'先停一下。你说好要写完接口文档，现在要回去继续，还是调整计划？',due:'你设定的提醒到点了：离开屏幕，休息一会儿。'};
+let timer;
+function dismiss(){clearTimeout(timer);hand.classList.remove('play');notice.hidden=true;if(document.activeElement===byId('close'))stage.focus()}
+function tap(){
+ clearTimeout(timer);
+ byId('title').textContent=byId('kind').value==='off-task'?'先回到计划上？':'你给自己的提醒';
+ byId('message').textContent=byId('copy').value.trim()||'看看你给自己的提醒。';
+ notice.hidden=false;
+ hand.classList.remove('play');void hand.getBoundingClientRect();hand.classList.add('play');
+ timer=setTimeout(()=>hand.classList.remove('play'),1700);
+}
+byId('trigger').addEventListener('click',tap);
+stage.addEventListener('click',()=>{stage.focus();tap()});
+stage.addEventListener('keydown',event=>{if(!event.repeat&&!event.shiftKey&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&['Tab','Enter',' '].includes(event.key)){event.preventDefault();tap()}});
+document.addEventListener('keydown',event=>{if(event.key==='Escape')dismiss()});
+byId('close').addEventListener('click',dismiss);
+byId('kind').addEventListener('change',()=>{byId('copy').value=examples[byId('kind').value]});
+byId('copy').addEventListener('input',()=>{examples[byId('kind').value]=byId('copy').value});
+byId('theme').addEventListener('click',()=>{const light=document.body.classList.toggle('light');byId('theme').textContent=light?'切换深色背景':'切换浅色背景'});
+</script>
+</html>

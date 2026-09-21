@@ -1,15 +1,32 @@
 import { notion, plain, text, NotionError } from "./notion";
 
+/**
+ * 一个库装两种东西，靠 Kind 区分：
+ *   task  —— 你今天说好要做的事，有顺序，做完就勾掉
+ *   habit —— 隔多久该干一次的事，没有顺序，永远有效
+ * 名字一律自由填。不预设「喝水」这种东西 —— 没人有资格规定你该有什么习惯。
+ */
 export const DB_TITLE = "Shoulder Tap";
-export const HABITS_TITLE = "Shoulder Tap Habits";
-const STATUS = { pending: "Pending", done: "Done", dropped: "Dropped" } as const;
+
+const KIND = { task: "task", habit: "habit" } as const;
+const STATUS = { pending: "pending", done: "done", dropped: "dropped" } as const;
 
 export type Item = {
-  id: string;
+  id: string; // Notion page id
+  sid: string; // 我们自己签的短 ID，比如 t-a3f91c
   order: number;
   task: string;
   note: string;
   done: boolean;
+};
+
+export type Habit = {
+  id: string;
+  sid: string;
+  name: string;
+  everyMin: number;
+  last?: string;
+  overdueMin: number;
 };
 
 /** 同一个 token 在同一个热实例里只查一次数据库位置。冷启动重来一次也就多 200ms。 */
@@ -31,34 +48,46 @@ export function today(day?: string): string {
   return new Date(Date.now() + tzOffset() * 3600_000).toISOString().slice(0, 10);
 }
 
-/** 在用户自己的 workspace 里找那个 data source。 */
-export async function findDataSource(token: string, title = DB_TITLE): Promise<string> {
-  const key = `${token}::${title}`;
-  const hit = dsCache.get(key);
+/** 签一个短 ID。撞上已有的就重签 —— taken 是调用方手上已经有的那一批。 */
+function mintId(prefix: "t" | "h", taken: Set<string>): string {
+  for (let i = 0; i < 8; i++) {
+    const sid = `${prefix}-${crypto.randomUUID().replace(/-/g, "").slice(0, 6)}`;
+    if (!taken.has(sid)) {
+      taken.add(sid);
+      return sid;
+    }
+  }
+  // 连撞八次是天方夜谭，真撞上就用完整 uuid，宁可难看也不能重复。
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
+/** 在用户自己的 workspace 里找那个叫 Shoulder Tap 的 data source。 */
+export async function findDataSource(token: string): Promise<string> {
+  const hit = dsCache.get(token);
   if (hit) return hit;
 
   const res = await notion<any>(token, "POST", "/search", {
-    query: title,
+    query: DB_TITLE,
     filter: { property: "object", value: "data_source" },
     page_size: 20,
   });
 
   const match = (res.results ?? []).find(
-    (r: any) => plain(r.title).toLowerCase() === title.toLowerCase(),
+    (r: any) => plain(r.title).toLowerCase() === DB_TITLE.toLowerCase(),
   );
   if (!match) {
     throw new NotionError(
       404,
       "not_set_up",
-      `你的 Notion 里还没有「${title}」这个数据库，或者你的 integration 还没被授权访问它。` +
+      `你的 Notion 里还没有「${DB_TITLE}」这个数据库，或者你的 integration 还没被授权访问它。` +
         `先调用 setup 工具建一个（要给它一个 Notion 页面链接），或者到那个页面的 ⋯ → Connections 里把 integration 加上。`,
     );
   }
-  dsCache.set(key, match.id);
+  dsCache.set(token, match.id);
   return match.id;
 }
 
-/** 建库。schema 是这个服务唯一「拥有」的东西。 */
+/** 建库。schema 是这个服务唯一「拥有」的东西，建完就全是用户的了。 */
 export async function createDatabase(token: string, parentPageId: string) {
   const db = await notion<any>(token, "POST", "/databases", {
     parent: { type: "page_id", page_id: parentPageId },
@@ -66,7 +95,16 @@ export async function createDatabase(token: string, parentPageId: string) {
     icon: { type: "emoji", emoji: "👀" },
     initial_data_source: {
       properties: {
-        Task: { title: {} },
+        Name: { title: {} },
+        Kind: {
+          select: {
+            options: [
+              { name: KIND.task, color: "blue" },
+              { name: KIND.habit, color: "purple" },
+            ],
+          },
+        },
+        ID: { rich_text: {} },
         Order: { number: {} },
         Status: {
           select: {
@@ -78,6 +116,8 @@ export async function createDatabase(token: string, parentPageId: string) {
           },
         },
         Day: { date: {} },
+        EveryMinutes: { number: {} },
+        Last: { date: {} },
         Note: { rich_text: {} },
       },
     },
@@ -85,110 +125,19 @@ export async function createDatabase(token: string, parentPageId: string) {
 
   const dsId = db.data_sources?.[0]?.id;
   if (!dsId) throw new Error("建库成功但没拿到 data source id，Notion 的返回变了。");
-  dsCache.set(`${token}::${DB_TITLE}`, dsId);
+  dsCache.set(token, dsId);
   return { databaseId: db.id, dataSourceId: dsId, url: db.url as string | undefined };
 }
 
-// ---------- 习惯提醒 ----------
-// 这些不是任务，是「隔多久该起来一下」。规则和上次时间都在用户自己的 Notion 里，
-// 他想改成 45 分钟、想加一条「看远处」，直接在 Notion 里改就行，不用动代码。
+// ---------- task ----------
 
-export type Habit = { id: string; name: string; everyMin: number; last?: string; overdueMin: number };
-
-const DEFAULT_HABITS = [
-  { name: "喝水", every: 30 },
-  { name: "起来走两步", every: 60 },
-  { name: "做几个拉伸", every: 120 },
-];
-
-export async function createHabitsDatabase(token: string, parentPageId: string) {
-  const db = await notion<any>(token, "POST", "/databases", {
-    parent: { type: "page_id", page_id: parentPageId },
-    title: text(HABITS_TITLE),
-    icon: { type: "emoji", emoji: "⏱️" },
-    initial_data_source: {
-      properties: {
-        Habit: { title: {} },
-        EveryMinutes: { number: {} },
-        Last: { date: {} },
-      },
-    },
-  });
-  const ds = db.data_sources?.[0]?.id;
-  if (!ds) throw new Error("习惯库建好了但没拿到 data source id。");
-  dsCache.set(`${token}::${HABITS_TITLE}`, ds);
-
-  for (const h of DEFAULT_HABITS) {
-    await notion(token, "POST", "/pages", {
-      parent: { type: "data_source_id", data_source_id: ds },
-      properties: {
-        Habit: { title: text(h.name) },
-        EveryMinutes: { number: h.every },
-        Last: { date: { start: new Date().toISOString() } },
-      },
-    });
-  }
-  return { url: db.url as string | undefined };
-}
-
-/** 现在有哪些该做了。习惯库不存在就当没这回事，不要因此挡住 check_focus。 */
-export async function overdueHabits(token: string): Promise<Habit[]> {
-  let ds: string;
-  try {
-    ds = await findDataSource(token, HABITS_TITLE);
-  } catch {
-    return [];
-  }
-
-  const res = await notion<any>(token, "POST", `/data_sources/${ds}/query`, { page_size: 50 });
-  const now = Date.now();
-
-  return (res.results ?? [])
-    .map((page: any): Habit => {
-      const p = page.properties ?? {};
-      const last = p.Last?.date?.start;
-      const everyMin = p.EveryMinutes?.number ?? 0;
-      const sinceMin = last ? Math.floor((now - Date.parse(last)) / 60000) : Infinity;
-      return {
-        id: page.id,
-        name: plain(p.Habit?.title),
-        everyMin,
-        last,
-        overdueMin: everyMin > 0 ? sinceMin - everyMin : -1,
-      };
-    })
-    .filter((h: Habit) => h.name && h.everyMin > 0 && h.overdueMin > 0)
-    .sort((a: Habit, b: Habit) => b.overdueMin - a.overdueMin);
-}
-
-/** 记一笔「刚做了」。名字模糊匹配，模型说「喝水」「喝了水」都认。 */
-export async function logHabit(token: string, name: string): Promise<Habit | undefined> {
-  const ds = await findDataSource(token, HABITS_TITLE);
-  const res = await notion<any>(token, "POST", `/data_sources/${ds}/query`, { page_size: 50 });
-  const rows = (res.results ?? []).map((page: any) => ({
-    id: page.id,
-    name: plain(page.properties?.Habit?.title),
-    everyMin: page.properties?.EveryMinutes?.number ?? 0,
-  }));
-
-  const needle = name.trim();
-  const hit =
-    rows.find((r: any) => r.name === needle) ??
-    rows.find((r: any) => r.name.includes(needle) || needle.includes(r.name));
-  if (!hit) return undefined;
-
-  await notion(token, "PATCH", `/pages/${hit.id}`, {
-    properties: { Last: { date: { start: new Date().toISOString() } } },
-  });
-  return { ...hit, overdueMin: -hit.everyMin };
-}
-
-function parse(page: any): Item {
+function parseTask(page: any): Item {
   const p = page.properties ?? {};
   return {
     id: page.id,
+    sid: plain(p.ID?.rich_text),
     order: p.Order?.number ?? 0,
-    task: plain(p.Task?.title),
+    task: plain(p.Name?.title),
     note: plain(p.Note?.rich_text),
     done: p.Status?.select?.name === STATUS.done,
   };
@@ -199,6 +148,7 @@ export async function listDay(token: string, day: string): Promise<Item[]> {
   const res = await notion<any>(token, "POST", `/data_sources/${ds}/query`, {
     filter: {
       and: [
+        { property: "Kind", select: { equals: KIND.task } },
         { property: "Day", date: { equals: day } },
         { property: "Status", select: { does_not_equal: STATUS.dropped } },
       ],
@@ -206,21 +156,24 @@ export async function listDay(token: string, day: string): Promise<Item[]> {
     sorts: [{ property: "Order", direction: "ascending" }],
     page_size: 100,
   });
-  return (res.results ?? []).map(parse).sort((a: Item, b: Item) => a.order - b.order);
+  return (res.results ?? []).map(parseTask).sort((a: Item, b: Item) => a.order - b.order);
 }
 
-async function createItem(
+async function createTask(
   token: string,
   ds: string,
   day: string,
   order: number,
   task: string,
   note: string,
+  sid: string,
 ) {
   await notion(token, "POST", "/pages", {
     parent: { type: "data_source_id", data_source_id: ds },
     properties: {
-      Task: { title: text(task) },
+      Name: { title: text(task) },
+      Kind: { select: { name: KIND.task } },
+      ID: { rich_text: text(sid) },
       Order: { number: order },
       Status: { select: { name: STATUS.pending } },
       Day: { date: { start: day } },
@@ -240,9 +193,11 @@ export async function setDay(
   for (const it of old) {
     await notion(token, "PATCH", `/pages/${it.id}`, { in_trash: true });
   }
+
+  const taken = new Set<string>();
   let order = 1;
   for (const t of tasks) {
-    await createItem(token, ds, day, order++, t.task, t.note ?? "");
+    await createTask(token, ds, day, order++, t.task, t.note ?? "", mintId("t", taken));
   }
   return listDay(token, day);
 }
@@ -257,10 +212,11 @@ export async function addItem(
 ): Promise<Item[]> {
   const ds = await findDataSource(token);
   const items = await listDay(token, day);
+  const sid = mintId("t", new Set(items.map((i) => i.sid)));
 
   if (position === undefined || position > items.length) {
     const last = items.length ? items[items.length - 1].order : 0;
-    await createItem(token, ds, day, last + 1, task, note);
+    await createTask(token, ds, day, last + 1, task, note, sid);
     return listDay(token, day);
   }
 
@@ -272,7 +228,7 @@ export async function addItem(
       });
     }
   }
-  await createItem(token, ds, day, at, task, note);
+  await createTask(token, ds, day, at, task, note, sid);
   return listDay(token, day);
 }
 
@@ -292,3 +248,87 @@ export async function setStatus(
 }
 
 export const current = (items: Item[]) => items.find((i) => !i.done);
+
+// ---------- habit ----------
+
+function parseHabit(page: any, now: number): Habit {
+  const p = page.properties ?? {};
+  const last = p.Last?.date?.start;
+  const everyMin = p.EveryMinutes?.number ?? 0;
+  const sinceMin = last ? Math.floor((now - Date.parse(last)) / 60000) : Infinity;
+  return {
+    id: page.id,
+    sid: plain(p.ID?.rich_text),
+    name: plain(p.Name?.title),
+    everyMin,
+    last,
+    overdueMin: everyMin > 0 ? sinceMin - everyMin : -1,
+  };
+}
+
+async function allHabits(token: string): Promise<Habit[]> {
+  const ds = await findDataSource(token);
+  const res = await notion<any>(token, "POST", `/data_sources/${ds}/query`, {
+    filter: { property: "Kind", select: { equals: KIND.habit } },
+    page_size: 100,
+  });
+  const now = Date.now();
+  return (res.results ?? []).map((p: any) => parseHabit(p, now)).filter((h: Habit) => h.name);
+}
+
+export async function listHabits(token: string): Promise<Habit[]> {
+  return allHabits(token);
+}
+
+/** 现在有哪些该做了。库还没建就当没这回事，不要因此挡住 check_focus。 */
+export async function overdueHabits(token: string): Promise<Habit[]> {
+  let habits: Habit[];
+  try {
+    habits = await allHabits(token);
+  } catch {
+    return [];
+  }
+  return habits
+    .filter((h) => h.everyMin > 0 && h.overdueMin > 0)
+    .sort((a, b) => b.overdueMin - a.overdueMin);
+}
+
+export async function addHabit(
+  token: string,
+  name: string,
+  everyMinutes: number,
+  note: string,
+): Promise<Habit[]> {
+  const ds = await findDataSource(token);
+  const existing = await allHabits(token);
+  const sid = mintId("h", new Set(existing.map((h) => h.sid)));
+
+  await notion(token, "POST", "/pages", {
+    parent: { type: "data_source_id", data_source_id: ds },
+    properties: {
+      Name: { title: text(name) },
+      Kind: { select: { name: KIND.habit } },
+      ID: { rich_text: text(sid) },
+      EveryMinutes: { number: everyMinutes },
+      Last: { date: { start: new Date().toISOString() } },
+      Note: { rich_text: text(note) },
+    },
+  });
+  return allHabits(token);
+}
+
+/** 记一笔「刚做了」。名字模糊匹配，模型说「喝水」「喝了水」都认。 */
+export async function logHabit(token: string, name: string): Promise<Habit | undefined> {
+  const habits = await allHabits(token);
+  const needle = name.trim();
+  const hit =
+    habits.find((h) => h.sid === needle) ??
+    habits.find((h) => h.name === needle) ??
+    habits.find((h) => h.name.includes(needle) || needle.includes(h.name));
+  if (!hit) return undefined;
+
+  await notion(token, "PATCH", `/pages/${hit.id}`, {
+    properties: { Last: { date: { start: new Date().toISOString() } } },
+  });
+  return { ...hit, overdueMin: -hit.everyMin, last: new Date().toISOString() };
+}
