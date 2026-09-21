@@ -1,4 +1,4 @@
-import { today, tzOffset } from "@/lib/focus";
+import { DEFAULT_TZ, offsetOf, today } from "@/lib/focus";
 
 // 每次都要现算，不然时间会被静态化成构建那一刻。
 export const dynamic = "force-dynamic";
@@ -57,8 +57,8 @@ export default function Health() {
       <Row k="零内容工具" v="focus_protocol · due_check · ping" good />
       <Row k="需要 Notion secret 的" v="check_focus · set_focus · setup …" />
       <Row k="服务器时间 (UTC)" v={now.toISOString().replace("T", " ").slice(0, 19)} />
-      <Row k="时区偏移" v={`UTC+${tzOffset()}`} />
-      <Row k="按该时区的今天" v={today()} />
+      <Row k="服务端默认时区" v={`${DEFAULT_TZ} UTC${offsetOf(DEFAULT_TZ)}`} />
+      <Row k="那边算的今天" v={today(DEFAULT_TZ)} />
 
       <p style={{ color: "#5f5f6d", fontSize: 12, marginTop: 30, lineHeight: 1.8 }}>
         服务端不存任何人的 token，也不存任何人的任务。数据在调用方自己的 Notion 里。

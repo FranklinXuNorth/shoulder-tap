@@ -16,8 +16,10 @@ import {
   setDay,
   setStatus,
   dayStartHour,
+  assertTz,
+  DEFAULT_TZ,
+  offsetOf,
   today,
-  tzOffset,
 } from "@/lib/focus";
 import { renderCheck, renderPlan } from "@/lib/render";
 import { protocolText, tapEvent, whatIsDue } from "@/lib/protocol";
@@ -48,6 +50,22 @@ async function guard(fn: () => Promise<{ content: { type: "text"; text: string }
   }
 }
 
+const tzArg = z
+  .string()
+  .optional()
+  .describe(
+    "用户所在时区的 IANA 名字，比如 America/New_York、Asia/Shanghai。" +
+      "**每次都传** —— 你能从用户的机器上读到它（Intl.DateTimeFormat().resolvedOptions().timeZone），" +
+      "服务端猜不出来。不传就退回服务端默认值，很可能整整差一天。",
+  );
+
+/** 用哪个时区，以及一句给人看的说明。时区错了必须一眼能看见，不能静悄悄。 */
+function tzOf(tz?: string): { tz: string; line: string } {
+  const use = assertTz(tz || DEFAULT_TZ);
+  const guessed = tz ? "" : "（没传 tz，用的是服务端默认值 —— 不对的话每次调用都带上）";
+  return { tz: use, line: `时区：${use} UTC${offsetOf(use)}${guessed}` };
+}
+
 const dayArg = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -75,8 +93,10 @@ const handler = createMcpHandler(
             "shoulder-tap 0.1.0 活着。",
             `零内容工具（focus_protocol / due_check）：不需要任何凭据`,
             `代劳 Notion 的工具：要在 Authorization 头里带 Notion secret`,
-            `服务器时间：${new Date().toISOString()}`,
-            `按 UTC+${tzOffset()}、一天从 ${dayStartHour()} 点开始算 → 今天是 ${today()}`,
+            `服务器时间（UTC）：${new Date().toISOString()}`,
+            `服务端默认时区：${DEFAULT_TZ} → 那边现在算今天是 ${today(DEFAULT_TZ)}`,
+            `一天从 ${dayStartHour()} 点开始，不是午夜。`,
+            `调用别的工具时请带上用户真实时区的 IANA 名字，服务端猜不出来。`,
           ].join("\n"),
         ),
     );
@@ -197,18 +217,22 @@ const handler = createMcpHandler(
             .string()
             .optional()
             .describe("用户现在想做/正在做的事，一句话。没有就不传，那就只是看一眼今天的清单。"),
+          tz: tzArg,
           day: dayArg,
         }),
       },
-      async ({ activity, day }, ctx: any) =>
+      async ({ activity, day, tz }, ctx: any) =>
         guard(async () => {
           const token = tokenOf(ctx);
-          const d = today(day);
+          const zone = tzOf(tz);
+          const d = today(zone.tz, day);
           const [items, habits] = await Promise.all([
             listDay(token, d),
             overdueHabits(token).catch(() => []),
           ]);
-          return ok(renderCheck(items, d, activity, habits));
+          return ok(`${zone.line}
+
+${renderCheck(items, d, activity, habits)}`);
         }),
     );
 
@@ -229,14 +253,16 @@ const handler = createMcpHandler(
             )
             .min(1)
             .describe("按执行先后排好的清单"),
+          tz: tzArg,
           day: dayArg,
         }),
       },
-      async ({ tasks, day }, ctx: any) =>
+      async ({ tasks, day, tz }, ctx: any) =>
         guard(async () => {
-          const d = today(day);
-          const items = await setDay(tokenOf(ctx), d, tasks);
-          return ok(`记下了。\n\n${renderPlan(items, d)}`);
+          const zone = tzOf(tz);
+          const d = today(zone.tz, day);
+          const items = await setDay(tokenOf(ctx), d, tasks, zone.tz);
+          return ok(`记下了。${zone.line}\n\n${renderPlan(items, d)}`);
         }),
     );
 
@@ -255,14 +281,16 @@ const handler = createMcpHandler(
             .min(1)
             .optional()
             .describe("插在第几位，后面的顺延。不传就排到最后。急事插队传 1。"),
+          tz: tzArg,
           day: dayArg,
         }),
       },
-      async ({ task, note, position, day }, ctx: any) =>
+      async ({ task, note, position, day, tz }, ctx: any) =>
         guard(async () => {
-          const d = today(day);
-          const items = await addItem(tokenOf(ctx), d, task, note ?? "", position);
-          return ok(`加上了。\n\n${renderPlan(items, d)}`);
+          const zone = tzOf(tz);
+          const d = today(zone.tz, day);
+          const items = await addItem(tokenOf(ctx), d, task, note ?? "", position, zone.tz);
+          return ok(`加上了。${zone.line}\n\n${renderPlan(items, d)}`);
         }),
     );
 
@@ -276,12 +304,13 @@ const handler = createMcpHandler(
         inputSchema: z.object({
           position: z.number().int().min(1).describe("清单里的序号"),
           dropped: z.boolean().optional().describe("true = 今天不做了，从清单里拿掉，而不是完成"),
+          tz: tzArg,
           day: dayArg,
         }),
       },
-      async ({ position, dropped, day }, ctx: any) =>
+      async ({ position, dropped, day, tz }, ctx: any) =>
         guard(async () => {
-          const d = today(day);
+          const d = today(tzOf(tz).tz, day);
           const { items, hit } = await setStatus(
             tokenOf(ctx),
             d,
@@ -310,11 +339,12 @@ const handler = createMcpHandler(
           name: z.string().describe("习惯名，用户自己的说法，原样记"),
           every_minutes: z.number().int().min(1).describe("隔多少分钟提醒一次"),
           note: z.string().optional().describe("备注，没有就不传"),
+          tz: tzArg,
         }),
       },
-      async ({ name, every_minutes, note }, ctx: any) =>
+      async ({ name, every_minutes, note, tz }, ctx: any) =>
         guard(async () => {
-          const habits = await addHabit(tokenOf(ctx), name, every_minutes, note ?? "");
+          const habits = await addHabit(tokenOf(ctx), name, every_minutes, note ?? "", tzOf(tz).tz);
           return ok(
             `加上了：${name}，每 ${every_minutes} 分钟。\n\n现在盯着这些：\n` +
               habits.map((h) => `  · ${h.name} —— 每 ${h.everyMin} 分钟`).join("\n"),
@@ -331,12 +361,13 @@ const handler = createMcpHandler(
           "不要替他记——他没说做，就是没做。",
         inputSchema: z.object({
           habit: z.string().describe("习惯名或短 ID，用用户自己的说法，跟库里的名字模糊匹配"),
+          tz: tzArg,
         }),
       },
-      async ({ habit }, ctx: any) =>
+      async ({ habit, tz }, ctx: any) =>
         guard(async () => {
           const token = tokenOf(ctx);
-          const hit = await logHabit(token, habit);
+          const hit = await logHabit(token, habit, tzOf(tz).tz);
           if (hit) return ok(`记下了：${hit.name}，下次提醒在 ${hit.everyMin} 分钟后。`);
 
           const all = await listHabits(token).catch(() => []);

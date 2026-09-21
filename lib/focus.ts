@@ -17,6 +17,7 @@ export type Item = {
   order: number;
   task: string;
   note: string;
+  tz: string;
   done: boolean;
 };
 
@@ -26,6 +27,7 @@ export type Habit = {
   name: string;
   everyMin: number;
   last?: string;
+  tz: string;
   overdueMin: number;
 };
 
@@ -33,13 +35,55 @@ export type Habit = {
 const dsCache = new Map<string, string>();
 
 /**
- * 时区偏移。注意不能写成 `?? 8`：构建时这个变量会被内联成空字符串，
- * `??` 只挡 null/undefined，挡不住 ""，于是 Number("") = 0，"今天"静悄悄退回 UTC。
+ * 时区一律用 IANA 名字（America/New_York、Asia/Shanghai），不用偏移小时数。
+ *
+ * 之前这里写死了 UTC+8，结果给美东用户算出的"今天"整整差一天 ——
+ * 任务被写进明天，然后他查今天什么都查不到。猜时区就是在制造这种 bug，
+ * 所以现在：调用方传，传什么用什么；没传才退回 DEFAULT_TIMEZONE，
+ * 而且每次返回都会把用到的时区说出来，错了一眼能看见。
  */
-export function tzOffset(): number {
-  const raw = process.env.TIMEZONE_OFFSET_HOURS;
-  const n = raw ? Number(raw) : NaN;
-  return Number.isFinite(n) ? n : 8;
+export const DEFAULT_TZ = process.env.DEFAULT_TIMEZONE || "UTC";
+
+type Parts = Record<string, string>;
+
+function partsIn(tz: string, at: Date): Parts {
+  const f = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZoneName: "longOffset",
+  });
+  return Object.fromEntries(f.formatToParts(at).map((p) => [p.type, p.value]));
+}
+
+/** 不认识的时区名早点炸，别让它悄悄退回 UTC 又写出一天错数据。 */
+export function assertTz(tz: string): string {
+  try {
+    partsIn(tz, new Date());
+    return tz;
+  } catch {
+    throw new Error(
+      `不认识时区「${tz}」。要 IANA 名字，比如 America/New_York、Asia/Shanghai、Europe/London。`,
+    );
+  }
+}
+
+/** 那个时区此刻的 UTC 偏移，形如 -04:00。夏令时会自己跟着变。 */
+export function offsetOf(tz: string, at = new Date()): string {
+  const name = partsIn(tz, at).timeZoneName ?? "GMT";
+  const m = /GMT([+-]\d{2}:\d{2})/.exec(name);
+  return m ? m[1] : "+00:00";
+}
+
+/** 带偏移的本地时间戳。存这个而不是 UTC 的 Z，Notion 里显示的才是你看表的时间。 */
+export function nowIso(tz: string): string {
+  const p = partsIn(tz, new Date());
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}${offsetOf(tz)}`;
 }
 
 /**
@@ -55,11 +99,13 @@ export function dayStartHour(): number {
   return Number.isFinite(n) && n >= 0 && n < 12 ? n : 4;
 }
 
-/** 今天是哪天。服务器在 UTC，所以按用户时区算，再按日切时间往回挪。 */
-export function today(day?: string): string {
+/** 今天是哪天：先取那个时区的本地日期，不到日切时间就还算前一天。 */
+export function today(tz: string, day?: string): string {
   if (day) return day;
-  const local = Date.now() + tzOffset() * 3600_000;
-  return new Date(local - dayStartHour() * 3600_000).toISOString().slice(0, 10);
+  const p = partsIn(assertTz(tz), new Date());
+  const midnight = Date.parse(`${p.year}-${p.month}-${p.day}T00:00:00Z`);
+  const shifted = Number(p.hour) < dayStartHour() ? midnight - 86_400_000 : midnight;
+  return new Date(shifted).toISOString().slice(0, 10);
 }
 
 /** 签一个短 ID。撞上已有的就重签 —— taken 是调用方手上已经有的那一批。 */
@@ -132,6 +178,7 @@ function schema() {
       },
     },
     Day: { date: {} },
+    TZ: { rich_text: {} },
     EveryMinutes: { number: {} },
     Last: { date: {} },
     Note: { rich_text: {} },
@@ -198,6 +245,7 @@ function parseTask(page: any): Item {
     order: p.Order?.number ?? 0,
     task: plain(p.Name?.title),
     note: plain(p.Note?.rich_text),
+    tz: plain(p.TZ?.rich_text),
     done: p.Status?.select?.name === STATUS.done,
   };
 }
@@ -226,6 +274,7 @@ async function createTask(
   task: string,
   note: string,
   sid: string,
+  tz: string,
 ) {
   await notion(token, "POST", "/pages", {
     parent: { type: "data_source_id", data_source_id: ds },
@@ -236,6 +285,7 @@ async function createTask(
       Order: { number: order },
       Status: { select: { name: STATUS.pending } },
       Day: { date: { start: day } },
+      TZ: { rich_text: text(tz) },
       Note: { rich_text: text(note) },
     },
   });
@@ -246,6 +296,7 @@ export async function setDay(
   token: string,
   day: string,
   tasks: { task: string; note?: string }[],
+  tz: string,
 ): Promise<Item[]> {
   const ds = await findDataSource(token);
   const old = await listDay(token, day);
@@ -256,7 +307,7 @@ export async function setDay(
   const taken = new Set<string>();
   let order = 1;
   for (const t of tasks) {
-    await createTask(token, ds, day, order++, t.task, t.note ?? "", mintId("t", taken));
+    await createTask(token, ds, day, order++, t.task, t.note ?? "", mintId("t", taken), tz);
   }
   return listDay(token, day);
 }
@@ -267,7 +318,8 @@ export async function addItem(
   day: string,
   task: string,
   note: string,
-  position?: number,
+  position: number | undefined,
+  tz: string,
 ): Promise<Item[]> {
   const ds = await findDataSource(token);
   const items = await listDay(token, day);
@@ -275,7 +327,7 @@ export async function addItem(
 
   if (position === undefined || position > items.length) {
     const last = items.length ? items[items.length - 1].order : 0;
-    await createTask(token, ds, day, last + 1, task, note, sid);
+    await createTask(token, ds, day, last + 1, task, note, sid, tz);
     return listDay(token, day);
   }
 
@@ -287,7 +339,7 @@ export async function addItem(
       });
     }
   }
-  await createTask(token, ds, day, at, task, note, sid);
+  await createTask(token, ds, day, at, task, note, sid, tz);
   return listDay(token, day);
 }
 
@@ -321,6 +373,7 @@ function parseHabit(page: any, now: number): Habit {
     name: plain(p.Name?.title),
     everyMin,
     last,
+    tz: plain(p.TZ?.rich_text),
     overdueMin: everyMin > 0 ? sinceMin - everyMin : -1,
   };
 }
@@ -357,6 +410,7 @@ export async function addHabit(
   name: string,
   everyMinutes: number,
   note: string,
+  tz: string,
 ): Promise<Habit[]> {
   const ds = await findDataSource(token);
   const existing = await allHabits(token);
@@ -369,7 +423,8 @@ export async function addHabit(
       Kind: { select: { name: KIND.habit } },
       ID: { rich_text: text(sid) },
       EveryMinutes: { number: everyMinutes },
-      Last: { date: { start: new Date().toISOString() } },
+      Last: { date: { start: nowIso(tz) } },
+      TZ: { rich_text: text(tz) },
       Note: { rich_text: text(note) },
     },
   });
@@ -377,7 +432,7 @@ export async function addHabit(
 }
 
 /** 记一笔「刚做了」。名字模糊匹配，模型说「喝水」「喝了水」都认。 */
-export async function logHabit(token: string, name: string): Promise<Habit | undefined> {
+export async function logHabit(token: string, name: string, tz: string): Promise<Habit | undefined> {
   const habits = await allHabits(token);
   const needle = name.trim();
   const hit =
@@ -386,8 +441,9 @@ export async function logHabit(token: string, name: string): Promise<Habit | und
     habits.find((h) => h.name.includes(needle) || needle.includes(h.name));
   if (!hit) return undefined;
 
+  const at = nowIso(tz);
   await notion(token, "PATCH", `/pages/${hit.id}`, {
-    properties: { Last: { date: { start: new Date().toISOString() } } },
+    properties: { Last: { date: { start: at } }, TZ: { rich_text: text(tz) } },
   });
-  return { ...hit, overdueMin: -hit.everyMin, last: new Date().toISOString() };
+  return { ...hit, overdueMin: -hit.everyMin, last: at };
 }
