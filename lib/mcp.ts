@@ -20,6 +20,7 @@ import {
 } from "@/lib/focus";
 import { renderCheck, renderPlan } from "@/lib/render";
 import { protocolText, tapEvent, whatIsDue } from "@/lib/protocol";
+import { JEV_ON, WHAT_TO_DO, judge } from "@/lib/jev";
 
 /**
  * Bearer token 就是调用方自己的 Notion integration secret。
@@ -129,6 +130,51 @@ const handler = createMcpHandler(
         );
       },
     );
+
+    // ---- 快速判档：要钱、也要把两行字交出去，所以默认不开 ----
+
+    if (JEV_ON) {
+      server.registerTool(
+        "classify_focus",
+        {
+          title: "让 Jev 判一档",
+          description:
+            "把「用户现在要做什么」和「当前这条任务」交给 Jev（System One 模型），" +
+            "几百毫秒回一个 related / partial / unrelated 和置信度。" +
+            "你自己判得准的时候不需要它；拿不准、或者想要一个不受对话上下文影响的第二意见时才用。" +
+            "注意：这一步会把这两行文字送出这台机器，用户的完整清单不要整个塞进来。",
+          inputSchema: z.object({
+            activity: z.string().describe("用户现在要做的事，一句话"),
+            current_task: z.string().describe("今天清单上当前那条，一句话"),
+            other_tasks: z
+              .array(z.string())
+              .optional()
+              .describe("清单上其它几条，只传标题。不传也能判，只是分不清 partial。"),
+          }),
+        },
+        async ({ activity, current_task, other_tasks }) =>
+          guard(async () => {
+            const { relation, confidence } = await judge(
+              activity,
+              current_task,
+              other_tasks ?? [],
+            );
+            return ok(
+              [
+                `${relation}（置信度 ${confidence.toFixed(2)}）`,
+                "",
+                WHAT_TO_DO[relation],
+                "",
+                confidence < 0.6
+                  ? "置信度不高 —— 按 unrelated 处理，拦下来问一句，别自作主张。"
+                  : "",
+              ]
+                .join("\n")
+                .trim(),
+            );
+          }),
+      );
+    }
 
     // ---- 以下是「让服务端代劳 Notion」的路径，跟上面二选一 ----
 
