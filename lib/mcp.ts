@@ -15,6 +15,7 @@ import {
   overdueHabits,
   setDay,
   setStatus,
+  dayStartHour,
   today,
   tzOffset,
 } from "@/lib/focus";
@@ -51,7 +52,11 @@ const dayArg = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .optional()
-  .describe("YYYY-MM-DD。不传就按服务器时区算今天；你知道用户本地日期的话最好传。");
+  .describe(
+    "YYYY-MM-DD。**基本不要传** —— 服务端按用户时区算今天，比你准。" +
+      "你上下文里的日期可能是 UTC，跟用户本地差一天，传进来就会查到空的一天。" +
+      "只有用户明确说「昨天」「上周三」这种时候才传。",
+  );
 
 const handler = createMcpHandler(
   (server) => {
@@ -70,7 +75,8 @@ const handler = createMcpHandler(
             "shoulder-tap 0.1.0 活着。",
             `零内容工具（focus_protocol / due_check）：不需要任何凭据`,
             `代劳 Notion 的工具：要在 Authorization 头里带 Notion secret`,
-            `服务器时间：${new Date().toISOString()}（按 UTC+${tzOffset()} 算今天 = ${today()}）`,
+            `服务器时间：${new Date().toISOString()}`,
+            `按 UTC+${tzOffset()}、一天从 ${dayStartHour()} 点开始算 → 今天是 ${today()}`,
           ].join("\n"),
         ),
     );

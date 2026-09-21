@@ -42,10 +42,24 @@ export function tzOffset(): number {
   return Number.isFinite(n) ? n : 8;
 }
 
-/** 今天是哪天。服务器在 UTC，所以按配置的时区偏移算。 */
+/**
+ * 一天从几点开始。**不是午夜。**
+ *
+ * 你 23:00 列好清单，干到凌晨一点 —— 按午夜切的话，清单会在你眼前翻页，
+ * 今天说好的事忽然变成"昨天"的，当前这条也没了。那不是新的一天，那是同一个晚上。
+ * 默认 4 点：熬夜的人还在昨天，早起的人已经在今天。
+ */
+export function dayStartHour(): number {
+  const raw = process.env.DAY_STARTS_AT_HOUR;
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) && n >= 0 && n < 12 ? n : 4;
+}
+
+/** 今天是哪天。服务器在 UTC，所以按用户时区算，再按日切时间往回挪。 */
 export function today(day?: string): string {
   if (day) return day;
-  return new Date(Date.now() + tzOffset() * 3600_000).toISOString().slice(0, 10);
+  const local = Date.now() + tzOffset() * 3600_000;
+  return new Date(local - dayStartHour() * 3600_000).toISOString().slice(0, 10);
 }
 
 /** 签一个短 ID。撞上已有的就重签 —— taken 是调用方手上已经有的那一批。 */
