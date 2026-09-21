@@ -1,4 +1,4 @@
-// 旧地址，保持可用，免得已经配好的客户端断掉。新的请用 /mcp。
+// MCP 端点。客户端配这个：https://<部署>/mcp
 import { mcpHandler } from "@/lib/mcp";
 
 export { mcpHandler as GET, mcpHandler as POST, mcpHandler as DELETE };

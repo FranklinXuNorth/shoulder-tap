@@ -15,11 +15,20 @@ export type Item = {
 /** 同一个 token 在同一个热实例里只查一次数据库位置。冷启动重来一次也就多 200ms。 */
 const dsCache = new Map<string, string>();
 
+/**
+ * 时区偏移。注意不能写成 `?? 8`：构建时这个变量会被内联成空字符串，
+ * `??` 只挡 null/undefined，挡不住 ""，于是 Number("") = 0，"今天"静悄悄退回 UTC。
+ */
+export function tzOffset(): number {
+  const raw = process.env.TIMEZONE_OFFSET_HOURS;
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) ? n : 8;
+}
+
 /** 今天是哪天。服务器在 UTC，所以按配置的时区偏移算。 */
 export function today(day?: string): string {
   if (day) return day;
-  const offset = Number(process.env.TIMEZONE_OFFSET_HOURS ?? 8);
-  return new Date(Date.now() + offset * 3600_000).toISOString().slice(0, 10);
+  return new Date(Date.now() + tzOffset() * 3600_000).toISOString().slice(0, 10);
 }
 
 /** 在用户自己的 workspace 里找那个 data source。 */
