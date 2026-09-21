@@ -69,13 +69,19 @@ export async function findDataSource(token: string): Promise<string> {
   const hit = dsCache.get(token);
   if (hit) return hit;
 
-  const res = await notion<any>(token, "POST", "/search", {
-    query: DB_TITLE,
-    filter: { property: "object", value: "data_source" },
-    page_size: 20,
-  });
+  // 两轮：先按标题搜（快），搜不到就把能看见的库都列出来自己比。
+  // Notion 的全文搜索是按词匹配的，"Shoulder Tap" 搜不出叫 "ShoulderTap" 的库 ——
+  // 只在结果里做归一化没用，那一行在搜索阶段就已经被滤掉了。
+  const search = async (query?: string) => {
+    const res = await notion<any>(token, "POST", "/search", {
+      ...(query ? { query } : {}),
+      filter: { property: "object", value: "data_source" },
+      page_size: 100,
+    });
+    return (res.results ?? []).find((r: any) => norm(plain(r.title)) === norm(DB_TITLE));
+  };
 
-  const match = (res.results ?? []).find((r: any) => norm(plain(r.title)) === norm(DB_TITLE));
+  const match = (await search(DB_TITLE)) ?? (await search());
   if (!match) {
     throw new NotionError(
       404,
