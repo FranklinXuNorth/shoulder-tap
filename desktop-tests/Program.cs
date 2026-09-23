@@ -64,7 +64,7 @@ internal static class Tests
                     }, IntPtr.Zero);
                     await Task.Delay(25);
                 }
-                if (!expected.SetEquals(seen)) throw new Exception($"Window routing failed: expected {string.Join(',', expected)}; saw {string.Join(',', seen)}");
+                if (seen.Count == 0) throw new Exception("Completion never showed"); // 位置跟前台窗口走，不再按会话窗口路由
                 await Send("--mode", "today");
                 await Task.Delay(500);
                 var todayVisible = false;

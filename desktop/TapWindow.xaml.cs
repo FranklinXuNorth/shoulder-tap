@@ -205,7 +205,8 @@ public partial class TapWindow : Window
 
     private void PlaceOnActiveScreen(IntPtr anchor, bool complete)
     {
-        if (anchor == IntPtr.Zero) anchor = GetForegroundWindow();
+        // 两只手都跟着你的视线走：永远拍在前台窗口所在的那块屏，不管这轮是哪个窗口发起的。
+        anchor = GetForegroundWindow();
         if (anchor == IntPtr.Zero) anchor = _handle;
 
         // 直接问 Win32 要工作区。它给的永远是真实物理像素，不经过任何框架的 DPI 记账。
@@ -213,12 +214,6 @@ public partial class TapWindow : Window
         if (!GetMonitorInfo(MonitorFromWindow(anchor, MONITOR_DEFAULTTONEAREST), ref info)) return;
 
         var work = info.rcWork;
-        if (complete && !SourceWindow.IsIconic(anchor) && GetWindowRect(anchor, out var bounds))
-        {
-            var clipped = new RECT { Left = Math.Max(work.Left, bounds.Left), Top = Math.Max(work.Top, bounds.Top),
-                Right = Math.Min(work.Right, bounds.Right), Bottom = Math.Min(work.Bottom, bounds.Bottom) };
-            if (clipped.Right > clipped.Left && clipped.Bottom > clipped.Top) work = clipped;
-        }
 
         // 用物理像素摆位，绕开 WPF 的 DIP 换算；窗口内部的布局仍按该屏 DPI 自动缩放。
         //

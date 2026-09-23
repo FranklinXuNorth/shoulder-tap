@@ -156,8 +156,7 @@ public static class Program
                 if (pid == binding.Pid) anchor = binding.Handle;
             }
             if (!SourceWindow.IsWindow(anchor)) anchor = SourceWindow.Resolve(req.SourcePid);
-            // Unknown/closed windows must never redirect a completion to an unrelated foreground app.
-            if (!SourceWindow.IsWindow(anchor)) { Next(lane); return; }
+            // 找不到会话窗口也照拍：位置跟前台窗口走，不再依赖它。
             lane.Playing = true;
             lane.Window.Tap(anchor, complete: true, caption: req.Caption);
         }
