@@ -8,13 +8,14 @@
  * 数据在你自己的 Notion 里，语义判断在你自己机器上的模型脑子里。
  */
 
-import { offTaskBanner } from "./ascii";
+import { doneBanner, offTaskBanner } from "./ascii";
 
 /**
  * 规程里要原样贴出去的那只手。故意不缩进 —— 既然要求「一个字符都不要改」，
  * 就不能先自己给它加六格空格。
  */
 const HAND_BLOCK = offTaskBanner();
+const PAT_BLOCK = doneBanner();
 
 export const VERDICTS = ["related", "partial", "unrelated"] as const;
 export type Verdict = (typeof VERDICTS)[number];
@@ -99,6 +100,14 @@ export function protocolText(): string {
     HAND_BLOCK,
     "",
     "  用户说他做了、或者今天跳过，就去 Notion 把那行的 Last 更新成现在（跳过的原因写进 Note）。他没说，就是没做。",
+    "",
+    "第四步 · 做完了就拍拍",
+    "  这一轮真做完了一件事（改完、跑通、交付了），在回答末尾打出这只手，一个字符都不要改：",
+    "",
+    PAT_BLOCK,
+    "",
+    "  只是回答了个问题、或者做到一半，就不打。同一轮既做完了又要提醒（第三步那只手），",
+    "  两只都打：拍拍在前，taptap 在后，各自一个代码块，提醒那句话放在最后。",
     "",
     "什么时候走这套：新会话里第一次要做实质性的事；会话中途冒出明显不同的新任务。",
     "琐碎的追问不用每次都走。",

@@ -8,7 +8,7 @@
  *
  *   UserPromptSubmit  你每次开口     → 读本地缓存，立刻返回，网络甩到后台
  *   PostToolUse       每次工具调用后 → 写操作立即刷新；否则十分钟一次，且只在有到期习惯时出声
- *   Stop              模型说完一轮   → 结尾有那只 ASCII 手就拍一下桌面
+ *   Stop              模型说完一轮   → 结尾有哪只 ASCII 手就拍哪下：拍拍 = 做完了，taptap = 提醒
  *
  * 为什么读缓存：网络那一趟是 400ms，而它**卡在你按回车到模型开口之间**。
  * 今天的清单一天才变几次，用几分钟前的副本判断「这件事相不相关」，结论一模一样。
@@ -24,7 +24,7 @@ import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { completionGesture, desktopArgs, doneLine } from "./completion.mjs";
+import { completionGestures, desktopArgs, doneLine } from "./completion.mjs";
 import { localJudgement } from "./local-jev.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -258,11 +258,14 @@ async function main() {
 
     // 只看结尾。中间引用到那段 ASCII（比如正在改这个仓库）不算数。
     const tail = (payload.last_assistant_message || "").slice(-TAIL_CHARS);
-    const gesture = completionGesture(payload);
-    // 手旁边那一小条字：拍拍（做完了）放这轮的如实总结；taptap（跑偏/习惯）放手后面那句提醒。
+    // 结尾有几只手就拍几下，桌面按顺序排队：拍拍（做完了）在前，taptap（提醒）在后。
+    // 手旁边那一小条字：拍拍放这轮的如实总结；taptap 放手后面那句提醒。
     const reminder = reminderAfterHand(tail);
-    const caption = gesture === "tap" ? reminder : doneLine(payload.last_assistant_message);
-    if (gesture) tapDesktop(env, gesture === "tap" ? reminder : "", payload, gesture, caption);
+    for (const gesture of completionGestures(payload)) {
+      if (gesture === "tap") tapDesktop(env, reminder, payload, "tap", reminder);
+      else tapDesktop(env, "", payload, "complete", doneLine(payload.last_assistant_message));
+    }
+    return;
   }
 
   if (event === "UserPromptSubmit") {

@@ -1,5 +1,5 @@
 import { Habit, Item, current } from "./focus";
-import { offTaskBanner } from "./ascii";
+import { doneBanner, offTaskBanner } from "./ascii";
 
 /** 把今天的清单画出来。当前那条用 ▸ 标出来，模型和人都一眼能看见。 */
 export function renderPlan(items: Item[], day: string): string {
@@ -35,6 +35,18 @@ export function renderHabits(habits: Habit[]): string {
   ].join("\n");
 }
 
+/** 做完了就拍拍。每次 check_focus 都带上，跟习惯那段一样放在末尾。 */
+export function renderDone(): string {
+  return [
+    "",
+    "【做完了就拍拍】这一轮真做完了一件事（改完、跑通、交付了），在回答最末尾打出这只手（代码块，一个字符都别改）：",
+    "",
+    doneBanner(),
+    "",
+    "只是回答了个问题、或者做到一半，就不打。同一轮既做完了又要 taptap，两只都打：拍拍在前，taptap 在后，各自一个代码块，提醒那句放最后。",
+  ].join("\n");
+}
+
 /** check_focus 的返回。真正干活的是这段给模型看的判断规则。 */
 export function renderCheck(
   items: Item[],
@@ -43,7 +55,7 @@ export function renderCheck(
   habits: Habit[] = [],
 ): string {
   const plan = renderPlan(items, day);
-  const nudge = renderHabits(habits);
+  const nudge = renderHabits(habits) + renderDone();
 
   if (!items.length) {
     return [

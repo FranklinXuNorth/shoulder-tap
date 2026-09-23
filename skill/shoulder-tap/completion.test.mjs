@@ -1,23 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { completionGesture, desktopArgs } from "./completion.mjs";
+import { completionGestures, desktopArgs } from "./completion.mjs";
 import { localJudgement, planTasks } from "./local-jev.mjs";
 
-test("three independent sessions each complete; tap is exclusive", () => {
+test("each hand at the tail is one gesture; pat before tap; no hand, nothing", () => {
+  const pat = "```\n        | || || |  _     |\n```";
+  const tap = "```\n  ____/  ________/)   .  |\n```";
   for (const session_id of ["one", "two", "three"]) {
-    const payload = { session_id, hook_event_name: "Stop", last_assistant_message: "做好了" };
-    assert.equal(completionGesture(payload), "complete");
+    const payload = { session_id, hook_event_name: "Stop", last_assistant_message: "做好了\n\n" + pat };
+    assert.deepEqual(completionGestures(payload), ["complete"]);
     assert.ok(desktopArgs(payload, "complete").includes(session_id));
-    assert.equal(completionGesture({ ...payload, last_assistant_message: "________/)\n回到计划" }), "tap");
+    assert.deepEqual(completionGestures({ ...payload, last_assistant_message: tap + "\n回到计划" }), ["tap"]);
+    assert.deepEqual(completionGestures({ ...payload, last_assistant_message: pat + "\n" + tap + "\n第 1 条还没动" }), ["complete", "tap"]);
+    assert.deepEqual(completionGestures({ ...payload, last_assistant_message: "只是回答了一个问题。" }), []);
   }
 });
 test("retry, subagent, empty stops do not notify", () => {
-  assert.equal(completionGesture({ hook_event_name: "SubagentStop", last_assistant_message: "done" }), null);
-  assert.equal(completionGesture({ hook_event_name: "Stop", stop_hook_active: true, last_assistant_message: "done" }), null);
-  assert.equal(completionGesture({ hook_event_name: "Stop" }), null);
+  const pat = "```\n        | || || |  _     |\n```";
+  assert.deepEqual(completionGestures({ hook_event_name: "SubagentStop", last_assistant_message: pat }), []);
+  assert.deepEqual(completionGestures({ hook_event_name: "Stop", stop_hook_active: true, last_assistant_message: pat }), []);
+  assert.deepEqual(completionGestures({ hook_event_name: "Stop", last_assistant_message: "" }), []);
 });
 test("quoted hand outside the tail is not a tap", () => {
-  assert.equal(completionGesture({ hook_event_name: "Stop", last_assistant_message: "________/)" + "a".repeat(801) }), "complete");
+  assert.deepEqual(completionGestures({ hook_event_name: "Stop", last_assistant_message: "________/)" + "a".repeat(801) }), []);
 });
 const now = new Date(2026, 8, 22, 12);
 const plan = "时区 test\n2026-09-22 说好要做的事：\n ✓ 1. Done\n ▸ 2. API   ← 现在该做这条\n   3. Course\n\n进度 1/3\n\n用户现在要做的是：placeholder\n【先判断，再动手】instructions";
