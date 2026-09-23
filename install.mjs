@@ -6,7 +6,7 @@
  *   1. skill  → ~/.claude/skills/shoulder-tap（已有的 .env 不动）
  *   2. 钩子   → ~/.claude/settings.json 里的 UserPromptSubmit / PostToolUse / Stop
  *   3. CLAUDE.md → 把 skill/CLAUDE.md.snippet 粘进 ~/.claude/CLAUDE.md（已有「## 专注」就跳过）
- *   4. 桌面端 → Windows 且装了 .NET SDK 时编译到 ~/.claude/shoulder-tap/app；没有也不影响文本拍肩
+ *   4. 桌面端 → Windows 用 .NET SDK、macOS 用 swiftc 编译到 ~/.claude/shoulder-tap/app；没有也不影响文本拍肩
  *
  * 不做的事：不碰 Notion，不碰 MCP 配置 —— 那两步要你的密钥，最后会把命令打出来。
  */
@@ -60,8 +60,19 @@ else {
   log(`CLAUDE.md ← 专注那一节`);
 }
 
-// 4. 桌面端（目前只有 Windows）
-if (process.platform !== "win32") log("桌面端只有 Windows 版，这台机器跳过；文本拍肩照常工作");
+// 4. 桌面端
+if (process.platform === "darwin") {
+  if (spawnSync("swiftc", ["--version"], { stdio: "ignore" }).status !== 0)
+    log("没找到 swiftc：先跑 xcode-select --install，再跑一次这个脚本");
+  else {
+    fs.mkdirSync(appDir, { recursive: true });
+    for (const sheet of ["tap-glove-sheet.png", "completion-hand-sheet.png"])
+      fs.copyFileSync(path.join(skillSrc, "ui", "sprites", sheet), path.join(appDir, sheet));
+    const bin = path.join(appDir, "shoulder-tap-tap");
+    execFileSync("swiftc", ["-O", path.join(root, "desktop-mac", "ShoulderTap.swift"), "-o", bin], { stdio: "inherit" });
+    log(`桌面端 → ${bin}`);
+  }
+} else if (process.platform !== "win32") log("桌面端只有 Windows 和 macOS 版，这台机器跳过；文本拍肩照常工作");
 else if (spawnSync("dotnet", ["--version"], { stdio: "ignore" }).status !== 0)
   log(`没找到 dotnet：装 .NET 10 SDK 后再跑一次，或把 Release 里的 exe 解压到 ${appDir}`);
 else {

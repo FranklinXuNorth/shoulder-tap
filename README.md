@@ -24,8 +24,9 @@ MCP 配置里的 Bearer token 就是**你自己的 Notion integration secret**�
 
 ## 安装
 
-需要 Node 20+ 和 Claude Code。桌面端（屏幕上那只手）目前只有 Windows 版，要 .NET 10 SDK；
-没有它一切照常，拍肩落在聊天里而不是屏幕上。macOS 版在路上。
+需要 Node 20+ 和 Claude Code。桌面端（屏幕上那只手）Windows 版要 .NET 10 SDK，
+macOS 版要 Xcode 命令行工具（`xcode-select --install`，提供 `swiftc`）；
+没有它们一切照常，拍肩落在聊天里而不是屏幕上。
 
 ```bash
 git clone https://github.com/FranklinXuNorth/shoulder-tap.git
@@ -34,7 +35,8 @@ node install.mjs
 ```
 
 脚本把 skill 拷到 `~/.claude/skills/shoulder-tap`、把三个钩子写进 `~/.claude/settings.json`、
-把「专注」那一节粘进 `~/.claude/CLAUDE.md`，Windows 上再把桌面端编译到 `~/.claude/shoulder-tap/app`。
+把「专注」那一节粘进 `~/.claude/CLAUDE.md`，再把桌面端编译到 `~/.claude/shoulder-tap/app`
+（Windows 编 `desktop/`，macOS 编 `desktop-mac/ShoulderTap.swift`）。
 可以重复跑，已有的 `.env` 不会被覆盖。
 
 然后两步要你自己的密钥：

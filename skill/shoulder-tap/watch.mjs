@@ -38,7 +38,7 @@ const STATE_DIR = path.join(os.homedir(), ".claude", "shoulder-tap");
 const STATE = path.join(STATE_DIR, "state.json");
 
 /** 桌面 App。装了就用，没装就当没有 —— 哨兵在纯文本模式下照样完整工作。 */
-const APP = path.join(STATE_DIR, "app", "shoulder-tap-tap.exe");
+const APP = path.join(STATE_DIR, "app", process.platform === "win32" ? "shoulder-tap-tap.exe" : "shoulder-tap-tap");
 
 /**
  * 那只 ASCII 手中间一行里最独特的一截：食指那一笔。
@@ -175,7 +175,8 @@ function spawnRefresh(force = false) {
  * 传过去的正文只落进托盘提示，留个事后能看一眼的地方。
  */
 function tapDesktop(env, text, payload = {}, mode = "tap", caption = "") {
-  if (process.platform !== "win32") return;
+  if (process.platform !== "win32" && process.platform !== "darwin") return;
+  if (process.platform === "darwin" && mode === "bind") return; // Mac 版不常驻，没有东西可绑
 
   const exe = env.SHOULDER_TAP_APP || APP;
   const body = (text || "").trim();
