@@ -20,7 +20,8 @@ MCP 配置里的 Bearer token 就是**你自己的 Notion integration secret**�
 - [docs/pipeline.html](docs/pipeline.html) —— 数据处理：字段归谁管、ID 什么时候签、手改会怎样
 - [docs/rendering.html](docs/rendering.html) —— 渲染流程：那一下「拍肩」怎么落到聊天里
 - [docs/ASSETS.md](docs/ASSETS.md) —— 素材需求
-- [desktop/README.md](desktop/README.md) —— 桌面端：那一下「拍肩」怎么落到屏幕上
+- [desktop/README.md](desktop/README.md) —— 桌面端：那一下「拍肩」怎么落到屏幕上（Windows）
+- [desktop-mac/ShoulderTap.swift](desktop-mac/ShoulderTap.swift) —— macOS 桌面端：同样两只手、两条道，单文件，每拍一下是一个短命进程
 
 ## 安装
 
@@ -51,7 +52,16 @@ node install.mjs
    然后在 Claude Code 里说「接上 shoulder-tap」，把页面链接给它——它会在那底下建好库。
 
 不想跑脚本的话，四步手动做：拷 skill、配钩子（三个事件都跑 `node "$HOME/.claude/skills/shoulder-tap/watch.mjs"`）、
-粘 `skill/CLAUDE.md.snippet`、`dotnet publish desktop -c Release -o ~/.claude/shoulder-tap/app`。
+粘 `skill/CLAUDE.md.snippet`、编桌面端：
+
+```bash
+# Windows
+dotnet publish desktop -c Release -o ~/.claude/shoulder-tap/app
+# macOS：两张 sprite sheet 要放在可执行文件旁边
+mkdir -p ~/.claude/shoulder-tap/app
+cp skill/shoulder-tap/ui/sprites/{tap-glove,completion-hand}-sheet.png ~/.claude/shoulder-tap/app/
+swiftc -O desktop-mac/ShoulderTap.swift -o ~/.claude/shoulder-tap/app/shoulder-tap-tap
+```
 
 ## 工具
 
