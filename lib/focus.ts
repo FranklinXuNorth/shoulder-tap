@@ -1,9 +1,11 @@
 import { notion, plain, text, NotionError } from "./notion";
+import { overdueMinutes, dayStartHour } from "./protocol";
+export { dayStartHour };
 
 /**
  * 一个库装两种东西，靠 Kind 区分：
  *   task  —— 你今天说好要做的事，有顺序，做完就勾掉
- *   habit —— 隔多久该干一次的事，没有顺序，永远有效
+ *   habit —— 隔多久该干一次、或每天几点该干的事，没有顺序，永远有效
  * 名字一律自由填。不预设「喝水」这种东西 —— 没人有资格规定你该有什么习惯。
  */
 export const DB_TITLE = "Shoulder Tap";
@@ -26,6 +28,7 @@ export type Habit = {
   sid: string;
   name: string;
   everyMin: number;
+  at?: string; // 每天几点（HH:MM，按 tz 算）；有它就不看 everyMin
   last?: string;
   tz: string;
   overdueMin: number;
@@ -107,19 +110,6 @@ export const nowUtc = () => new Date().toISOString();
 function wallToUtc(tz: string, wall: string): Date {
   const guess = new Date(`${wall}Z`);
   return new Date(guess.getTime() - offsetMinutes(tz, guess) * 60_000);
-}
-
-/**
- * 一天从几点开始。**不是午夜。**
- *
- * 你 23:00 列好清单，干到凌晨一点 —— 按午夜切的话，清单会在你眼前翻页，
- * 今天说好的事忽然变成"昨天"的，当前这条也没了。那不是新的一天，那是同一个晚上。
- * 默认 4 点：熬夜的人还在昨天，早起的人已经在今天。
- */
-export function dayStartHour(): number {
-  const raw = process.env.DAY_STARTS_AT_HOUR;
-  const n = raw ? Number(raw) : NaN;
-  return Number.isFinite(n) && n >= 0 && n < 12 ? n : 4;
 }
 
 /** 今天是哪天（那个时区的本地日期，不到日切时间就还算前一天）。只用来显示和查询，不入库。 */
@@ -234,6 +224,7 @@ function schema() {
     Day: { date: {} },
     TZ: { rich_text: {} },
     EveryMinutes: { number: {} },
+    At: { rich_text: {} },
     Last: { date: {} },
     Note: { rich_text: {} },
   } as Record<string, any>;
@@ -421,15 +412,18 @@ function parseHabit(page: any, now: number): Habit {
   const p = page.properties ?? {};
   const last = p.Last?.date?.start;
   const everyMin = p.EveryMinutes?.number ?? 0;
-  const sinceMin = last ? Math.floor((now - Date.parse(last)) / 60000) : Infinity;
+  const at = plain(p.At?.rich_text) || undefined;
+  const tz = plain(p.TZ?.rich_text);
+  const overdue = overdueMinutes({ id: page.id, every_minutes: everyMin, last, at, tz }, now);
   return {
     id: page.id,
     sid: plain(p.ID?.rich_text),
     name: plain(p.Name?.title),
     everyMin,
+    at,
     last,
-    tz: plain(p.TZ?.rich_text),
-    overdueMin: everyMin > 0 ? sinceMin - everyMin : -1,
+    tz,
+    overdueMin: overdue ?? -1,
   };
 }
 
@@ -455,17 +449,17 @@ export async function overdueHabits(token: string): Promise<Habit[]> {
   } catch {
     return [];
   }
-  return habits
-    .filter((h) => h.everyMin > 0 && h.overdueMin > 0)
-    .sort((a, b) => b.overdueMin - a.overdueMin);
+  return habits.filter((h) => h.overdueMin > 0).sort((a, b) => b.overdueMin - a.overdueMin);
 }
 
+/** every 和 at 二选一：隔多久一次，或者每天几点（HH:MM，按 tz 算）。 */
 export async function addHabit(
   token: string,
   name: string,
   everyMinutes: number,
   note: string,
   tz: string,
+  at?: string,
 ): Promise<Habit[]> {
   const ds = await findDataSource(token);
   const existing = await allHabits(token);
@@ -478,6 +472,7 @@ export async function addHabit(
       Kind: { select: { name: KIND.habit } },
       ID: { rich_text: text(sid) },
       EveryMinutes: { number: everyMinutes },
+      At: { rich_text: text(at ?? "") },
       Last: { date: { start: nowUtc() } },
       TZ: { rich_text: text(tz) },
       Note: { rich_text: text(note) },
@@ -486,8 +481,11 @@ export async function addHabit(
   return allHabits(token);
 }
 
-/** 记一笔「刚做了」。名字模糊匹配，模型说「喝水」「喝了水」都认。 */
-export async function logHabit(token: string, name: string, tz: string): Promise<Habit | undefined> {
+/**
+ * 记一笔「刚做了」—— 或者「今天跳过」：两种都是把 Last 写成现在，区别只在 note 里写没写原因。
+ * 名字模糊匹配，模型说「喝水」「喝了水」都认。
+ */
+export async function logHabit(token: string, name: string, tz: string, note?: string): Promise<Habit | undefined> {
   const habits = await allHabits(token);
   const needle = name.trim();
   const hit =
@@ -498,7 +496,11 @@ export async function logHabit(token: string, name: string, tz: string): Promise
 
   const at = nowUtc();
   await notion(token, "PATCH", `/pages/${hit.id}`, {
-    properties: { Last: { date: { start: at } }, TZ: { rich_text: text(tz) } },
+    properties: {
+      Last: { date: { start: at } },
+      TZ: { rich_text: text(tz) },
+      ...(note === undefined ? {} : { Note: { rich_text: text(note) } }),
+    },
   });
-  return { ...hit, overdueMin: -hit.everyMin, last: at };
+  return { ...hit, overdueMin: -1, last: at };
 }

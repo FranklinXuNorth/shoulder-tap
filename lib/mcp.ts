@@ -120,7 +120,7 @@ const handler = createMcpHandler(
       {
         title: "哪些习惯到点了",
         description:
-          "纯算术：给它每条习惯的 ID、间隔分钟、上次时间，它回哪些 ID 到点了、超了多久。" +
+          "纯算术：给它每条习惯的 ID、间隔分钟（或每天几点 + 时区）、上次时间，它回哪些 ID 到点了、超了多久。" +
           "**只传 ID 和数字，绝对不要传习惯名字或任何文字** —— 名字留在用户自己的 Notion 里，" +
           "拿返回的 ID 自己对回去。",
         inputSchema: z.object({
@@ -128,11 +128,13 @@ const handler = createMcpHandler(
             .array(
               z.object({
                 id: z.string().describe("短 ID，比如 h-8b12d4。不要传名字。"),
-                every_minutes: z.number(),
+                every_minutes: z.number().optional().describe("隔多少分钟一次；和 at 二选一"),
+                at: z.string().optional().describe("每天几点，HH:MM；和 every_minutes 二选一"),
+                tz: z.string().optional().describe("at 按哪个时区算，IANA 名字"),
                 last: z.string().optional().describe("上次做的时间，ISO 8601"),
               }),
             )
-            .describe("从 Notion 读到的 habit 行，剥掉名字只留这三个字段"),
+            .describe("从 Notion 读到的 habit 行，剥掉名字只留这几个字段"),
         }),
       },
       async ({ habits }) => {
@@ -151,7 +153,7 @@ const handler = createMcpHandler(
             "拿这些 ID 回 Notion 查名字。**但不要现在就说** —— 等当前这条任务做完，",
             "或者长任务做到一半有自然停顿时，再打出那只手加一句话。",
             "正在往下推进的中途不要插；宁可这轮不提，下轮再说。",
-            "他说做了，就把那行的 Last 更新成现在；他没说，就是没做。",
+            "他说做了或今天跳过，就把那行的 Last 更新成现在；他没说，就是没做。",
           ].join("\n"),
         );
       },
@@ -329,21 +331,24 @@ ${renderCheck(items, zone.win.day, activity, habits)}`);
       {
         title: "加一个要盯的习惯",
         description:
-          "用户说「每 N 分钟提醒我做某件事」时用。名字完全自由，用他自己的说法原样记，" +
+          "用户说「每 N 分钟提醒我做某件事」或「每天几点提醒我」时用。名字完全自由，用他自己的说法原样记，" +
           "不要给他任何建议清单。只有他自己提出来才加 —— 没人有资格规定他该养什么习惯。",
         inputSchema: z.object({
           name: z.string().describe("习惯名，用户自己的说法，原样记"),
-          every_minutes: z.number().int().min(1).describe("隔多少分钟提醒一次"),
+          every_minutes: z.number().int().min(1).optional().describe("隔多少分钟提醒一次；和 at 二选一"),
+          at: z.string().regex(/^\d{1,2}:\d{2}$/).optional().describe("每天几点提醒，HH:MM，按 tz 算；和 every_minutes 二选一"),
           note: z.string().optional().describe("备注，没有就不传"),
           tz: tzArg,
         }),
       },
-      async ({ name, every_minutes, note, tz }, ctx: any) =>
+      async ({ name, every_minutes, at, note, tz }, ctx: any) =>
         guard(async () => {
-          const habits = await addHabit(tokenOf(ctx), name, every_minutes, note ?? "", requireTz(tz));
+          if (!every_minutes && !at) return ok("every_minutes 和 at 得给一个：隔多久一次，还是每天几点。");
+          const habits = await addHabit(tokenOf(ctx), name, every_minutes ?? 0, note ?? "", requireTz(tz), at);
+          const when = (h: { at?: string; everyMin: number }) => (h.at ? `每天 ${h.at}` : `每 ${h.everyMin} 分钟`);
           return ok(
-            `加上了：${name}，每 ${every_minutes} 分钟。\n\n现在盯着这些：\n` +
-              habits.map((h) => `  · ${h.name} —— 每 ${h.everyMin} 分钟`).join("\n"),
+            `加上了：${name}，${at ? `每天 ${at}` : `每 ${every_minutes} 分钟`}。\n\n现在盯着这些：\n` +
+              habits.map((h) => `  · ${h.name} —— ${when(h)}`).join("\n"),
           );
         }),
     );
@@ -353,18 +358,19 @@ ${renderCheck(items, zone.win.day, activity, habits)}`);
       {
         title: "记一笔「刚做了」",
         description:
-          "用户说他刚做了某个习惯，就调用这个，把计时清零。名字或短 ID 模糊匹配。" +
-          "不要替他记——他没说做，就是没做。",
+          "用户说他刚做了某个习惯，就调用这个，把计时清零。他说今天不做了、跳过，也调用这个，把原因写进 note。" +
+          "名字或短 ID 模糊匹配。不要替他记——他没说做，就是没做。",
         inputSchema: z.object({
           habit: z.string().describe("习惯名或短 ID，用用户自己的说法，跟库里的名字模糊匹配"),
+          note: z.string().optional().describe("跳过的原因或备注，写进那行的 Note；不传就不动"),
           tz: tzArg,
         }),
       },
-      async ({ habit, tz }, ctx: any) =>
+      async ({ habit, note, tz }, ctx: any) =>
         guard(async () => {
           const token = tokenOf(ctx);
-          const hit = await logHabit(token, habit, requireTz(tz));
-          if (hit) return ok(`记下了：${hit.name}，下次提醒在 ${hit.everyMin} 分钟后。`);
+          const hit = await logHabit(token, habit, requireTz(tz), note);
+          if (hit) return ok(`记下了：${hit.name}，下次提醒${hit.at ? `明天 ${hit.at}` : `在 ${hit.everyMin} 分钟后`}。`);
 
           const all = await listHabits(token).catch(() => []);
           return ok(

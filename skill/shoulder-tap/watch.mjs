@@ -8,6 +8,7 @@
  *
  *   UserPromptSubmit  你每次开口     → 读本地缓存，立刻返回，网络甩到后台
  *   PostToolUse       每次工具调用后 → 写操作立即刷新；否则十分钟一次，且只在有到期习惯时出声
+ *   Stop              模型说完一轮   → 结尾有那只 ASCII 手就拍一下桌面
  *
  * 为什么读缓存：网络那一趟是 400ms，而它**卡在你按回车到模型开口之间**。
  * 今天的清单一天才变几次，用几分钟前的副本判断「这件事相不相关」，结论一模一样。
@@ -23,6 +24,8 @@ import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { completionGesture, desktopArgs, doneLine } from "./completion.mjs";
+import { localJudgement } from "./local-jev.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SELF = fileURLToPath(import.meta.url);
@@ -33,6 +36,19 @@ const SELF = fileURLToPath(import.meta.url);
  */
 const STATE_DIR = path.join(os.homedir(), ".claude", "shoulder-tap");
 const STATE = path.join(STATE_DIR, "state.json");
+
+/** 桌面 App。装了就用，没装就当没有 —— 哨兵在纯文本模式下照样完整工作。 */
+const APP = path.join(STATE_DIR, "app", "shoulder-tap-tap.exe");
+
+/**
+ * 那只 ASCII 手中间一行里最独特的一截：食指那一笔。
+ * 刻意挑了不含反斜杠的一段 —— 反斜杠在字符串里要转义，多一层少一层都不会报错，
+ * 只会安静地匹配不上。
+ */
+const HAND = "________/)";
+
+/** 只在消息**结尾**这么多字符里找。中间引用到那段 ASCII（比如正在改这个仓库）不算数。 */
+const TAIL_CHARS = 800;
 
 const TICK_MINUTES = 10; // PostToolUse 定时那一档的节流
 const REFRESH_COOLDOWN_MS = 20_000; // 防止后台刷新扎堆
@@ -106,6 +122,11 @@ async function callTool(env, name, args) {
   });
 
   const raw = await res.text();
+  if (!res.ok) return "";
+  try {
+    const text = JSON.parse(raw)?.result?.content?.[0]?.text;
+    if (text) return text;
+  } catch {}
   for (const line of raw.split("\n")) {
     if (!line.startsWith("data: ")) continue;
     const text = JSON.parse(line.slice(6))?.result?.content?.[0]?.text;
@@ -141,6 +162,35 @@ function spawnRefresh(force = false) {
 
 // ---------- 输出 ----------
 
+/**
+ * 拍一下桌面。
+ *
+ * 只有 Stop 那一档走到这里：模型说完一轮，结尾有那只手才拍。到期的习惯先进上下文，
+ * 由模型在停顿处带出来。模型自己不调这个 exe —— 拍肩这件事不该由被拍的人自觉。
+ *
+ * 一条命令覆盖两种情况：App 没开就开起来再拍，开着就直接拍。
+ * 单实例锁在 App 那边，这里不需要知道它在不在。
+ *
+ * 屏幕上只有那一下，不显示文字 —— 话已经通过 say() 进了模型的上下文，
+ * 传过去的正文只落进托盘提示，留个事后能看一眼的地方。
+ */
+function tapDesktop(env, text, payload = {}, mode = "tap", caption = "") {
+  if (process.platform !== "win32") return;
+
+  const exe = env.SHOULDER_TAP_APP || APP;
+  const body = (text || "").trim();
+  if (!body && mode === "tap") return;
+
+  try {
+    if (!fs.existsSync(exe)) return; // 没装桌面 App，安静跳过
+    spawn(exe, desktopArgs(payload, mode, body, caption), {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    }).unref();
+  } catch {}
+}
+
 function say(event, text) {
   if (!text?.trim()) return; // 没话说就闭嘴
   process.stdout.write(
@@ -161,6 +211,17 @@ function fillActivity(plan, prompt) {
   if (!plan) return "";
   const activity = (prompt || "").replace(/\s+/g, " ").slice(0, 300);
   return activity ? plan.split(ACTIVITY_SLOT).join(activity) : plan;
+}
+
+/**
+ * 那只手后面跟着的那一句，就是这次要提的事 —— 按约定它永远是回答的最后一行。
+ * 手本身也是几行 ASCII，最后一行要是落在手上，说明后面没跟话，给句通用的。
+ */
+function reminderAfterHand(tail) {
+  const lines = tail.split("\n").map((line) => line.trim()).filter(Boolean);
+  const last = lines[lines.length - 1] || "";
+  const stillArt = last.includes("(__)") || last.includes("|") || last.startsWith("```");
+  return stillArt ? "该回到今天说好的那条了。" : last;
 }
 
 // ---------- 主流程 ----------
@@ -185,16 +246,39 @@ async function main() {
   const event = payload.hook_event_name || "PostToolUse";
   const state = readState();
 
+  // 模型刚说完一轮。结尾有那只 ASCII 手，就拍一下桌面。
+  //
+  // 为什么放在钩子里，而不是让模型自己去调那个 exe：拍肩这件事不该由被拍的人自觉。
+  // 模型漏读一行 CLAUDE.md 就哑掉了，钩子不会。顺带两个好处 —— 时机对（话说完了才拍，
+  // 不是说到一半），以及不占模型的一次工具调用。
+  //
+  // Stop 不为子 agent 触发（那是 SubagentStop），所以后台任务不会拍你一脸。
+  if (event === "Stop") {
+    if (payload.stop_hook_active) return; // 正在重试循环里，别添乱
+
+    // 只看结尾。中间引用到那段 ASCII（比如正在改这个仓库）不算数。
+    const tail = (payload.last_assistant_message || "").slice(-TAIL_CHARS);
+    const gesture = completionGesture(payload);
+    // 手旁边那一小条字：拍拍（做完了）放这轮的如实总结；taptap（跑偏/习惯）放手后面那句提醒。
+    const reminder = reminderAfterHand(tail);
+    const caption = gesture === "tap" ? reminder : doneLine(payload.last_assistant_message);
+    if (gesture) tapDesktop(env, gesture === "tap" ? reminder : "", payload, gesture, caption);
+  }
+
   if (event === "UserPromptSubmit") {
+    tapDesktop(env, "", payload, "bind");
     // 有缓存就立刻用，同时甩一个后台刷新。你感觉到的只有 node 的启动时间。
     if (state.plan) {
-      say(event, fillActivity(state.plan, payload.prompt));
       spawnRefresh();
+      const judgement = await localJudgement(env, state.plan, payload.prompt);
+      say(event, fillActivity(state.plan, payload.prompt) + judgement);
       return;
     }
     // 第一次跑，没有缓存可用，只能同步等一次。
     await refresh(env).catch(() => {});
-    say(event, fillActivity(readState().plan, payload.prompt));
+    const plan = readState().plan;
+    const judgement = await localJudgement(env, plan, payload.prompt);
+    say(event, fillActivity(plan, payload.prompt) + judgement);
     return;
   }
 
@@ -213,7 +297,9 @@ async function main() {
   writeState({ lastTick: Date.now() });
 
   spawnRefresh();
-  say(event, habitsOnly(state.plan)); // 用缓存里的，不等网络
+
+  const habits = habitsOnly(state.plan); // 用缓存里的，不等网络
+  say(event, habits); // 只进上下文，不拍桌面：手只在 Stop 出现，模型会在停顿处带上它
 }
 
 main().catch(() => {

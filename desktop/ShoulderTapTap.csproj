@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- 只为了托盘图标 NotifyIcon；WPF 自己没有托盘。 -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- 自己写 Main，需要 Mutex 在 Application 之前就位，所以不要 App.xaml。 -->
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>shoulder-tap-tap</AssemblyName>
+    <RootNamespace>ShoulderTap</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- WFO0003：WinForms 要求 DPI 走它的项目属性，但这里是 WPF 窗口，只能靠清单。 -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="..\skill\shoulder-tap\ui\sprites\completion-hand-sheet.png" Link="completion-hand-sheet.png" />
+    <EmbeddedResource Include="..\skill\shoulder-tap\ui\sprites\tap-glove.png" Link="tap-glove.png" />
+  </ItemGroup>
+
+</Project>

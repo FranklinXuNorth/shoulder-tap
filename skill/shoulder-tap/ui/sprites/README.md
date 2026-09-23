@@ -18,3 +18,7 @@ Artwork uses only black, white and fully transparent pixels. Render with nearest
 The hand stays inside the canvas throughout. The reference edge is a separate layer and can be hidden for integration.
 
 This is an editable artwork draft; the HTML demo still uses its existing SVG animation.
+
+## Completion knock
+
+`completion-hand.aseprite` uses the same bold white cartoon glove as `tap-glove`: two-pixel black outline, three short stitches, rolled cuff. Side profile based on the supplied photo: four extended fingers held together, thumb separated below, palm raised. The source is `draw-completion.lua`; exports are `completion-hand.png`, `completion-hand-sheet.png` and `completion-hand-preview.png`. Same 96?80 canvas and nine frame durations as above. The desktop completion overlay plays this sheet once; the original tap gesture is retained separately.

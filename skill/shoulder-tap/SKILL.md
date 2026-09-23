@@ -50,7 +50,8 @@ description: 接上 shoulder-tap（第一次用要配 MCP、接 Notion、建库�
 | `Status` | select | `pending` / `done` / `dropped` | — |
 | `Day` | date | **UTC 瞬时**，属于哪天靠读时换算 | — |
 | `TZ` | rich_text | 写这行时用的 IANA 时区 | 同左 |
-| `EveryMinutes` | number | — | 隔多久提醒一次 |
+| `EveryMinutes` | number | — | 隔多久提醒一次（和 `At` 二选一） |
+| `At` | rich_text | — | 每天几点提醒，`HH:MM`，按 `TZ` 算 |
 | `Last` | date | — | 上次做的时间，**UTC** |
 | `Note` | rich_text | 执行细节 | 备注 |
 
@@ -126,7 +127,7 @@ node -p "Intl.DateTimeFormat().resolvedOptions().timeZone"
 
 - 用户说「今天要做 A、B、C」→ 按顺序写 task 行，`Day` 是今天。
 - **用户明确说某条做完了** → 把 `Status` 改成 `done`。你自己觉得做完了不算数，最多问一句。
-- 用户说他刚做了某个习惯 → 把那行的 `Last` 改成现在。他没说，就是没做。
+- 用户说他刚做了某个习惯，或者今天跳过 → 把那行的 `Last` 改成现在（跳过的原因写进 `Note`）。他没说，就是没做。
 - 用户说要盯一个新习惯 → 加一行 `Kind=habit`，名字用他自己的说法，**不要给建议清单**。
 
 ## 五、拦人的时候怎么说话

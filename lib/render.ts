@@ -24,7 +24,7 @@ export function renderHabits(habits: Habit[]): string {
     "",
     "【顺便提一句】",
     ...habits.map(
-      (h) => `  · ${h.name} —— 超了 ${h.overdueMin} 分钟（说好每 ${h.everyMin} 分钟一次）`,
+      (h) => `  · ${h.name} —— 超了 ${h.overdueMin} 分钟（说好${h.at ? `每天 ${h.at}` : `每 ${h.everyMin} 分钟一次`}）`,
     ),
     "**不要现在就说。** 等当前这条任务做完、或者长任务做到一半有自然停顿时，再打出那只手加一句话：",
     "",

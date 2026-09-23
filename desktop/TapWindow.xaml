@@ -1,0 +1,115 @@
+<Window x:Class="ShoulderTap.TapWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="shoulder-tap"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ShowInTaskbar="False" ShowActivated="False" Topmost="True"
+        ResizeMode="NoResize" WindowStartupLocation="Manual" SizeToContent="Manual"
+        Focusable="False" IsHitTestVisible="False">
+
+  <Window.Resources>
+    <!-- 跟着系统深浅色走，开灯关灯时由后台代码改这两个 Color。 -->
+    <SolidColorBrush x:Key="Ink" Color="#181818" />
+    <SolidColorBrush x:Key="Bg"  Color="#FFFFFF" />
+
+    <!--
+      三下（1.46s），停两秒，淡出。前半段照搬 ui/index.html 里那三个 CSS keyframes：
+        appear  整只手淡入淡出
+        tap     指尖右移 18px 碰到屏幕边缘，碰三次
+        marks   碰到的那一帧才出现的三道触感线，阶跃，不插值
+    -->
+    <Storyboard x:Key="TapStory">
+
+      <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Hand"
+                                     Storyboard.TargetProperty="Opacity">
+        <LinearDoubleKeyFrame KeyTime="0:0:0"     Value="0" />
+        <LinearDoubleKeyFrame KeyTime="0:0:0.204" Value="1" />
+        <!-- 敲完停两秒（陪着字条），再和字条一起淡出。 -->
+        <LinearDoubleKeyFrame KeyTime="0:0:3.462" Value="1" />
+        <LinearDoubleKeyFrame KeyTime="0:0:3.700" Value="0" />
+      </DoubleAnimationUsingKeyFrames>
+
+      <DoubleAnimationUsingKeyFrames Storyboard.TargetName="CaptionBox"
+                                     Storyboard.TargetProperty="Opacity">
+        <LinearDoubleKeyFrame KeyTime="0:0:0"     Value="0" />
+        <LinearDoubleKeyFrame KeyTime="0:0:0.204" Value="1" />
+        <LinearDoubleKeyFrame KeyTime="0:0:3.462" Value="1" />
+        <LinearDoubleKeyFrame KeyTime="0:0:3.700" Value="0" />
+      </DoubleAnimationUsingKeyFrames>
+
+      <DoubleAnimationUsingKeyFrames Storyboard.TargetName="GestureShift"
+                                     Storyboard.TargetProperty="X">
+        <EasingDoubleKeyFrame KeyTime="0:0:0"     Value="0"  />
+        <EasingDoubleKeyFrame KeyTime="0:0:0.340" Value="0"  />
+        <EasingDoubleKeyFrame KeyTime="0:0:0.510" Value="18"><EasingDoubleKeyFrame.EasingFunction><QuadraticEase EasingMode="EaseInOut" /></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+        <EasingDoubleKeyFrame KeyTime="0:0:0.680" Value="0"  ><EasingDoubleKeyFrame.EasingFunction><QuadraticEase EasingMode="EaseInOut" /></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+        <EasingDoubleKeyFrame KeyTime="0:0:0.816" Value="18" ><EasingDoubleKeyFrame.EasingFunction><QuadraticEase EasingMode="EaseInOut" /></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+        <EasingDoubleKeyFrame KeyTime="0:0:0.986" Value="0"  ><EasingDoubleKeyFrame.EasingFunction><QuadraticEase EasingMode="EaseInOut" /></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+        <EasingDoubleKeyFrame KeyTime="0:0:1.122" Value="18" ><EasingDoubleKeyFrame.EasingFunction><QuadraticEase EasingMode="EaseInOut" /></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+        <EasingDoubleKeyFrame KeyTime="0:0:1.326" Value="0"  ><EasingDoubleKeyFrame.EasingFunction><QuadraticEase EasingMode="EaseInOut" /></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+        <EasingDoubleKeyFrame KeyTime="0:0:1.700" Value="0"  />
+      </DoubleAnimationUsingKeyFrames>
+
+      <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Marks"
+                                     Storyboard.TargetProperty="Opacity">
+        <DiscreteDoubleKeyFrame KeyTime="0:0:0"     Value="0" />
+        <DiscreteDoubleKeyFrame KeyTime="0:0:0.510" Value="1" />
+        <DiscreteDoubleKeyFrame KeyTime="0:0:0.595" Value="0" />
+        <DiscreteDoubleKeyFrame KeyTime="0:0:0.816" Value="1" />
+        <DiscreteDoubleKeyFrame KeyTime="0:0:0.901" Value="0" />
+        <DiscreteDoubleKeyFrame KeyTime="0:0:1.122" Value="1" />
+        <DiscreteDoubleKeyFrame KeyTime="0:0:1.207" Value="0" />
+      </DoubleAnimationUsingKeyFrames>
+
+    </Storyboard>
+  </Window.Resources>
+
+  <!-- 2* / Auto / 3* ≈ 把手挂在屏幕高度 40% 处，和网页原型一致。 -->
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="2*" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="3*" />
+    </Grid.RowDefinitions>
+
+    <!-- 手旁边那一小条字。只在 Stop 那一路有：现在聚焦哪条、这轮干了什么。 -->
+    <Border x:Name="CaptionBox" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Center"
+            Opacity="0" Visibility="Collapsed" MaxWidth="380" Margin="0,0,236,0"
+            Background="{StaticResource Bg}" BorderBrush="{StaticResource Ink}" BorderThickness="2"
+            CornerRadius="6" Padding="12,7,12,8">
+      <TextBlock x:Name="CaptionText" Foreground="{StaticResource Ink}" FontSize="14"
+                 TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="44" />
+    </Border>
+
+    <Image x:Name="CompletionHand" Grid.Row="1" Width="288" Height="240"
+           HorizontalAlignment="Right" Visibility="Collapsed" Stretch="Fill"
+           RenderOptions.BitmapScalingMode="NearestNeighbor" />
+    <Canvas x:Name="Hand" Grid.Row="1" Width="220" Height="190" Opacity="0"
+            HorizontalAlignment="Right">
+
+      <!-- 屏幕内缘的参照短线：手指要碰的就是它。 -->
+      <Path Data="M217 30v74" Stroke="{StaticResource Ink}" StrokeThickness="2"
+            StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+
+      <Canvas x:Name="Marks" Opacity="0">
+        <Path Data="M203 43l-5-6M209 35v-7M203 86l-5 6" Stroke="{StaticResource Ink}"
+              StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+      </Canvas>
+
+      <Canvas x:Name="Gesture">
+        <Canvas.RenderTransform>
+          <TranslateTransform x:Name="GestureShift" X="0" />
+        </Canvas.RenderTransform>
+
+        <!-- 手腕和蜷起的四指留在屏幕里，食指指向右。填充用底色，压住底下的参照线。 -->
+        <Path Fill="{StaticResource Bg}" Stroke="{StaticResource Ink}" StrokeThickness="2.4"
+              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+              Data="M28 139L47 104C51 95 60 85 72 78L91 63C96 59 103 57 112 57H187C194 57 199 60 199 65S194 73 187 73H119L117 80H139C149 80 151 94 142 98C153 104 148 117 138 119C145 128 139 139 128 140H108C98 151 84 156 69 155L58 169Z" />
+
+        <Path Stroke="{StaticResource Ink}" StrokeThickness="2.4"
+              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+              Data="M117 80H103C96 80 90 86 93 92C96 99 105 101 114 98H142M114 98C106 102 107 112 114 116L138 119M114 116C105 121 108 133 117 136L128 140M63 115C73 110 81 102 86 94M28 139l30 30M34 129l32 29" />
+      </Canvas>
+    </Canvas>
+  </Grid>
+</Window>
