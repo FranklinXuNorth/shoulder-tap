@@ -22,17 +22,34 @@ MCP 配置里的 Bearer token 就是**你自己的 Notion integration secret**�
 - [docs/ASSETS.md](docs/ASSETS.md) —— 素材需求
 - [desktop/README.md](desktop/README.md) —— 桌面端：那一下「拍肩」怎么落到屏幕上
 
-## 用起来
+## 安装
+
+需要 Node 20+ 和 Claude Code。桌面端（屏幕上那只手）目前只有 Windows 版，要 .NET 10 SDK；
+没有它一切照常，拍肩落在聊天里而不是屏幕上。macOS 版在路上。
+
+```bash
+git clone https://github.com/FranklinXuNorth/shoulder-tap.git
+cd shoulder-tap
+node install.mjs
+```
+
+脚本把 skill 拷到 `~/.claude/skills/shoulder-tap`、把三个钩子写进 `~/.claude/settings.json`、
+把「专注」那一节粘进 `~/.claude/CLAUDE.md`，Windows 上再把桌面端编译到 `~/.claude/shoulder-tap/app`。
+可以重复跑，已有的 `.env` 不会被覆盖。
+
+然后两步要你自己的密钥：
 
 1. [建一个 Notion integration](https://www.notion.so/profile/integrations)，拿 `ntn_` 开头的密钥。
-2. 挑一个 Notion 页面，⋯ → **Connections** → 把这个 integration 加进去。（漏这步必报 `object_not_found`。）
-3. ```bash
+   写进 `~/.claude/skills/shoulder-tap/.env` 的 `NOTION_TOKEN=`，再接上 Claude Code：
+   ```bash
    claude mcp add --transport http shoulder-tap https://shoulder-tap.vercel.app/mcp \
      -s user -H "Authorization: Bearer ntn_你的密钥"
    ```
-4. 让模型调 `setup`，把第 2 步那个页面的链接给它——它会在那底下建好库。
-5. 把 `skill/shoulder-tap/` 拷到 `~/.claude/skills/`，`skill/CLAUDE.md.snippet` 的内容粘进
-   `~/.claude/CLAUDE.md`。**不做这步，拦截不会自动发生。**
+2. 挑一个 Notion 页面，⋯ → **Connections** → 把这个 integration 加进去。（漏这步必报 `object_not_found`。）
+   然后在 Claude Code 里说「接上 shoulder-tap」，把页面链接给它——它会在那底下建好库。
+
+不想跑脚本的话，四步手动做：拷 skill、配钩子（三个事件都跑 `node "$HOME/.claude/skills/shoulder-tap/watch.mjs"`）、
+粘 `skill/CLAUDE.md.snippet`、`dotnet publish desktop -c Release -o ~/.claude/shoulder-tap/app`。
 
 ## 工具
 
@@ -40,7 +57,7 @@ MCP 配置里的 Bearer token 就是**你自己的 Notion integration secret**�
 | --- | --- |
 | `check_focus(activity?)` | 拦路的那个。返回今天的清单和一段判断规则：相关就放行，不相关就停下来问你。顺带报超时的习惯。 |
 | `set_focus` / `add_focus` / `complete_focus` | 按顺序记、插队、勾掉。只有你说完成才算完成。 |
-| `add_habit` / `log_habit` | 盯一个习惯（名字你自己定，不预设任何东西）／记一笔刚做了。 |
+| `add_habit` / `log_habit` | 盯一个习惯（名字你自己定，不预设任何东西；隔多久一次，或每天几点）／记一笔刚做了，或今天跳过。 |
 | `setup` / `ping` | 建库 / 健康检查。 |
 
 语义判断是**调用方的模型**做的，服务端不跑模型、不花 token。
@@ -56,26 +73,29 @@ MCP 配置里的 Bearer token 就是**你自己的 Notion integration secret**�
 | `ID` | rich_text | `t-a3f91c` | `h-8b12d4` |
 | `Order` | number | 第几条，顺序靠它 | — |
 | `Status` | select | pending / done / dropped | — |
-| `Day` | date | 哪一天 | — |
-| `EveryMinutes` | number | — | 隔多久提醒一次 |
-| `Last` | date | — | 上次做的时间 |
-| `Note` | rich_text | 执行细节 | 备注 |
+| `Day` | date | 哪一天（存 UTC，读时按你的时区换算） | — |
+| `TZ` | rich_text | 写这行时你在哪个时区 | 同左，`At` 按它算 |
+| `EveryMinutes` | number | — | 隔多久提醒一次（和 `At` 二选一） |
+| `At` | rich_text | — | 每天几点提醒，`HH:MM` |
+| `Last` | date | — | 上次做（或跳过）的时间 |
+| `Note` | rich_text | 执行细节 | 备注，跳过的原因也写这 |
 
 建完就是普通的 Notion 数据库，加视图、改间隔、手机上勾，都随你。
 
 ## 自己部署
 
-Vercel 导入本仓库即可，不需要数据库。两个可选环境变量：
+Vercel 导入本仓库即可，不需要数据库。可选环境变量：
 
 - `SHOULDER_TAP_KEY` —— 门禁，挡路人蹭额度。客户端对应带 `X-Shoulder-Tap-Key` 头。不过用回 403
   而不是 401：MCP 客户端把 401 读成「请走 OAuth」，然后整个服务器会显示连不上。
 - `JEV_API_KEY` —— 配了才有 `classify_focus`。代价是两行文字会离开这台机器。
-- `TIMEZONE_OFFSET_HOURS` —— 算「今天」用，默认 8。
+- `DAY_STARTS_AT_HOUR` —— 一天从几点开始，默认 4：熬到凌晨的人还在昨天。
 
 记得在 Settings → Deployment Protection 关掉 Vercel Authentication，否则 MCP 客户端会被重定向到登录页。
 
-## ???????????
+## 本机直连 Jev（可选）
 
-?? `watch.mjs` ? UserPromptSubmit ?????? Jev???? Vercel?? `~/.claude/skills/shoulder-tap/.env` ?? `JEV_API_KEY`??? `JEV_BASE_URL`??? `https://api.typesafe.ai`???????????????????????? Jev??????????????????????????? 2 ??????????????`SHOULDER_TAP_LOCAL_JEV=0` ????????????? MCP/Notion ???
-
-???? skill ????? `watch.mjs`?`completion.mjs`?`local-jev.mjs`????? `.env`????????????????????? Stop ??? tap ????????????????????????? [????](desktop/README.md)?
+`watch.mjs` 在 UserPromptSubmit 时可以直接从你机器上请求 Jev 做首轮「相不相关」的比较，不经过 Vercel。
+在 `~/.claude/skills/shoulder-tap/.env` 里填 `JEV_API_KEY`（`JEV_BASE_URL` 默认 `https://api.typesafe.ai`）就开了；
+不填就由对话模型自己判。请求 2 秒超时，超了或出错都静默退回模型判断。
+`SHOULDER_TAP_LOCAL_JEV=0` 可以临时关掉。这条路只发两行文字，不碰 MCP，也不碰 Notion。

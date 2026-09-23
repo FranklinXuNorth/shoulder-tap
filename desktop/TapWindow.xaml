@@ -17,11 +17,11 @@
       <RowDefinition Height="3*" />
     </Grid.RowDefinitions>
     <Border x:Name="CaptionBox" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Center"
-            Opacity="0" Visibility="Collapsed" MaxWidth="380" Margin="0,0,300,0"
+            Opacity="0" Visibility="Collapsed" MaxWidth="440" Margin="0,0,300,0"
             Background="{StaticResource Bg}" BorderBrush="{StaticResource Ink}" BorderThickness="2"
             CornerRadius="6" Padding="12,7,12,8">
       <TextBlock x:Name="CaptionText" Foreground="{StaticResource Ink}" FontSize="14"
-                 TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="44" />
+                 TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="66" />
     </Border>
     <!-- Same white-glove pixel style; tap keeps its pointing index, completion keeps its raised palm. -->
     <Image x:Name="PixelHand" Grid.Row="1" Width="288" Height="240"
