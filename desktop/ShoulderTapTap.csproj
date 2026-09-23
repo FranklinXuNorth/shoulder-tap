@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <Resource Include="..\skill\shoulder-tap\ui\sprites\completion-hand-sheet.png" Link="completion-hand-sheet.png" />
+    <Resource Include="..\skill\shoulder-tap\ui\sprites\tap-glove-sheet.png" Link="tap-glove-sheet.png" />
     <EmbeddedResource Include="..\skill\shoulder-tap\ui\sprites\tap-glove.png" Link="tap-glove.png" />
   </ItemGroup>
 

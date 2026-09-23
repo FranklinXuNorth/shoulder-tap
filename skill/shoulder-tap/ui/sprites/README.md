@@ -17,7 +17,7 @@ Frames 3, 6 and 8 touch the edge. Play once for three taps, then hide the overla
 Artwork uses only black, white and fully transparent pixels. Render with nearest-neighbor scaling.
 The hand stays inside the canvas throughout. The reference edge is a separate layer and can be hidden for integration.
 
-This is an editable artwork draft; the HTML demo still uses its existing SVG animation.
+The HTML demo and desktop tap overlay now play `tap-glove-sheet.png`. Desktop completion continues to use `completion-hand-sheet.png`: both have the same white-glove style, with distinct index-tap and raised-palm gestures.
 
 ## Completion knock
 

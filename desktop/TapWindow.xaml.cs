@@ -34,7 +34,7 @@ public partial class TapWindow : Window
 
     private const uint MONITOR_DEFAULTTONEAREST = 2;
 
-    /// <summary>三下 1.46s，陪字条停 2s，淡出 0.24s；多给一点余量再收。</summary>
+    /// <summary>三下 1.3s，陪字条停 2s，淡出 0.24s；多给一点余量再收。</summary>
     private static readonly TimeSpan Played = TimeSpan.FromMilliseconds(3750);
 
     /// <summary>系统关了动画时，静止的手停这么久就够了。</summary>
@@ -74,7 +74,9 @@ public partial class TapWindow : Window
     private readonly DispatcherTimer _hide;
     private readonly DispatcherTimer _frames = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly Stopwatch _clock = new();
-    private readonly BitmapSource[] _sprites;
+    private readonly BitmapSource[] _tapSprites;
+    private readonly BitmapSource[] _completionSprites;
+    private BitmapSource[] _sprites;
     private static readonly int[] FrameEnds = [250, 340, 430, 580, 670, 760, 910, 1000, 1300];
     private IntPtr _handle;
 
@@ -84,12 +86,13 @@ public partial class TapWindow : Window
     public TapWindow()
     {
         InitializeComponent();
-        var sheet = new BitmapImage(new Uri("pack://application:,,,/completion-hand-sheet.png"));
-        _sprites = Enumerable.Range(0, 9).Select(i => (BitmapSource)new CroppedBitmap(sheet,
-            new Int32Rect(i * 96, 0, 96, 80))).ToArray();
+        _tapSprites = LoadFrames("tap-glove-sheet.png");
+        _completionSprites = LoadFrames("completion-hand-sheet.png");
+        _sprites = _tapSprites;
         _frames.Tick += (_, _) => {
             var index = Array.FindIndex(FrameEnds, end => _clock.ElapsedMilliseconds < end);
-            CompletionHand.Source = _sprites[index < 0 ? 8 : index];
+            PixelHand.Source = _sprites[index < 0 ? 8 : index];
+            if (index < 0) _frames.Stop();
         };
 
         _hide = new DispatcherTimer();
@@ -98,6 +101,16 @@ public partial class TapWindow : Window
         // 立刻把句柄造出来。否则第一次拍肩时 PlaceOnActiveScreen 打在空句柄上，
         // SetWindowPos 静默失败，窗口就停在 WPF 的默认位置、默认大小，右半边溢出屏幕。
         new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
+    }
+
+    private static BitmapSource[] LoadFrames(string filename)
+    {
+        var sheet = new BitmapImage(new Uri($"pack://application:,,,/shoulder-tap-tap;component/{filename}"));
+        return Enumerable.Range(0, 9).Select(i => {
+            var frame = new CroppedBitmap(sheet, new Int32Rect(i * 96, 0, 96, 80));
+            frame.Freeze();
+            return (BitmapSource)frame;
+        }).ToArray();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -118,14 +131,18 @@ public partial class TapWindow : Window
     {
         _hide.Stop();
         _frames.Stop();
-        ((Storyboard)Resources["TapStory"]).Stop(this);
-        Hand.Opacity = 0;
-        CompletionHand.Visibility = complete ? Visibility.Visible : Visibility.Collapsed;
+        PixelHand.BeginAnimation(OpacityProperty, null);
+        CaptionBox.BeginAnimation(OpacityProperty, null);
+        _sprites = complete ? _completionSprites : _tapSprites;
+        PixelHand.Source = _sprites[0];
+        PixelHand.Opacity = 1;
+        PixelHand.Visibility = Visibility.Visible;
+        CaptionBox.Opacity = 1;
 
         CaptionText.Text = caption.Trim();
         CaptionBox.Visibility = caption.Trim().Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        // 字条贴在手的左边：两只手宽度不一样，边距跟着换。
-        CaptionBox.Margin = new Thickness(0, 0, complete ? 300 : 236, 0);
+        // 两种手势共用 96×80 画布和三倍像素缩放。
+        CaptionBox.Margin = new Thickness(0, 0, 300, 0);
 
         ApplySystemTheme();
         PlaceOnActiveScreen(anchor, complete);
@@ -139,26 +156,18 @@ public partial class TapWindow : Window
 
         var animated = SystemParameters.ClientAreaAnimation;
 
-        if (complete)
+        if (animated)
         {
-            CompletionHand.Source = _sprites[0];
-            if (animated)
-            {
-                _clock.Restart(); _frames.Start();
-                CaptionBox.Opacity = 1; // 像素手不走 Storyboard，字条得自己亮起来
-                // 像素手 1.3s 放完，停 2s，然后和字条一起淡出。
-                var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(240)) { BeginTime = TimeSpan.FromMilliseconds(3300) };
-                CompletionHand.BeginAnimation(OpacityProperty, fade);
-                CaptionBox.BeginAnimation(OpacityProperty, fade);
-            }
-            else CaptionBox.Opacity = 1;
+            _clock.Restart(); _frames.Start();
+            // 两种手势都播放 1.3s，停 2s，再与字条一起淡出。
+            var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(240)) { BeginTime = TimeSpan.FromMilliseconds(3300) };
+            PixelHand.BeginAnimation(OpacityProperty, fade);
+            CaptionBox.BeginAnimation(OpacityProperty, fade);
         }
-        else if (animated) ((Storyboard)Resources["TapStory"]).Begin(this, true); // 字条的淡入淡出也在这条时间轴里
-        else { Hand.Opacity = 1; CaptionBox.Opacity = 1; } // 系统关了动画就别硬演，静静地出现一下
 
         _hide.Interval = animated ? Played : Still;
         _hide.Start();
-        Program.Log($"tap complete={complete} animated={animated} caption=\"{CaptionText.Text}\" visible={IsVisible} hand={Hand.Opacity}");
+        Program.Log($"tap complete={complete} animated={animated} caption=\"{CaptionText.Text}\" visible={IsVisible} hand={PixelHand.Opacity}");
     }
 
     /// <summary>
@@ -169,17 +178,14 @@ public partial class TapWindow : Window
     {
         _hide.Stop();
         _frames.Stop();
-        CompletionHand.Visibility = Visibility.Collapsed;
+        PixelHand.Visibility = Visibility.Collapsed;
         CaptionBox.Visibility = Visibility.Collapsed;
         Hide();
 
-        ((Storyboard)Resources["TapStory"]).Stop(this);
-        CompletionHand.BeginAnimation(OpacityProperty, null); // 摘掉淡出动画，属性才重新听本地值
+        PixelHand.BeginAnimation(OpacityProperty, null);
         CaptionBox.BeginAnimation(OpacityProperty, null);
-        Hand.Opacity = 0;
+        PixelHand.Opacity = 0;
         CaptionBox.Opacity = 0;
-        GestureShift.X = 0;
-        Marks.Opacity = 0;
 
         Dismissed?.Invoke();
     }

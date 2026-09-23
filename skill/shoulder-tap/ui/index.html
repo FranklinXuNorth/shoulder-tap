@@ -11,13 +11,12 @@ main{max-width:780px;margin:auto;padding:64px 28px}h1{font-size:34px;margin:8px 
 #stage{margin-top:26px;border:1px dashed var(--line);border-radius:12px;padding:30px;cursor:pointer}#stage strong{font-size:20px;font-weight:500}kbd{border:1px solid var(--line);border-bottom-width:3px;border-radius:4px;padding:2px 7px}.note{font-size:12px}
 .ascii-panel{margin-top:28px;border-top:1px solid var(--line);padding-top:20px}.ascii-panel header{display:flex;align-items:center;justify-content:space-between;gap:16px}.ascii-panel h2{font-size:15px;font-weight:500}pre{font:15px/1.25 Consolas,monospace;white-space:pre;overflow:auto}#ascii-message{font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}#copy-status{font-size:12px;color:var(--muted)}
 #overlay{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:10}
-#hand{position:absolute;right:0;top:calc(40% - 95px);width:220px;height:190px;opacity:0;overflow:visible;color:var(--ink)}#hand.play{animation:appear 1700ms linear both}.play #gesture{animation:tap 1700ms ease-in-out both}#marks{opacity:0}.play #marks{animation:marks 1700ms steps(1) both}
+#hand{position:absolute;right:0;top:calc(40% - 80px);width:192px;height:160px;opacity:0;overflow:hidden}#hand.play{animation:appear 1500ms linear both}#gesture{width:192px;height:160px;background:url('sprites/tap-glove-sheet.png') 0 0 / 1728px 160px no-repeat;image-rendering:pixelated}.play #gesture{animation:tap 1300ms steps(1,end) both}
 #notice{position:absolute;right:24px;top:calc(40% + 105px);max-height:45vh;overflow:auto;width:min(350px,calc(100vw - 48px));background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:18px 46px 18px 20px;pointer-events:auto}#notice[hidden]{display:none}#message{margin:5px 0 0;color:var(--ink);font-size:14px;overflow-wrap:anywhere}#title{color:var(--muted);font-size:12px}#close{position:absolute;right:8px;top:8px;border:0;padding:3px 10px}
-@keyframes appear{0%,100%{opacity:0}12%,86%{opacity:1}}
-/* Fingertip rests at x=199; +18px reaches the edge marker at x=217. The hand never leaves the viewport. */
-@keyframes tap{0%,20%,40%,58%,78%,100%{transform:translateX(0)}30%,48%,66%{transform:translateX(18px)}}
-@keyframes marks{0%,35%,53%,71%,100%{opacity:0}30%,48%,66%{opacity:1}}
-@media(prefers-reduced-motion:reduce){#hand.play{animation:none;opacity:1}.play #gesture,.play #marks{animation:none}}
+@keyframes appear{0%{opacity:0}8%,87%{opacity:1}100%{opacity:0}}
+/* Nine Aseprite frames, preserving their individual durations and three contacts. */
+@keyframes tap{0%{background-position:0 0}19.230769%{background-position:-192px 0}26.153846%{background-position:-384px 0}33.076923%{background-position:-576px 0}44.615385%{background-position:-768px 0}51.538462%{background-position:-960px 0}58.461538%{background-position:-1152px 0}70%{background-position:-1344px 0}76.923077%,100%{background-position:-1536px 0}}
+@media(prefers-reduced-motion:reduce){#hand.play{animation:none;opacity:1}.play #gesture{animation:none}}
 @media(max-width:520px){main{padding:32px 20px}h1{font-size:28px}}
 </style>
 </head>
@@ -47,15 +46,7 @@ main{max-width:780px;margin:auto;padding:64px 28px}h1{font-size:34px;margin:8px 
 <p class="note">浏览器内原型 · 无声音 · 尚未接入桌面悬浮窗或模型</p>
 </main>
 <div id="overlay">
-<svg id="hand" viewBox="0 0 220 190" aria-hidden="true">
-<!-- A small marker sits at the inside edge of the viewport. -->
-<path d="M217 30v74" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-<g id="marks" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M203 43l-5-6M209 35v-7M203 86l-5 6"/></g>
-<g id="gesture" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-<!-- Wrist and curled fingers remain inside the screen; the index points right. -->
-<path d="M28 139L47 104C51 95 60 85 72 78L91 63C96 59 103 57 112 57H187C194 57 199 60 199 65S194 73 187 73H119L117 80H139C149 80 151 94 142 98C153 104 148 117 138 119C145 128 139 139 128 140H108C98 151 84 156 69 155L58 169Z" fill="var(--bg)"/>
-<path d="M117 80H103C96 80 90 86 93 92C96 99 105 101 114 98H142M114 98C106 102 107 112 114 116L138 119M114 116C105 121 108 133 117 136L128 140M63 115C73 110 81 102 86 94M28 139l30 30M34 129l32 29" fill="none"/>
-</g></svg>
+<div id="hand" aria-hidden="true"><div id="gesture"></div></div>
 <aside id="notice" hidden><span id="title"></span><p id="message" role="status" aria-live="polite"></p><button id="close" aria-label="收起提醒">×</button></aside>
 </div>
 <script>
@@ -74,7 +65,7 @@ function tap(){
   byId('title').textContent=byId('kind').value==='off-task'?'先回到计划上？':'你给自己的提醒';
   byId('message').textContent=message;notice.hidden=false;
   void hand.getBoundingClientRect();hand.classList.add('play');
-  timer=setTimeout(()=>hand.classList.remove('play'),1700);
+  timer=setTimeout(()=>hand.classList.remove('play'),1500);
  }
 }
 byId('trigger').addEventListener('click',tap);
