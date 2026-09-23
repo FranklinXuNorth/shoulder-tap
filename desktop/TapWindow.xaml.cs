@@ -83,9 +83,16 @@ public partial class TapWindow : Window
     /// <summary>手收回去了。一次性模式靠它决定什么时候可以退出。</summary>
     public event Action? Dismissed;
 
-    public TapWindow()
+    /// <param name="lower">true = 挂在 62% 高（拍拍那条道），false = 40%（taptap）。两扇窗同时开也不重叠。</param>
+    public TapWindow(bool lower = false)
     {
         InitializeComponent();
+        if (lower)
+        {
+            var rows = ((System.Windows.Controls.Grid)Content).RowDefinitions;
+            rows[0].Height = new GridLength(31, GridUnitType.Star);
+            rows[2].Height = new GridLength(19, GridUnitType.Star);
+        }
         _tapSprites = LoadFrames("tap-glove-sheet.png");
         _completionSprites = LoadFrames("completion-hand-sheet.png");
         _sprites = _tapSprites;

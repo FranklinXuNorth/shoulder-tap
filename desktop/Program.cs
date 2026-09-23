@@ -119,26 +119,34 @@ public static class Program
         using (instance) return Run(request, instance);
     }
 
+    /// <summary>一条道：一扇窗、一个队列。两条道各播各的，taptap 和拍拍可以同时在屏上。</summary>
+    private sealed class Lane
+    {
+        public readonly TapWindow Window;
+        public readonly Queue<TapRequest> Queue = new();
+        public bool Playing;
+        public Lane(bool lower) => Window = new TapWindow(lower);
+    }
+
     private static int Run(TapRequest first, SingleInstance? instance)
     {
         var resident = instance is not null;
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-        var window = new TapWindow();
+        var taps = new Lane(lower: false);   // taptap：提醒，挂在屏幕 40% 高
+        var pats = new Lane(lower: true);    // 拍拍：做完了，挂在 62% 高
         var today = new TodayWindow();
         Forms.NotifyIcon? tray = null;
         var bindings = new Dictionary<string, (IntPtr Handle, uint Pid)>();
-        var completions = new Queue<TapRequest>();
-        var playing = false;
-        void NextCompletion()
+        void Next(Lane lane)
         {
-            if (playing || completions.Count == 0) return;
-            var req = completions.Dequeue();
+            if (lane.Playing || lane.Queue.Count == 0) return;
+            var req = lane.Queue.Dequeue();
             if (req.Mode != "complete")
             {
                 Remember(tray, req.Text);
-                playing = true;
-                window.Tap(caption: req.Caption);
+                lane.Playing = true;
+                lane.Window.Tap(caption: req.Caption);
                 return;
             }
             var anchor = new IntPtr(req.WindowHandle);
@@ -149,9 +157,9 @@ public static class Program
             }
             if (!SourceWindow.IsWindow(anchor)) anchor = SourceWindow.Resolve(req.SourcePid);
             // Unknown/closed windows must never redirect a completion to an unrelated foreground app.
-            if (!SourceWindow.IsWindow(anchor)) { NextCompletion(); return; }
-            playing = true;
-            window.Tap(anchor, complete: true, caption: req.Caption);
+            if (!SourceWindow.IsWindow(anchor)) { Next(lane); return; }
+            lane.Playing = true;
+            lane.Window.Tap(anchor, complete: true, caption: req.Caption);
         }
         void Handle(TapRequest req)
         {
@@ -168,26 +176,23 @@ public static class Program
                 }
                 return;
             }
-            if (req.Mode == "complete") { completions.Enqueue(req); NextCompletion(); return; }
-            if (!req.HasMessage) return;
-            completions.Enqueue(req);
-            NextCompletion();
+            if (req.Mode != "complete" && !req.HasMessage) return;
+            var lane = req.Mode == "complete" ? pats : taps;
+            lane.Queue.Enqueue(req);
+            Next(lane);
         }
-        window.Dismissed += () => { playing = false; NextCompletion(); };
+        foreach (var lane in new[] { taps, pats })
+        {
+            var self = lane;
+            self.Window.Dismissed += () => { self.Playing = false; Next(self); };
+            // 一次性模式：卡片收起来就走人。
+            if (!resident) self.Window.Dismissed += () => self.Window.Dispatcher.BeginInvoke(() => app.Shutdown());
+        }
 
         if (resident)
         {
-            tray = BuildTray(window, today, app, () => Handle(new TapRequest { Text = "试拍" }));
-
-            instance!.Listen(req => window.Dispatcher.BeginInvoke(() =>
-            {
-                Handle(req);
-            }));
-        }
-        else
-        {
-            // 一次性模式：卡片收起来就走人。
-            window.Dismissed += () => window.Dispatcher.BeginInvoke(() => app.Shutdown());
+            tray = BuildTray(taps.Window, today, app, () => Handle(new TapRequest { Text = "试拍" }));
+            instance!.Listen(req => taps.Window.Dispatcher.BeginInvoke(() => Handle(req)));
         }
 
         app.Startup += (_, _) =>
@@ -199,7 +204,8 @@ public static class Program
         var code = app.Run();
 
         if (tray is not null) { tray.Visible = false; tray.Dispose(); }
-        window.Close();
+        taps.Window.Close();
+        pats.Window.Close();
         return code;
     }
 
