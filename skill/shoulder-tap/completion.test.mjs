@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { completionGestures, desktopArgs } from "./completion.mjs";
+import { completionGestures, desktopArgs, missingHandDecision } from "./completion.mjs";
 import { localJudgement, planTasks } from "./local-jev.mjs";
 
 test("each hand at the tail is one gesture; pat before tap; no hand, nothing", () => {
@@ -15,11 +15,18 @@ test("each hand at the tail is one gesture; pat before tap; no hand, nothing", (
     assert.deepEqual(completionGestures({ ...payload, last_assistant_message: "只是回答了一个问题。" }), []);
   }
 });
-test("retry, subagent, empty stops do not notify", () => {
+test("subagent and empty stops do nothing; the retry turn still counts", () => {
   const pat = "```\n        | || || |  _     |\n```";
   assert.deepEqual(completionGestures({ hook_event_name: "SubagentStop", last_assistant_message: pat }), []);
-  assert.deepEqual(completionGestures({ hook_event_name: "Stop", stop_hook_active: true, last_assistant_message: pat }), []);
+  assert.deepEqual(completionGestures({ hook_event_name: "Stop", stop_hook_active: true, last_assistant_message: pat }), ["complete"]);
   assert.deepEqual(completionGestures({ hook_event_name: "Stop", last_assistant_message: "" }), []);
+});
+test("a stop with no hand is blocked once, never twice", () => {
+  const pat = "```\n        | || || |  _     |\n```";
+  assert.equal(missingHandDecision({ hook_event_name: "Stop", last_assistant_message: "改完了。" })?.decision, "block");
+  assert.equal(missingHandDecision({ hook_event_name: "Stop", stop_hook_active: true, last_assistant_message: "改完了。" }), null);
+  assert.equal(missingHandDecision({ hook_event_name: "Stop", last_assistant_message: "改完了。\n" + pat }), null);
+  assert.equal(missingHandDecision({ hook_event_name: "Stop", last_assistant_message: "" }), null);
 });
 test("quoted hand outside the tail is not a tap", () => {
   assert.deepEqual(completionGestures({ hook_event_name: "Stop", last_assistant_message: "________/)" + "a".repeat(801) }), []);

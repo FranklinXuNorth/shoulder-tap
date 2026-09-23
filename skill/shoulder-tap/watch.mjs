@@ -24,7 +24,7 @@ import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { completionGestures, desktopArgs, doneLine } from "./completion.mjs";
+import { completionGestures, desktopArgs, doneLine, missingHandDecision } from "./completion.mjs";
 import { localJudgement } from "./local-jev.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -254,7 +254,9 @@ async function main() {
   //
   // Stop 不为子 agent 触发（那是 SubagentStop），所以后台任务不会拍你一脸。
   if (event === "Stop") {
-    if (payload.stop_hook_active) return; // 正在重试循环里，别添乱
+    // 结尾一只手都没有：顶回去一次让模型补（重试那轮不再顶，绝不卡死会话）。
+    const block = missingHandDecision(payload);
+    if (block) { process.stdout.write(JSON.stringify(block)); return; }
 
     // 只看结尾。中间引用到那段 ASCII（比如正在改这个仓库）不算数。
     const tail = (payload.last_assistant_message || "").slice(-TAIL_CHARS);

@@ -39,11 +39,11 @@ export function renderHabits(habits: Habit[]): string {
 export function renderDone(): string {
   return [
     "",
-    "【做完了就拍拍】这一轮真做完了一件事（改完、跑通、交付了），在回答最末尾打出这只手（代码块，一个字符都别改）：",
+    "【每轮结尾都拍拍】回答最末尾打出这只手（代码块，一个字符都别改），手前面那句话就是这轮的总结：",
     "",
     doneBanner(),
     "",
-    "只是回答了个问题、或者做到一半，就不打。同一轮既做完了又要 taptap，两只都打：拍拍在前，taptap 在后，各自一个代码块，提醒那句放最后。",
+    "同一轮还要 taptap，两只都打：拍拍在前，taptap 在后，各自一个代码块，提醒那句放最后。漏了手，Stop 钩子会把这轮顶回来让你补。",
   ].join("\n");
 }
 
