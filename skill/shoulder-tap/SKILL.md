@@ -37,6 +37,8 @@ claude mcp add -s user shoulder-tap -- node ~/.claude/skills/shoulder-tap/mcp.mj
 | `complete_focus(position, dropped?)` | **只有他明确说完成了**才调；你觉得做完了最多问一句 |
 | `add_habit(name, kind, every_minutes \| at)` | 他要盯一个习惯。`kind`：`hard` 可以说今天不做（健身），`soft` 不许跳过（喝水）。拿不准就问他 |
 | `log_habit(habit, skip?, note?)` | 他说做了；说今天不做就带 `skip: true` 和原因。软习惯会被拒绝，照实告诉他 |
+| `stop_habit(habit)` | 他明确说以后不用盯了。说「今天不做」不是这个 |
+| `habit_history(habit?)` | 他问「这周喝了几次水」「上次健身是什么时候」 |
 | `setup(notion_page)` | 只在用了 Notion 存储、而 `check_focus` 报 `not_set_up` 时 |
 
 时区默认读这台机器的，不用传。**不要替他记**：他没说做，就是没做。

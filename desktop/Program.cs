@@ -134,7 +134,7 @@ public static class Program
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         var taps = new Lane(lower: false);   // taptap：提醒，挂在屏幕 30% 高
-        var pats = new Lane(lower: true);    // 拍拍：做完了，挂在 52% 高
+        var pats = new Lane(lower: true);    // 响指（这轮做完了）/ 拍拍（在问你话）：挂在 52% 高
         var today = new TodayWindow();
         Forms.NotifyIcon? tray = null;
         var bindings = new Dictionary<string, (IntPtr Handle, uint Pid)>();
@@ -176,7 +176,7 @@ public static class Program
                 return;
             }
             if (req.Mode != "complete" && !req.HasMessage) return;
-            var lane = req.Mode == "complete" ? pats : taps;
+            var lane = req.Mode == "tap" ? taps : pats; // taptap 自己一条道，跟另外两只能同时在屏上
             lane.Queue.Enqueue(req);
             Next(lane);
         }

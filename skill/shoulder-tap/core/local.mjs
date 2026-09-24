@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { dayStamp, mintId, nowUtc, findHabit } from "./focus.mjs";
+import { dayStamp, mintId, nowUtc, findHabit, nextActivation } from "./focus.mjs";
 import { overdueMinutes } from "./protocol.mjs";
 
 export const DATA = path.join(os.homedir(), ".claude", "shoulder-tap", "data.json");
@@ -69,36 +69,71 @@ export async function setStatus(_, win, position, status) {
   return { items: await listDay(_, win), hit };
 }
 
+/**
+ * 习惯：跟 Notion 那边一样，一次一行，都在 habits 这一个数组里。
+ * status = pending（当前激活，activated 是激活时刻）/ done / dropped（finished 是收尾时刻）。
+ * 老数据没有 status：当 pending，激活时刻取原来的 last。
+ */
+const status = (h) => h.status ?? "pending";
+const activatedOf = (h) => h.activated ?? h.last;
+
 const asHabit = (h, now = Date.now()) => ({
-  id: h.sid, sid: h.sid, name: h.name, everyMin: h.everyMin ?? 0, at: h.at || undefined, last: h.last, tz: h.tz ?? "",
+  id: h.sid, sid: h.sid, name: h.name, everyMin: h.everyMin ?? 0, at: h.at || undefined, tz: h.tz ?? "",
   kind: h.kind === "soft" ? "soft" : "hard",
-  overdueMin: overdueMinutes({ id: h.sid, every_minutes: h.everyMin, last: h.last, at: h.at, tz: h.tz }, now) ?? -1,
+  status: status(h), activated: activatedOf(h), finished: h.finished, note: h.note ?? "",
+  overdueMin: status(h) === "pending"
+    ? overdueMinutes({ id: h.sid, every_minutes: h.everyMin, last: activatedOf(h), at: h.at, tz: h.tz }, now) ?? -1
+    : -1,
 });
 
+const active = (d) => d.habits.filter((h) => status(h) === "pending");
+
 export async function listHabits() {
-  return load().habits.map((h) => asHabit(h));
+  return active(load()).map((h) => asHabit(h));
 }
 
 export async function overdueHabits() {
   return (await listHabits()).filter((h) => h.overdueMin > 0).sort((a, b) => b.overdueMin - a.overdueMin);
 }
 
+const pendingRow = (h, activated) =>
+  ({ sid: h.sid, name: h.name, everyMin: h.everyMin ?? 0, at: h.at ?? "", tz: h.tz, kind: h.kind, status: "pending", activated });
+
 export async function addHabit(_, name, everyMinutes, note, tz, at, kind = "hard") {
   const d = load();
-  d.habits.push({ sid: mintId("h", new Set(d.habits.map((h) => h.sid))), name, everyMin: everyMinutes, at: at ?? "", note, tz, kind, last: nowUtc() });
+  const sid = mintId("h", new Set(d.habits.map((h) => h.sid)));
+  d.habits.push(pendingRow({ sid, name, everyMin: everyMinutes, at, tz, kind }, nowUtc()));
   save(d);
   return listHabits();
 }
 
+/** 做了 / 今天跳过：这一行收尾，再开下一行 pending。软习惯不许跳过。 */
 export async function logHabit(_, name, tz, note, skip = false) {
   const d = load();
-  const hit = findHabit(d.habits.map((h) => asHabit(h)), name);
+  const hit = findHabit(active(d).map((h) => asHabit(h)), name);
   if (!hit) return undefined;
   if (skip && hit.kind === "soft") return { ...hit, refused: true };
-  const row = d.habits.find((h) => h.sid === hit.sid);
-  row.last = nowUtc();
-  row.tz = tz;
-  if (note !== undefined) row.note = note;
+  const row = active(d).find((h) => h.sid === hit.sid);
+  const at = nowUtc();
+  Object.assign(row, { status: skip ? "dropped" : "done", activated: activatedOf(row), finished: at, ...(note === undefined ? {} : { note }) });
+  delete row.last;
+  d.habits.push(pendingRow({ ...row, tz }, nextActivation(skip, tz)));
   save(d);
-  return { ...hit, overdueMin: -1, last: row.last };
+  return { ...hit, overdueMin: -1, finished: at };
+}
+
+/** 停用：pending 那行标 dropped，不再开下一行。 */
+export async function stopHabit(_, name, note) {
+  const d = load();
+  const hit = findHabit(active(d).map((h) => asHabit(h)), name);
+  if (!hit) return undefined;
+  Object.assign(active(d).find((h) => h.sid === hit.sid), { status: "dropped", finished: nowUtc(), note: note ?? "停用" });
+  save(d);
+  return hit;
+}
+
+/** 历史：做过的和跳过的，新的在前。 */
+export async function habitHistory(_, limit = 50) {
+  return load().habits.filter((h) => status(h) !== "pending").map((h) => asHabit(h))
+    .sort((a, b) => (b.finished ?? "").localeCompare(a.finished ?? "")).slice(0, limit);
 }
