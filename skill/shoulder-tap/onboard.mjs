@@ -26,6 +26,8 @@ const URL_ = `http://127.0.0.1:${PORT}/`;
 const MCP = path.join(HERE, "mcp.mjs");
 const ENV = path.join(HERE, ".env");
 const CODEX = path.join(os.homedir(), ".codex", "config.toml");
+const APP = path.join(STATE_DIR, "app", // 跟 watch.mjs 里同一个位置
+  process.platform === "win32" ? "shoulder-tap-tap.exe" : process.platform === "darwin" ? "ShoulderTap.app/Contents/MacOS/shoulder-tap-tap" : "shoulder-tap-tap");
 
 function openBrowser(url) {
   const [cmd, args] = process.platform === "win32" ? ["cmd", ["/c", "start", "", url]]
@@ -129,6 +131,15 @@ const routes = {
   // 点了完成不马上退：最后那页还有「看看那只手」的链接。一分钟没人来再退。
   "POST /api/finish": () => { writeConfig({ onboarded: true }); idle(); return { message: "好了。" }; },
   "POST /api/close": () => { setTimeout(() => process.exit(0), 300); return { message: "ok" }; }, // 手势页的「完成」：只退出，不动 onboarded
+  // 在屏幕上真拍一下：习惯那一步试 tap，手势页三种都能试。没装桌面端就说没装。
+  "POST /api/tap": ({ mode = "tap", text = "" }) => {
+    if (!["tap", "complete", "snap"].includes(mode)) throw new Error(`没有这种手势：${mode}`);
+    if (!fs.existsSync(APP)) return { tapped: false };
+    const t = String(text).trim().slice(0, 160);
+    const args = ["--mode", mode, "--source-pid", String(process.pid), ...(mode === "tap" ? ["--text", t || "试一下"] : []), ...(t ? ["--caption", t] : [])];
+    spawn(APP, args, { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    return { tapped: true };
+  },
   // 手的样式：ui/sprites/skins/<名字>/{tap,pat,snap}.png。桌面端每次拍之前重读 config.json 的 skin。
   "GET /api/hands": () => ({ skin: readConfig().skin ?? "glove", skins: listSkins() }),
   "POST /api/hands": ({ skin }) => {
