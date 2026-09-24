@@ -1,4 +1,4 @@
-![shoulder-tap: tap tap, pat pat, snap](docs/hands-banner.en.png)
+![shoulder-tap: tap tap, pat pat, snap — glove and cat paw](docs/hands-banner.en.png)
 
 **English** | [中文](README.zh-CN.md)
 
@@ -25,7 +25,7 @@ node install.mjs
 
 The installer opens a settings page in your browser (reachable only from this machine). Five steps, each skippable:
 
-1. **Connect your coding tool** — click "Connect" to hook shoulder-tap into Claude Code / Codex.
+1. **Connect your coding tool** — click "Connect" to hook shoulder-tap into Claude Code / Codex. Claude Desktop can be connected here too, tools only (see below).
    Don't want to click? Expand "do it yourself" for a block you can paste straight to your coding agent.
 2. **First habit** — any name you like. A **soft habit** is simple and quick (drink water), so it can't be skipped: it keeps reminding until you say you did it. A **hard habit** depends on how the day goes (workout), so you can say "not today".
 3. **Today's tasks** — one per line, in order.
@@ -79,6 +79,16 @@ If you'd rather not let a script touch `~/.claude`, do each step yourself:
    command = "node"
    args = ["/Users/you/.claude/skills/shoulder-tap/mcp.mjs"]
    ```
+
+   For Claude Desktop (the chat app), add to `claude_desktop_config.json` (Settings → Developer → Edit Config), then fully quit and reopen it:
+
+   ```json
+   "mcpServers": {
+     "shoulder-tap": { "command": "node", "args": ["/Users/you/.claude/skills/shoulder-tap/mcp.mjs"] }
+   }
+   ```
+
+   Claude Desktop has no hooks and doesn't read CLAUDE.md, so it only gets the tools: it won't stop you or tap on its own, it runs them when you ask ("what's on my list", "just drank water").
 
 3. **Hooks**: add to `~/.claude/settings.json` (create it if missing):
 
@@ -135,7 +145,7 @@ node ~/.claude/skills/shoulder-tap/uninstall.mjs          # keeps your data
 node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # removes data and keys too
 ```
 
-Same on all three platforms: quits the desktop app and removes autostart, the MCP, the hooks, the CLAUDE.md section and the skill. Your Notion database is untouched.
+Same on all three platforms: quits the desktop app and removes autostart, the MCP (Claude Code, Codex and Claude Desktop), the hooks, the CLAUDE.md section and the skill. Your Notion database is untouched.
 You can also just tell Claude Code "uninstall shoulder-tap"; it knows to run this.
 
 ## What leaves this machine
