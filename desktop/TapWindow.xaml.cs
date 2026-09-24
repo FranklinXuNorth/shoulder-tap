@@ -149,11 +149,27 @@ public partial class TapWindow : Window
         sheet.UriSource = File.Exists(file) ? new Uri(file) : new Uri($"pack://application:,,,/shoulder-tap-tap;component/{filename}");
         sheet.EndInit();
         sheet.Freeze();
+        // 画布右边留的透明列裁掉：伸得最远的那一帧要真的碰到屏幕边，别离着一截。
+        var width = 96 - RightGap(sheet);
         return Enumerable.Range(0, 9).Select(i => {
-            var frame = new CroppedBitmap(sheet, new Int32Rect(i * 96, 0, 96, 80));
+            var frame = new CroppedBitmap(sheet, new Int32Rect(i * 96, 0, width, 80));
             frame.Freeze();
             return (BitmapSource)frame;
         }).ToArray();
+    }
+
+    /// <summary>九帧里离右边最近的那一帧，右边还空着几列透明像素。整张都空就当 0。</summary>
+    public static int RightGap(BitmapSource sheet)
+    {
+        var bgra = new FormatConvertedBitmap(sheet, PixelFormats.Bgra32, null, 0);
+        int w = bgra.PixelWidth, h = bgra.PixelHeight, gap = 96;
+        var px = new byte[w * h * 4];
+        bgra.CopyPixels(px, w * 4, 0);
+        for (var f = 0; f < 9; f++)
+            for (var x = 95; x >= 96 - gap && x >= 0; x--)
+                for (var y = 0; y < h; y++)
+                    if (px[(y * w + f * 96 + x) * 4 + 3] > 0) { gap = Math.Min(gap, 95 - x); x = -1; break; }
+        return gap == 96 ? 0 : gap;
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -181,6 +197,7 @@ public partial class TapWindow : Window
         _sprites = complete ? _completionSprites : snap ? _snapSprites : _tapSprites;
         _ends = snap ? SnapEnds : FrameEnds;
         PixelHand.Source = _sprites[0];
+        PixelHand.Width = _sprites[0].PixelWidth * 3; // 裁过的宽度，同样三倍像素
         PixelHand.Opacity = 1;
         PixelHand.Visibility = Visibility.Visible;
         CaptionBox.Opacity = 1;
@@ -188,7 +205,7 @@ public partial class TapWindow : Window
         CaptionText.Text = caption.Trim();
         CaptionBox.Visibility = caption.Trim().Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         // 两种手势共用 96×80 画布和三倍像素缩放。
-        CaptionBox.Margin = new Thickness(0, 0, 300, 0);
+        CaptionBox.Margin = new Thickness(0, 0, PixelHand.Width + 12, 0); // 字挂在手左边 12px
 
         ApplySystemTheme();
         PlaceOnActiveScreen(anchor, complete);

@@ -3,22 +3,22 @@ import assert from "node:assert/strict";
 import { completionGestures, desktopArgs, missingHandDecision } from "./completion.mjs";
 import { localJudgement, planTasks } from "./local-jev.mjs";
 
-test("each hand at the tail is one gesture; pat before tap; no hand, nothing", () => {
-  const pat = "```\n        | || || |  _     |\n```";
+test("each hand at the tail is one gesture; snap before tap; no hand, nothing", () => {
+  const pat = "```\n  /      (_____)  *\n```"; // 响指
   const tap = "```\n  ____/  ________/)   .  |\n```";
   for (const session_id of ["one", "two", "three"]) {
     const payload = { session_id, hook_event_name: "Stop", last_assistant_message: "做好了\n\n" + pat };
-    assert.deepEqual(completionGestures(payload), ["complete"]);
-    assert.ok(desktopArgs(payload, "complete").includes(session_id));
+    assert.deepEqual(completionGestures(payload), ["snap"]);
+    assert.ok(desktopArgs(payload, "snap").includes(session_id));
     assert.deepEqual(completionGestures({ ...payload, last_assistant_message: tap + "\n回到计划" }), ["tap"]);
-    assert.deepEqual(completionGestures({ ...payload, last_assistant_message: pat + "\n" + tap + "\n第 1 条还没动" }), ["complete", "tap"]);
+    assert.deepEqual(completionGestures({ ...payload, last_assistant_message: pat + "\n" + tap + "\n第 1 条还没动" }), ["snap", "tap"]);
     assert.deepEqual(completionGestures({ ...payload, last_assistant_message: "只是回答了一个问题。" }), []);
   }
 });
 test("subagent and empty stops do nothing; the retry turn still counts", () => {
   const pat = "```\n        | || || |  _     |\n```";
   assert.deepEqual(completionGestures({ hook_event_name: "SubagentStop", last_assistant_message: pat }), []);
-  assert.deepEqual(completionGestures({ hook_event_name: "Stop", stop_hook_active: true, last_assistant_message: pat }), ["complete"]);
+  assert.deepEqual(completionGestures({ hook_event_name: "Stop", stop_hook_active: true, last_assistant_message: pat }), ["snap"]);
   assert.deepEqual(completionGestures({ hook_event_name: "Stop", last_assistant_message: "" }), []);
 });
 test("a stop with no hand is blocked once, never twice", () => {
@@ -56,4 +56,12 @@ test("missing key, stale plan, network and malformed answers fall back silently"
   for (const answer of [{ choice: "other", confidence: 1 }, { choice: "related", confidence: 10 }]) {
     assert.equal(await localJudgement({ JEV_API_KEY: "test" }, plan, "work", async () => ({ ok: true, json: async () => ({ answers: { relation: answer } }) }), now), "");
   }
+});
+test("the old pat-pat hand still counts as snap for sessions started before the switch", () => {
+  const old = "```\n       | || || |  _     |\n```";
+  assert.deepEqual(completionGestures({ hook_event_name: "Stop", last_assistant_message: "做好了\n" + old }), ["snap"]);
+});
+test("the snap hand the rule prints is the one the hook detects", async () => {
+  const { doneBanner } = await import("./core/ascii.mjs");
+  assert.deepEqual(completionGestures({ hook_event_name: "Stop", last_assistant_message: "做好了\n\n" + doneBanner() }), ["snap"]);
 });

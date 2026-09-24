@@ -15,14 +15,15 @@ const HAND = [
     "|       (___)           |",
     " \\______(__)            |",
 ].join("\n");
-/** 拍拍：摊开的手掌拍一下。这一轮真做完了一件事，用它。 */
-const PAT = [
-    "                 pat pat",
-    "        _  _  _         |",
-    "       | || || |  _     |",
-    "       | || || | | |    |",
-    "       |          _|    |",
-    "        \\________/      |",
+/** 响指：拇指和中指一捻，这一轮做完了。跟桌面上一轮做完打的响指是同一个意思。 */
+const SNAP = [
+    "                 snap",
+    "             \\  |  /",
+    "         ___   ` `",
+    "   _____/   )__",
+    "  /      (_____)  *",
+    " |       (___)",
+    "  \\______(__)",
 ].join("\n");
 /** 真跑偏了：手 + 一句点破 + 一个问题，然后停住。 */
 export function offTaskBanner() {
@@ -35,8 +36,8 @@ export function offTaskBanner() {
 export function dueBanner() {
     return offTaskBanner();
 }
-/** 做完了：拍拍。跟 taptap 同一轮都要打的话，拍拍在前，各自一个代码块。 */
+/** 做完了：响指。跟 taptap 同一轮都要打的话，响指在前，各自一个代码块。 */
 export function doneBanner() {
-    return ["```", PAT, "```"].join("\n");
+    return ["```", SNAP, "```"].join("\n");
 }
-export { HAND, PAT };
+export { HAND, SNAP };

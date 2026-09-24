@@ -120,11 +120,23 @@ else if (spawnSync("dotnet", ["--version"], { stdio: "ignore" }).status !== 0)
   log(`没找到 dotnet：装 .NET 10 SDK 后再跑一次，或把 Release 里的 exe 解压到 ${appDir}`);
 else {
   const exe = path.join(appDir, "shoulder-tap-tap.exe");
-  if (fs.existsSync(exe)) {
-    spawnSync(exe, ["--quit"], { stdio: "ignore" }); // 常驻的那个占着 dll，先请它退出
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1500);
-  }
-  if (tryBuild(() => execFileSync("dotnet", ["publish", path.join(root, "desktop"), "-c", "Release", "-o", appDir, "--nologo", "-v", "q"], { stdio: "inherit" }))) {
+  // 先编到旁边的临时目录，再请常驻的那个退出、把文件换过去。编译要十几秒，这期间任何一个钩子
+  // （每次工具调用都会 bind 一下）都会把它重新拉起来占住 dll；换文件只要几十毫秒，撞上的机会小得多。
+  const staged = appDir + ".next";
+  const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  const swapIn = () => {
+    for (let attempt = 0; ; attempt++) {
+      if (fs.existsSync(exe)) spawnSync(exe, ["--quit"], { stdio: "ignore" }); // 常驻的那个占着 dll，先请它退出
+      sleep(800);
+      try { fs.cpSync(staged, appDir, { recursive: true, force: true }); break; }
+      catch (e) {
+        if (attempt === 2) throw e;
+        spawnSync("taskkill", ["/F", "/IM", "shoulder-tap-tap.exe"], { stdio: "ignore" }); // 又被钩子拉起来了：直接关掉再试
+      }
+    }
+    fs.rmSync(staged, { recursive: true, force: true });
+  };
+  if (tryBuild(() => { fs.rmSync(staged, { recursive: true, force: true }); execFileSync("dotnet", ["publish", path.join(root, "desktop"), "-c", "Release", "-o", staged, "--nologo", "-v", "q"], { stdio: "inherit" }); swapIn(); })) {
   log(`桌面端 → ${exe}`);
   // 开机自启：HKCU 的 Run 键，不要管理员。不带参数启动就是常驻不拍。
   // 不常驻的话，Claude Code 没开时别的机器发来的拍肩就没人接。
