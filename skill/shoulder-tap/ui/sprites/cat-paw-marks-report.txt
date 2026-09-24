@@ -1,0 +1,3 @@
+All 27 frames checked: paw owns rightmost opaque pixel.
+All puff strokes and white backing are strictly left of paw right edge.
+No mark overlaps paw; all effects stay inside canvas.
