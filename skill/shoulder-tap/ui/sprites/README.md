@@ -9,6 +9,12 @@ and it shows up under Hand in the shoulder-tap page (tray icon, or `node onboard
 `~/.claude/shoulder-tap/config.json`. Timing is fixed per gesture, not per skin: tap/pat 250, 90, 90, 150, 90, 90, 150, 90, 300 ms;
 snap 9 × 250 ms alternating loaded / snapped, ending on snapped.
 
+### Cat paw
+
+`cat-paw-poses/` contains GPT-generated key poses matching the original diagonal white paw, black pads, and coarse 2px pixel grid. Tap extends one toe, pat changes from the open paw to a broader contact pose, and snap alternates curled and released paws. These are distinct gestures rather than three translations of the same static image.
+
+Run `python make-cat-paw.py` to assemble the existing poses into the three nine-frame PNG sheets and matching lossless WebP files in `skins/cat-paw/`. It validates dimensions, palette, frame bounds, and PNG/WebP pixel equality. `cat-paw-actions-preview.png` shows anticipation/contact pairs in tap, pat, snap row order; `cat-paw-actions.gif` plays the three gestures side by side at their actual timing.
+
 ## Current direction: cartoon pointer glove
 
 `tap-glove.aseprite` is the revised design: bold two-pixel black contour, oversized round index finger, plump four-finger white glove, three back-of-hand stitches and a rolled cuff. The entire hand stays inside the canvas and points right.
