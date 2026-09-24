@@ -79,10 +79,10 @@ sequenceDiagram
   M->>D: 读写
   M-->>CC: 结果
   CC->>W: PreToolUse(AskUserQuestion)
-  W->>A: 响指 + 问题
+  W->>A: 拍拍 + 问题
   CC-->>U: 回答，结尾带拍拍（跑偏了再带 taptap）
   CC->>W: Stop
-  W->>A: 结尾有哪只手就拍哪下
+  W->>A: 结尾有拍拍 → 响指；有 taptap → taptap
   A-->>U: 屏幕右缘：手 + 一句话
 </pre>
   </div>
@@ -104,16 +104,27 @@ flowchart TB
   </div>
 
   <h2>04 · 习惯</h2>
-  <p class="lead">到点了不立刻说，等一件事做完、或者有自然停顿时带一句。</p>
+  <p class="lead">一次一行，跟每日任务一样打 pending / done / dropped，历史就是所有不是 pending 的行。到点了不立刻说，等有自然停顿时带一句。</p>
   <div class="diagram">
 <pre class="mermaid">
 stateDiagram-v2
-  [*] --> 计时
-  计时 --> 到点: 超过间隔 / 过了每天那个时刻
-  到点 --> 计时: 你说做了（log_habit）
-  到点 --> 今天不提: 硬习惯 · 你说今天不做（skip）
-  到点 --> 到点: 软习惯 · 说不做也不行，照样提醒
-  今天不提 --> 计时: 第二天（凌晨 4 点翻篇）
+  [*] --> pending: add_habit
+  pending --> pending: 软习惯说不做 · 拒绝，照样提醒
+  pending --> done: 你说做了（log_habit）
+  pending --> dropped: 硬习惯说今天不做（skip）
+  pending --> stopped: 不再盯了（stop_habit）
+  done --> [*]
+  dropped --> [*]
+  stopped --> [*]
+  note right of pending
+    一个习惯同一时刻只有一行 pending。
+    Day = 激活时刻，到没到点从它算。
+  end note
+  note right of done
+    done / dropped 之后自动生成下一行 pending：
+    做了从现在算，跳过从明天算。
+    stopped 是 dropped 但不生成下一行。
+  end note
 </pre>
   </div>
 </div>

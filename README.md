@@ -75,7 +75,8 @@ args = ["/Users/你/.claude/skills/shoulder-tap/mcp.mjs"]
 
 ## 桌面端
 
-屏幕右缘那只手。三种手势：**拍拍**（这轮做完了）、**taptap**（跑偏了 / 习惯到点了）、**响指**（模型弹了个问题在等你）。
+屏幕右缘那只手。三种手势：**响指**（这轮做完了）、**拍拍**（模型弹了个问题在等你）、**taptap**（跑偏了 / 习惯到点了）。
+聊天里的 ASCII 手不变：结尾那只拍拍是「这轮到此为止」的记号，桌面看见它就打响指。
 
 - **Windows**：只有托盘图标的常驻进程，开机自启（HKCU 的 Run 键，不需要管理员）。左键看今天的清单，右键试拍、设置、退出。
   不想自启：`Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name shoulder-tap`。
@@ -94,6 +95,8 @@ args = ["/Users/你/.claude/skills/shoulder-tap/mcp.mjs"]
 | `set_focus` / `add_focus` / `complete_focus` | 按顺序记、插队、勾掉。只有你说完成才算完成 |
 | `add_habit(name, kind, …)` | 盯一个习惯：隔多久一次，或每天几点。`kind` = `soft`（不能跳过）/ `hard`（可以说今天不做） |
 | `log_habit(habit, skip?)` | 记一笔刚做了；`skip` = 今天不做，软习惯会被拒绝 |
+| `stop_habit(habit)` | 以后不用再盯了。历史留着，只是不再提醒 |
+| `habit_history(habit?)` | 每一次做了 / 跳过的记录，新的在前 |
 | `setup(notion_page)` | 用 Notion 存储时建库 / 接管已有的库 |
 
 时区从你机器上读，不写死：你换了地方它自己就变。语义判断是调用方的模型做的。
@@ -108,16 +111,21 @@ args = ["/Users/你/.claude/skills/shoulder-tap/mcp.mjs"]
 | `Kind` | select | `task` | `habit` |
 | `ID` | rich_text | `t-a3f91c` | `h-8b12d4` |
 | `Order` | number | 第几条，顺序靠它 | — |
-| `Status` | select | pending / done / dropped | — |
-| `Day` | date | 哪一天（存 UTC，读时按你的时区换算） | — |
+| `Status` | select | pending / done / dropped | pending = 当前激活；done = 做了；dropped = 跳过或停用 |
+| `Day` | date | 哪一天（存 UTC，读时按你的时区换算） | 这一次被激活的时刻（UTC） |
 | `TZ` | rich_text | 写这行时你在哪个时区 | 同左，`At` 按它算 |
 | `EveryMinutes` | number | — | 隔多久提醒一次（和 `At` 二选一） |
 | `At` | rich_text | — | 每天几点提醒，`HH:MM` |
-| `Last` | date | — | 上次做（或跳过）的时间 |
+| `Last` | date | — | 这一次做完（或跳过）的时刻 |
 | `Type` | select | — | `soft`（不能跳过）/ `hard`（可以说今天不做） |
 | `Note` | rich_text | 执行细节 | 备注，跳过的原因也写这 |
 
-建完就是普通的 Notion 数据库，加视图、改间隔、手机上勾，都随你。已有的库会被接管，只补缺的字段。
+习惯**一次一行**：做了，这一行变 `done`，同时生成下一行 `pending`；跳过，这一行变 `dropped`，下一行从明天算起；
+停用，这一行变 `dropped`、不再生成下一行。所以历史就是「Kind = habit 且 Status ≠ pending」，在 Notion 里建个视图就能看。
+改名字、间隔、软硬，改 `pending` 那一行，后面的照抄它。本地存储（`data.json`）是同一个模型。
+
+建完就是普通的 Notion 数据库，加视图、改间隔、手机上勾，都随你。已有的库会被接管，只补缺的字段；
+老库里没有 `Status` 的习惯行当作激活中，下次记一笔时自动转成新格式。
 
 ## 本机直连 Jev（可选）
 

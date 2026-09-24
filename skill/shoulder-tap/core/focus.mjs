@@ -334,33 +334,55 @@ export async function setStatus(token, win, position, status) {
 }
 export const current = (items) => items.find((i) => !i.done);
 // ---------- habit ----------
+/**
+ * 习惯跟任务一样，一次一行，一个列表：
+ *   pending  = 当前激活的那一次。一个习惯同一时刻只有一行 pending；Day 是它被激活的时刻。
+ *   done     = 做了。Last 记完成时刻，同时生成下一行 pending（Day = 现在）。
+ *   dropped  = 今天跳过（只有硬习惯可以）。同时生成下一行 pending，从明天开始算。
+ *              停用一个习惯也是 dropped，只是不再生成下一行 —— 没有 pending 行就是不再激活。
+ * 名字、间隔、软硬都跟着 pending 那一行走，下一行照抄它；历史行保持当时的样子。
+ * ID 是习惯本身的身份（h-xxxxxx），每一次都沿用同一个。
+ */
 function parseHabit(page, now) {
     const p = page.properties ?? {};
-    const last = p.Last?.date?.start;
+    // 老库里的习惯没有 Status、激活时间记在 Last 上：当 pending，激活时刻取 Last。
+    const status = p.Status?.select?.name ?? STATUS.pending;
+    const activated = status === STATUS.pending ? (p.Day?.date?.start ?? p.Last?.date?.start) : p.Day?.date?.start;
     const everyMin = p.EveryMinutes?.number ?? 0;
     const at = plain(p.At?.rich_text) || undefined;
     const tz = plain(p.TZ?.rich_text);
-    const overdue = overdueMinutes({ id: page.id, every_minutes: everyMin, last, at, tz }, now);
+    const overdue = status === STATUS.pending ? overdueMinutes({ id: page.id, every_minutes: everyMin, last: activated, at, tz }, now) : undefined;
     return {
         id: page.id,
         sid: plain(p.ID?.rich_text),
         name: plain(p.Name?.title),
         everyMin,
         at,
-        last,
         tz,
         kind: p.Type?.select?.name === "soft" ? "soft" : "hard",
+        status,
+        activated,
+        finished: status === STATUS.pending ? undefined : p.Last?.date?.start,
+        note: plain(p.Note?.rich_text),
         overdueMin: overdue ?? -1,
     };
 }
-async function allHabits(token) {
+async function queryHabits(token, statusFilter, sorts) {
     const ds = await findDataSource(token);
     const res = await notion(token, "POST", `/data_sources/${ds}/query`, {
-        filter: { property: "Kind", select: { equals: KIND.habit } },
+        filter: { and: [{ property: "Kind", select: { equals: KIND.habit } }, statusFilter] },
+        ...(sorts ? { sorts } : {}),
         page_size: 100,
     });
     const now = Date.now();
     return (res.results ?? []).map((p) => parseHabit(p, now)).filter((h) => h.name);
+}
+/** 当前激活的习惯：Status 是 pending，或者老库里压根没填 Status 的。 */
+async function activeHabits(token) {
+    return queryHabits(token, { or: [
+        { property: "Status", select: { equals: STATUS.pending } },
+        { property: "Status", select: { is_empty: true } },
+    ] });
 }
 /** 名字模糊匹配，模型说「喝水」「喝了水」都认。本地存储也用这一个。 */
 export function findHabit(habits, name) {
@@ -375,50 +397,57 @@ const inOrder = (name, text) => {
     for (const ch of text) if (ch === name[i]) i++;
     return name.length > 0 && i === name.length;
 };
+/** 下一行 pending 从什么时候算：做了就从现在；跳过就从明天（日切那一刻）。 */
+export function nextActivation(skip, tz) {
+    return skip ? dayWindow(tz).endUtc : nowUtc();
+}
 export async function listHabits(token) {
-    return allHabits(token);
+    return activeHabits(token);
 }
 /** 现在有哪些该做了。库还没建就当没这回事，不要因此挡住 check_focus。 */
 export async function overdueHabits(token) {
     let habits;
     try {
-        habits = await allHabits(token);
+        habits = await activeHabits(token);
     }
     catch {
         return [];
     }
     return habits.filter((h) => h.overdueMin > 0).sort((a, b) => b.overdueMin - a.overdueMin);
 }
+async function createHabitRow(token, h, activated) {
+    const ds = await findDataSource(token);
+    await notion(token, "POST", "/pages", {
+        parent: { type: "data_source_id", data_source_id: ds },
+        properties: {
+            Name: { title: text(h.name) },
+            Kind: { select: { name: KIND.habit } },
+            ID: { rich_text: text(h.sid) },
+            Status: { select: { name: STATUS.pending } },
+            Day: { date: { start: activated } },
+            EveryMinutes: { number: h.everyMin },
+            At: { rich_text: text(h.at ?? "") },
+            TZ: { rich_text: text(h.tz) },
+            Type: { select: { name: h.kind === "soft" ? "soft" : "hard" } },
+        },
+    });
+}
 /**
  * every 和 at 二选一：隔多久一次，或者每天几点（HH:MM，按 tz 算）。
  * kind：hard = 可以说「今天不做」（健身这种）；soft = 不许跳过，到点就催到做了为止（喝水这种）。
  */
 export async function addHabit(token, name, everyMinutes, note, tz, at, kind = "hard") {
-    const ds = await findDataSource(token);
-    const existing = await allHabits(token);
+    const existing = await activeHabits(token);
     const sid = mintId("h", new Set(existing.map((h) => h.sid)));
-    await notion(token, "POST", "/pages", {
-        parent: { type: "data_source_id", data_source_id: ds },
-        properties: {
-            Name: { title: text(name) },
-            Kind: { select: { name: KIND.habit } },
-            ID: { rich_text: text(sid) },
-            EveryMinutes: { number: everyMinutes },
-            At: { rich_text: text(at ?? "") },
-            Last: { date: { start: nowUtc() } },
-            TZ: { rich_text: text(tz) },
-            Note: { rich_text: text(note) },
-            Type: { select: { name: kind === "soft" ? "soft" : "hard" } },
-        },
-    });
-    return allHabits(token);
+    await createHabitRow(token, { sid, name, everyMin: everyMinutes, at, tz, kind }, nowUtc());
+    return activeHabits(token);
 }
 /**
- * 记一笔「刚做了」—— 或者「今天跳过」：两种都是把 Last 写成现在，区别只在 note 里写没写原因。
- * 软习惯不许跳过：skip=true 时原样返回并带 refused，什么都不写，下次照样催。
+ * 记一笔：做了（done），或者今天跳过（skip → dropped，原因写 note）。
+ * 这一行收尾，再开下一行 pending。软习惯不许跳过：原样返回并带 refused，什么都不写。
  */
 export async function logHabit(token, name, tz, note, skip = false) {
-    const hit = findHabit(await allHabits(token), name);
+    const hit = findHabit(await activeHabits(token), name);
     if (!hit)
         return undefined;
     if (skip && hit.kind === "soft")
@@ -426,10 +455,35 @@ export async function logHabit(token, name, tz, note, skip = false) {
     const at = nowUtc();
     await notion(token, "PATCH", `/pages/${hit.id}`, {
         properties: {
+            Status: { select: { name: skip ? STATUS.dropped : STATUS.done } },
+            Day: { date: { start: hit.activated ?? at } },
             Last: { date: { start: at } },
-            TZ: { rich_text: text(tz) },
             ...(note === undefined ? {} : { Note: { rich_text: text(note) } }),
         },
     });
-    return { ...hit, overdueMin: -1, last: at };
+    await createHabitRow(token, { ...hit, tz }, nextActivation(skip, tz));
+    return { ...hit, overdueMin: -1, finished: at };
+}
+/** 停用：pending 那行标 dropped，不再开下一行。历史都还在。 */
+export async function stopHabit(token, name, note) {
+    const hit = findHabit(await activeHabits(token), name);
+    if (!hit)
+        return undefined;
+    await notion(token, "PATCH", `/pages/${hit.id}`, {
+        properties: {
+            Status: { select: { name: STATUS.dropped } },
+            Last: { date: { start: nowUtc() } },
+            Note: { rich_text: text(note ?? "停用") },
+        },
+    });
+    return hit;
+}
+/** 历史：做过的和跳过的，新的在前。 */
+export async function habitHistory(token, limit = 50) {
+    const rows = await queryHabits(token, { and: [
+        { property: "Status", select: { is_not_empty: true } }, // 老库没填 Status 的算激活中，不是历史
+        { property: "Status", select: { does_not_equal: STATUS.pending } },
+    ] },
+        [{ property: "Last", direction: "descending" }]);
+    return rows.slice(0, limit);
 }

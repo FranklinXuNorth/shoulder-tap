@@ -74,10 +74,13 @@ dotnet publish desktop -c Release -o "$HOME/.claude/shoulder-tap/app"
 只有 `watch.mjs`。模型从不自己调这个 exe——拍肩这件事不该由被拍的人自觉，
 漏读一行 CLAUDE.md 就哑掉的提醒等于没有提醒。哨兵在两个时刻替它去拍：
 
-- **`Stop`**：模型说完一轮，结尾有那只 ASCII 手就拍。钩子的输入里直接带
-  `last_assistant_message`，不用去解析 transcript。
-  这一路还会带上 `--caption`，一小条字贴在手旁边：拍拍（做完了）放这轮回答的第一句，
-  taptap（跑偏/习惯）放手后面那句提醒。手敲完停两秒，字条和手一起淡出。字条是屏幕上唯一的字，所以刻意短（80 字封顶）。
+- **`Stop`**：模型说完一轮，结尾有 ASCII 拍拍就打**响指**（`--mode snap`），有 taptap 就 **taptap**。
+  钩子的输入里直接带 `last_assistant_message`，不用去解析 transcript。
+  这一路还会带上 `--caption`，一小条字贴在手旁边：响指放这轮回答的第一句，
+  taptap（跑偏/习惯）放手后面那句提醒。
+- **`PreToolUse`（`AskUserQuestion`）**：模型弹问题等你答，**拍拍**你（`--mode complete`），问题贴在手旁边。
+
+两条道：taptap 在屏幕 30% 高；响指和拍拍在 52% 高。两条道各自排队，可以同时在屏上。手敲完停两秒，字条和手一起淡出。字条是屏幕上唯一的字，所以刻意短（80 字封顶）。
 
 
 只看消息**结尾** 800 个字符，锚点是食指那一笔 `________/)`。

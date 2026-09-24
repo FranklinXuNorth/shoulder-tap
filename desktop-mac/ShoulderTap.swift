@@ -5,7 +5,7 @@
 //
 // 跟 Windows 版同一套命令行（--mode tap|complete|snap|bind|quit，--caption，--text）和同一套行为：
 //   · 命令行那一端永远立刻返回：常驻进程在跑就把话交过去，不在就派一个 --daemon 出去再交。
-//   · 常驻进程两条道（taptap / 响指在 30% 高，拍拍在 52%），各自排队，可以同时在屏上。
+//   · 常驻进程两条道（taptap 在 30% 高；响指、拍拍在 52%），各自排队，可以同时在屏上。
 //
 // 进程间用 NSDistributedNotificationCenter 交话，单实例用 ~/.claude/shoulder-tap/mac.lock 上的 flock。
 // 两张（三张）sprite sheet 在 .app 的 Resources 里；不在 .app 里跑时就找可执行文件旁边。
@@ -212,8 +212,8 @@ final class Lane {
 // MARK: - 常驻进程
 
 final class Resident: NSObject, NSApplicationDelegate {
-    private let taps = Lane(fromTop: 0.30)   // taptap / 响指：提醒
-    private let pats = Lane(fromTop: 0.52)   // 拍拍：做完了
+    private let taps = Lane(fromTop: 0.30)   // taptap：提醒
+    private let pats = Lane(fromTop: 0.52)   // 响指（这轮做完了）/ 拍拍（在问你话）
     private var status: NSStatusItem?
     private let first: TapRequest
 
@@ -264,7 +264,7 @@ final class Resident: NSObject, NSApplicationDelegate {
         if req.quit { NSApp.terminate(nil); return }
         if req.mode == "bind" || req.mode == "today" { return } // Mac 上没有要绑的窗口，也没有今日面板
         if req.mode != "complete" && !req.hasMessage { return }
-        (req.mode == "complete" ? pats : taps).enqueue(req)
+        (req.mode == "tap" ? taps : pats).enqueue(req) // taptap 自己一条道
     }
 
     @objc private func testTap() { var r = TapRequest(); r.text = "试拍"; r.caption = "试拍"; handle(r) }

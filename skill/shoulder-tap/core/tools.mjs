@@ -4,7 +4,7 @@
  * 时区默认读这台机器的；模型传了 tz 就用它传的。
  */
 import { openStore, machineTz } from "./store.mjs";
-import { current, dayWindow, offsetOf, requireTz, DB_TITLE, adoptDatabase, createDatabase } from "./focus.mjs";
+import { current, dayWindow, offsetOf, requireTz, DB_TITLE, adoptDatabase, createDatabase, findHabit } from "./focus.mjs";
 import { pageIdFrom, NotionError } from "./notion.mjs";
 import { renderCheck, renderPlan } from "./render.mjs";
 
@@ -62,6 +62,16 @@ export const TOOLS = [
     inputSchema: { type: "object", required: ["habit"], properties: { habit: { type: "string", description: "习惯名或短 ID，模糊匹配" }, skip: { type: "boolean" }, note: { type: "string" }, tz: tzProp } },
   },
   {
+    name: "stop_habit",
+    description: "用户说以后不用再盯某个习惯了，就停用它。历史都留着，只是不再提醒。只有他明确说不要了才用 —— 说「今天不做」是 log_habit 的 skip。",
+    inputSchema: { type: "object", required: ["habit"], properties: { habit: { type: "string" }, note: { type: "string", description: "为什么停，可选" } } },
+  },
+  {
+    name: "habit_history",
+    description: "看习惯的历史：每一次做了（done）或跳过（dropped）的记录，新的在前。用户问「我这周喝了几次水」「上次健身是什么时候」时用。",
+    inputSchema: { type: "object", properties: { habit: { type: "string", description: "只看这一个，模糊匹配；不传看全部" }, limit: { type: "integer", minimum: 1, maximum: 200 } } },
+  },
+  {
     name: "setup",
     description: `只在用户选了 Notion 存储、而 check_focus 报 not_set_up 时用：在他给的 Notion 页面下建「${DB_TITLE}」库，或者接管他已有的库。本地存储不需要这一步。`,
     inputSchema: { type: "object", required: ["notion_page"], properties: { notion_page: { type: "string", description: "Notion 链接或 ID，那个页面要已经在 ⋯ → Connections 里连上了 integration" } } },
@@ -113,6 +123,23 @@ export async function call(name, a) {
       if (hit) return a.skip ? `记下了：${hit.name} 今天跳过。` : `记下了：${hit.name}，下次提醒${hit.at ? `明天 ${hit.at}` : `在 ${hit.everyMin} 分钟后`}。`;
       const all = await store.listHabits().catch(() => []);
       return `没找到「${a.habit}」。` + (all.length ? `他盯着的是这些：${all.map((h) => h.name).join("、")}。` : "他还没加过任何习惯。");
+    }
+    case "stop_habit": {
+      const hit = await store.stopHabit(a.habit, a.note);
+      return hit ? `停用了：${hit.name}。历史都还在，以后不再提醒。` : `没找到「${a.habit}」。`;
+    }
+    case "habit_history": {
+      const tz = machineTz();
+      let rows = await store.habitHistory(200);
+      if (a.habit) {
+        const hit = findHabit(rows, a.habit);
+        rows = hit ? rows.filter((r) => r.sid === hit.sid) : [];
+      }
+      rows = rows.slice(0, a.limit ?? 50);
+      if (!rows.length) return a.habit ? `「${a.habit}」还没有记录。` : "还没有任何习惯记录。";
+      const local = (iso) => (iso ? new Date(iso).toLocaleString("zh-CN", { timeZone: tz, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "?");
+      return `最近 ${rows.length} 条（${tz}）：\n` +
+        rows.map((r) => `  ${r.status === "done" ? "✓" : "–"} ${local(r.finished)} ${r.name}${r.status === "dropped" && r.note ? `（${r.note}）` : ""}`).join("\n");
     }
     case "setup": {
       if (store.kind !== "notion") return "现在用的是本地存储，不需要建库。想换到 Notion，打开 shoulder-tap 的设置页选 Notion。";

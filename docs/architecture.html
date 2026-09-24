@@ -56,7 +56,7 @@ flowchart LR
     CX["Codex"]
   end
   subgraph skill["~/.claude/skills/shoulder-tap"]
-    MCP["mcp.mjs<br/>stdio MCP · 7 个工具"]
+    MCP["mcp.mjs<br/>stdio MCP · 9 个工具"]
     W["watch.mjs<br/>钩子"]
     OB["onboard.mjs<br/>设置页"]
     CORE["core/<br/>tools · store · render"]
@@ -86,11 +86,11 @@ flowchart LR
   <div class="scroll"><table>
     <thead><tr><th>部件</th><th>在哪</th><th>做什么</th></tr></thead>
     <tbody>
-      <tr><td><code>mcp.mjs</code></td><td>skill 目录</td><td>本机 stdio MCP。<code>check_focus</code>、<code>set_focus</code>、<code>add_focus</code>、<code>complete_focus</code>、<code>add_habit</code>、<code>log_habit</code>、<code>setup</code>。协议手写，没有依赖</td></tr>
+      <tr><td><code>mcp.mjs</code></td><td>skill 目录</td><td>本机 stdio MCP。<code>check_focus</code>、<code>set_focus</code>、<code>add_focus</code>、<code>complete_focus</code>、<code>add_habit</code>、<code>log_habit</code>、<code>stop_habit</code>、<code>habit_history</code>、<code>setup</code>。协议手写，没有依赖</td></tr>
       <tr><td><code>watch.mjs</code></td><td>skill 目录，挂在 Claude Code 的四个钩子上</td><td>你开口时把今天的清单塞进模型上下文（读缓存，不等网络）；模型说完一轮时看结尾有哪只手就拍哪下；模型弹问题时打响指</td></tr>
       <tr><td><code>onboard.mjs</code> + <code>ui/onboard.html</code></td><td>skill 目录</td><td>设置页：接 MCP、第一个习惯、今天的事、数据放哪。只监听 127.0.0.1，只认同源请求，点完成就退出</td></tr>
       <tr><td><code>core/store.mjs</code></td><td>skill 目录</td><td>选后端：<code>config.json</code> 里的 <code>storage</code>。<code>local.mjs</code> 和 <code>focus.mjs</code>（Notion）是同一套函数</td></tr>
-      <tr><td><code>shoulder-tap-tap</code></td><td><code>~/.claude/shoulder-tap/app</code></td><td>屏幕右缘那只手。Windows 托盘 / macOS 菜单栏常驻，开机自启；三只手、两条道</td></tr>
+      <tr><td><code>shoulder-tap-tap</code></td><td><code>~/.claude/shoulder-tap/app</code></td><td>屏幕右缘那只手：一轮做完打响指，模型问你话拍拍你，跑偏或习惯到点 taptap。Windows 托盘 / macOS 菜单栏常驻，开机自启</td></tr>
     </tbody>
   </table></div>
 
@@ -98,7 +98,7 @@ flowchart LR
   <div class="scroll"><table>
     <thead><tr><th>文件</th><th>里面是什么</th></tr></thead>
     <tbody>
-      <tr><td><code>~/.claude/shoulder-tap/data.json</code></td><td>本地存储时的任务和习惯。时间一律存 UTC，「今天」读的时候按时区现算</td></tr>
+      <tr><td><code>~/.claude/shoulder-tap/data.json</code></td><td>本地存储时的任务和习惯（习惯一次一行，含历史）。时间一律存 UTC，「今天」读的时候按时区现算</td></tr>
       <tr><td><code>~/.claude/shoulder-tap/config.json</code></td><td><code>storage</code>（local / notion）、<code>onboarded</code></td></tr>
       <tr><td><code>~/.claude/shoulder-tap/state.json</code></td><td>钩子的缓存：上一次 <code>check_focus</code> 的整段返回</td></tr>
       <tr><td><code>~/.claude/skills/shoulder-tap/.env</code></td><td>Notion 密钥（选了 Notion 才有）、可选的 Jev 密钥</td></tr>

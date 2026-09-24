@@ -8,8 +8,8 @@
  *
  *   UserPromptSubmit  你每次开口     → 读本地缓存，立刻返回，网络甩到后台
  *   PostToolUse       每次工具调用后 → 写操作立即刷新；否则十分钟一次，且只在有到期习惯时出声
- *   Stop              模型说完一轮   → 结尾有哪只 ASCII 手就拍哪下：拍拍 = 做完了，taptap = 提醒
- *   PreToolUse        模型要问你话   → AskUserQuestion 弹出来之前打个响指，问题贴在手旁边
+ *   Stop              模型说完一轮   → 结尾有拍拍就在桌面打个响指（做完了），有 taptap 就 taptap（提醒）
+ *   PreToolUse        模型要问你话   → AskUserQuestion 弹出来之前拍拍你，问题贴在手旁边
  *
  * 为什么读缓存：网络那一趟是 400ms，而它**卡在你按回车到模型开口之间**。
  * 今天的清单一天才变几次，用几分钟前的副本判断「这件事相不相关」，结论一模一样。
@@ -215,20 +215,20 @@ async function main() {
     // 手旁边那一小条字：拍拍放这轮的如实总结；taptap 放手后面那句提醒。
     const reminder = reminderAfterHand(tail);
     for (const gesture of completionGestures(payload)) {
-      const mode = gesture === "tap" ? "tap" : "complete";
-      const text = mode === "tap" ? reminder : "";
+      // 这轮说完了 → 桌面打个响指（聊天里那只还是拍拍）；跑偏 / 习惯 → taptap。
+      const mode = gesture === "tap" ? "tap" : "snap";
       const caption = mode === "tap" ? reminder : doneLine(payload.last_assistant_message);
-      tapDesktop(env, text, payload, mode, caption);
+      tapDesktop(env, caption, payload, mode, caption);
     }
     return;
   }
 
-  // 模型要停下来问你。你可能早切去别的窗口了 —— 打个响指，把问题贴在手旁边。
+  // 模型要停下来问你。你可能早切去别的窗口了 —— 拍拍你，把问题贴在手旁边。
   // 不输出任何东西：不拦这次调用，也不往上下文里塞话。
   if (event === "PreToolUse") {
     if (payload.tool_name === "AskUserQuestion") {
       const question = questionLine(payload.tool_input);
-      tapDesktop(env, question, payload, "snap", question);
+      tapDesktop(env, "", payload, "complete", question); // 问你话 → 拍拍你
     }
     return;
   }
