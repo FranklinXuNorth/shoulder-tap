@@ -213,7 +213,7 @@ public partial class TapWindow : Window
 
         _hide.Interval = animated ? Played : Still;
         _hide.Start();
-        Program.Log($"tap complete={complete} snap={snap} animated={animated} caption=\"{CaptionText.Text}\" visible={IsVisible} hand={PixelHand.Opacity}");
+        Program.Log($"tap skin={_skin} complete={complete} snap={snap} animated={animated} caption=\"{CaptionText.Text}\" visible={IsVisible} hand={PixelHand.Opacity}");
     }
 
     /// <summary>
