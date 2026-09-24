@@ -61,12 +61,21 @@ func log(_ line: String) {
 // MARK: - 帧
 
 let resourceDir: URL = {
-    if let r = Bundle.main.resourceURL, FileManager.default.fileExists(atPath: r.appendingPathComponent("tap-glove-sheet.png").path) { return r }
+    if let r = Bundle.main.resourceURL, FileManager.default.fileExists(atPath: r.appendingPathComponent("tap.png").path) { return r }
     return URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
 }()
 
+/// config.json 里的 skin（默认 glove）。皮肤在 skill 目录的 sprites/skins/<名字>/，文件不在就退回 .app 里内置的 glove。
+func skinDir() -> URL {
+    let cfg = (try? String(contentsOf: home.appendingPathComponent(".claude/shoulder-tap/config.json"), encoding: .utf8)) ?? ""
+    var skin = "glove"
+    if let r = cfg.range(of: "\"skin\": \""), let end = cfg[r.upperBound...].firstIndex(of: "\"") { skin = String(cfg[r.upperBound..<end]) }
+    let dir = home.appendingPathComponent(".claude/skills/shoulder-tap/ui/sprites/skins/\(skin)")
+    return FileManager.default.fileExists(atPath: dir.appendingPathComponent("tap.png").path) ? dir : resourceDir
+}
+
 func loadFrames(_ name: String) -> [CGImage] {
-    let url = resourceDir.appendingPathComponent(name)
+    let url = skinDir().appendingPathComponent(name)
     guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
           let sheet = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return [] }
     let frames = (0..<9).compactMap { sheet.cropping(to: CGRect(x: $0 * 96, y: 0, width: 96, height: 80)) }
@@ -74,7 +83,7 @@ func loadFrames(_ name: String) -> [CGImage] {
 }
 
 func sheetName(for mode: String) -> String {
-    switch mode { case "complete": return "completion-hand-sheet.png"; case "snap": return "snap-glove-sheet.png"; default: return "tap-glove-sheet.png" }
+    switch mode { case "complete": return "pat.png"; case "snap": return "snap.png"; default: return "tap.png" }
 }
 
 /// 九帧各自的结束时刻（毫秒）。拍拍和 taptap 三次触碰 1.3 秒；响指两张图来回切，4fps。
@@ -225,6 +234,7 @@ final class Resident: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(withTitle: "拍一下试试", action: #selector(testTap), keyEquivalent: "")
         menu.addItem(withTitle: "设置…", action: #selector(openSettings), keyEquivalent: ",")
+        menu.addItem(withTitle: "手的样式…", action: #selector(openHands), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "退出", action: #selector(quit), keyEquivalent: "q")
         menu.items.forEach { $0.target = self }
@@ -243,12 +253,17 @@ final class Resident: NSObject, NSApplicationDelegate {
 
     /// 设置页是 skill 里的 onboard.mjs：本机起一个小服务，浏览器打开，设完自己退出。
     /// LaunchAgent 起来的进程 PATH 很短，node 可能不在上面，所以走登录 shell 找。
-    @objc private func openSettings() {
+    @objc private func openSettings() { openPage([]) }
+    @objc private func openHands() { openPage(["--hands"]) }
+    private func openPage(_ args: [String]) {
         let script = home.appendingPathComponent(".claude/skills/shoulder-tap/onboard.mjs").path
-        guard FileManager.default.fileExists(atPath: script) else { log("onboard.mjs missing"); return }
+        guard FileManager.default.fileExists(atPath: script) else {
+            // skill 被删了或只装了桌面端：说出来，别只写日志。
+            let a = NSAlert(); a.messageText = "找不到设置页"; a.informativeText = "\(script) 不在。回仓库跑一次 node install.mjs。"; a.runModal(); return
+        }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        p.arguments = ["-lc", "node \"$0\"", script]
+        p.arguments = ["-lc", "node \"$0\" \"$@\"", script] + args
         p.standardOutput = nil; p.standardError = nil
         do { try p.run() } catch { log("open settings: \(error.localizedDescription)") }
     }
@@ -272,7 +287,7 @@ final class Resident: NSObject, NSApplicationDelegate {
 
     /// 菜单栏图标：taptap 那张 sheet 的第一帧，缩到 18pt，当模板图用。
     private func trayImage() -> NSImage? {
-        guard let frame = loadFrames("tap-glove-sheet.png").first else { return NSImage(systemSymbolName: "hand.point.up.left", accessibilityDescription: "shoulder-tap") }
+        guard let frame = loadFrames("tap.png").first else { return NSImage(systemSymbolName: "hand.point.up.left", accessibilityDescription: "shoulder-tap") }
         let image = NSImage(cgImage: frame, size: NSSize(width: 22, height: 18))
         image.isTemplate = true
         return image

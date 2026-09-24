@@ -14,6 +14,7 @@ namespace ShoulderTap;
 public sealed class TodayWindow : Window
 {
     private readonly TextBlock _tasks = new() { TextWrapping = TextWrapping.Wrap, FontSize = 16, LineHeight = 28 };
+    private readonly TextBlock _history = new() { TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 22, Foreground = Brushes.DimGray, Margin = new Thickness(0, 4, 0, 0) };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, Foreground = Brushes.DimGray };
     private readonly Button _refresh = new() { Content = "刷新", Padding = new Thickness(12, 5, 12, 5) };
     private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -29,10 +30,17 @@ public sealed class TodayWindow : Window
         var layout = new DockPanel { Margin = new Thickness(24) };
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 20) };
         DockPanel.SetDock(_refresh, Dock.Right); header.Children.Add(_refresh);
+        var hands = new Button { Content = "手的样式", Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) };
+        hands.Click += (_, _) => Program.OpenSettings("--hands");
+        DockPanel.SetDock(hands, Dock.Right); header.Children.Add(hands);
         header.Children.Add(new TextBlock { Text = "今天要做的事", FontSize = 22, FontWeight = FontWeights.SemiBold });
         DockPanel.SetDock(header, Dock.Top); layout.Children.Add(header);
         DockPanel.SetDock(_status, Dock.Bottom); _status.Margin = new Thickness(0, 16, 0, 0); layout.Children.Add(_status);
-        layout.Children.Add(new ScrollViewer { Content = _tasks, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        var body = new StackPanel();
+        body.Children.Add(_tasks);
+        body.Children.Add(new TextBlock { Text = "习惯记录", FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 22, 0, 0) });
+        body.Children.Add(_history);
+        layout.Children.Add(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         Content = layout;
         _refresh.Click += async (_, _) => await RefreshAsync();
         _poll.Tick += (_, _) => LoadPlan();
@@ -83,6 +91,7 @@ public sealed class TodayWindow : Window
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(State));
             _tasks.Text = PlanText(doc.RootElement.GetProperty("plan").GetString() ?? "");
+            _history.Text = doc.RootElement.TryGetProperty("history", out var h) ? h.GetString() ?? "" : "点刷新拿一次记录。";
             var at = DateTimeOffset.FromUnixTimeMilliseconds(doc.RootElement.GetProperty("planAt").GetInt64()).LocalDateTime;
             var today = DateTime.Now.AddHours(-4).ToString("yyyy-MM-dd");
             var stale = !_tasks.Text.StartsWith(today);

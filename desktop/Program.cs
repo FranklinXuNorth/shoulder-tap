@@ -226,6 +226,7 @@ public static class Program
 
         menu.Items.Add("拍一下试试", null, (_, _) => window.Dispatcher.BeginInvoke(testTap));
         menu.Items.Add("设置…", null, (_, _) => OpenSettings());
+        menu.Items.Add("手的样式…", null, (_, _) => OpenSettings("--hands"));
 
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("退出", null, (_, _) => window.Dispatcher.BeginInvoke(() => app.Shutdown()));
@@ -255,14 +256,20 @@ public static class Program
     /// 设置页是 skill 里的 onboard.mjs：本机起一个小服务，浏览器打开，设完自己退出。
     /// 已经开着一个时它自己会把浏览器指过去，这里不用管。
     /// </summary>
-    private static void OpenSettings()
+    public static void OpenSettings(string? arg = null)
     {
         var script = Path.Combine(Home, ".claude", "skills", "shoulder-tap", "onboard.mjs");
-        if (!File.Exists(script)) { Log("onboard.mjs missing"); return; }
+        if (!File.Exists(script))
+        {
+            // skill 被删了或只装了桌面端：说出来，别只写日志。
+            System.Windows.MessageBox.Show($"{script} 不在。回仓库跑一次 node install.mjs。", "找不到设置页");
+            return;
+        }
         try
         {
             var start = new System.Diagnostics.ProcessStartInfo("node") { UseShellExecute = false, CreateNoWindow = true };
             start.ArgumentList.Add(script);
+            if (arg is not null) start.ArgumentList.Add(arg);
             System.Diagnostics.Process.Start(start);
         }
         catch (Exception e) { Log("open settings: " + e.Message); }
