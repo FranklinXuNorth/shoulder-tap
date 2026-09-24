@@ -21,13 +21,14 @@ node install.mjs
 
 ## 2. Settings page
 
-The installer opens a settings page in your browser (reachable only from this machine). Four steps, each skippable:
+The installer opens a settings page in your browser (reachable only from this machine). Five steps, each skippable:
 
 1. **Connect your coding tool** — click "Connect" to hook shoulder-tap into Claude Code / Codex.
    Don't want to click? Expand "do it yourself" for a block you can paste straight to your coding agent.
 2. **First habit** — any name you like. A **soft habit** is simple and quick (drink water), so it can't be skipped: it keeps reminding until you say you did it. A **hard habit** depends on how the day goes (workout), so you can say "not today".
 3. **Today's tasks** — one per line, in order.
 4. **Where data lives** — this machine (default, nothing to configure), or your own Notion (visible on your phone too).
+5. **The hand** — play the three gestures, pick a style (glove or cat paw), try a real tap on your desktop.
 
 Come back any time: "Settings…" in the Windows tray / macOS menu bar, or:
 
