@@ -1,28 +1,60 @@
-# python make-cat-paw.py —— 用 cat-paw.png 那一张静态图拼出 skins/cat-paw/ 的三张 sheet。
-# 没有逐帧画的猫爪之前先顶着：tap / pat 是爪子往右边挪过去碰三下（第 3、6、8 帧贴边），snap 是两个姿势来回切。
-# 有人画了真正的九帧，直接覆盖 skins/cat-paw/*.png 就行，这个脚本就不用了。
+"""Assemble GPT-drawn key poses into three distinct cat-paw animations."""
 from pathlib import Path
 from PIL import Image
 
 here = Path(__file__).parent
-paw = Image.open(here / "cat-paw.png").convert("RGBA")
 W, H, N = 96, 80, 9
 out = here / "skins" / "cat-paw"
 out.mkdir(parents=True, exist_ok=True)
+colors = {(0, 0, 0, 0), (0, 0, 0, 255), (255, 255, 255, 255)}
+poses = {p.stem: Image.open(p).convert("RGBA") for p in (here / "cat-paw-poses").glob("*.png")}
 
 
-def sheet(offsets):
-    s = Image.new("RGBA", (W * N, H), (0, 0, 0, 0))
-    for i, (dx, dy) in enumerate(offsets):
-        s.paste(paw, (i * W + dx, dy), paw)
-    return s
+def frame(name, dx=0, dy=0):
+    pose = poses[name]
+    assert pose.size == (W, H), name
+    bbox = pose.getbbox()
+    assert 0 < bbox[0] + dx and bbox[2] + dx < W, (name, dx)
+    assert 0 < bbox[1] + dy and bbox[3] + dy < H, (name, dy)
+    result = Image.new("RGBA", (W, H))
+    result.alpha_composite(pose, (dx, dy))
+    assert set(result.getdata()) <= colors, name
+    return result
 
 
-# 爪子本身在画布里偏右上；碰边的三帧再往右推 6px，其余在 0 和 3 之间回弹。
-touch = [(0, 0), (3, 0), (6, 0), (3, 0), (3, 0), (6, 0), (3, 0), (6, 0), (0, 0)]
-sheet(touch).save(out / "tap.png")
-sheet(touch).save(out / "pat.png")
-# 响指：抬起（往上 4px）/ 落下 交替，最后落下。
-snap = [(0, -4), (0, 0)] * 4 + [(0, 0)]
-sheet(snap).save(out / "snap.png")
-print("→", out)
+tap = [frame("tap-ready", dx, dy) for dx, dy in
+       [(0, 0), (2, 0), (4, -2), (0, 0), (2, 0), (4, -2), (0, 0), (4, -2), (0, 0)]]
+pat = [frame(name, dx, dy) for name, dx, dy in [
+    ("pat-ready", 0, -2), ("pat-ready", 2, 0), ("pat-contact", 2, 0),
+    ("pat-ready", 0, -2), ("pat-ready", 2, 0), ("pat-contact", 2, 0),
+    ("pat-ready", 0, -2), ("pat-contact", 2, 0), ("pat-ready", 0, -2),
+]]
+snap = [frame("snap-ready" if i in (0, 2, 4, 6) else "snap-release") for i in range(N)]
+animations = {"tap": tap, "pat": pat, "snap": snap}
+durations = [250, 90, 90, 150, 90, 90, 150, 90, 300]
+for name, frames in animations.items():
+    sheet = Image.new("RGBA", (W * N, H))
+    for i, image in enumerate(frames):
+        sheet.alpha_composite(image, (i * W, 0))
+    sheet.save(out / f"{name}.png")
+    sheet.save(out / f"{name}.webp", lossless=True, exact=True, method=6)
+    assert Image.open(out / f"{name}.webp").convert("RGBA").tobytes() == sheet.tobytes()
+    print(f"{name}: 864x80, {len({f.tobytes() for f in frames})} distinct frames; palette and bounds OK")
+
+# Rows: tap, pat, snap. Columns: anticipation / contact or release.
+preview = Image.new("RGBA", (W * 2, H * 3), "white")
+for row, frames in enumerate(animations.values()):
+    preview.alpha_composite(frames[0], (0, H * row))
+    preview.alpha_composite(frames[1 if row == 2 else 2], (W, H * row))
+preview.resize((W * 8, H * 12), Image.Resampling.NEAREST).save(here / "cat-paw-actions-preview.png")
+
+# Side-by-side review at the players' actual timing: tap / pat / snap.
+ends = [sum(durations[:i + 1]) for i in range(N)]
+review = []
+for t in range(0, 2500, 10):
+    canvas = Image.new("RGBA", (W * 3, H), "white")
+    for col, (name, frames) in enumerate(animations.items()):
+        index = min(t // 250, 8) if name == "snap" else next((i for i, end in enumerate(ends) if t < end), 8)
+        canvas.alpha_composite(frames[index], (W * col, 0))
+    review.append(canvas.resize((W * 9, H * 3), Image.Resampling.NEAREST).convert("RGB"))
+review[0].save(here / "cat-paw-actions.gif", save_all=True, append_images=review[1:], duration=10, loop=0)
