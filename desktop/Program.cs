@@ -138,7 +138,6 @@ public static class Program
         var today = new TodayWindow();
         Forms.NotifyIcon? tray = null;
         var bindings = new Dictionary<string, (IntPtr Handle, uint Pid)>();
-        Relay? relay = null;
         void Next(Lane lane)
         {
             if (lane.Playing || lane.Queue.Count == 0) return;
@@ -177,7 +176,6 @@ public static class Program
                 return;
             }
             if (req.Mode != "complete" && !req.HasMessage) return;
-            if (!req.FromRelay) relay?.Record(req); // 本机直接拍的，也进频道的历史
             var lane = req.Mode == "complete" ? pats : taps;
             lane.Queue.Enqueue(req);
             Next(lane);
@@ -193,11 +191,8 @@ public static class Program
         if (resident)
         {
             tray = BuildTray(taps.Window, today, app, () => Handle(new TapRequest { Text = "试拍" }));
+            if (!Onboarded()) OpenSettings(); // 第一次打开：先把设置页拉起来
             instance!.Listen(req => taps.Window.Dispatcher.BeginInvoke(() => Handle(req)));
-            // 跨机器：配了就挂上中转，别的机器（或本机的钩子经中转）发来的拍肩从这进来。
-            relay = Relay.Load(req => taps.Window.Dispatcher.BeginInvoke(() => Handle(req)));
-            relay?.Start();
-            Log(relay is null ? "relay off" : "relay on");
         }
 
         app.Startup += (_, _) =>
@@ -208,7 +203,6 @@ public static class Program
 
         var code = app.Run();
 
-        relay?.Dispose();
         if (tray is not null) { tray.Visible = false; tray.Dispose(); }
         taps.Window.Close();
         pats.Window.Close();
@@ -231,6 +225,7 @@ public static class Program
         menu.Items.Add("今日待办", null, (_, _) => today.Dispatcher.BeginInvoke(() => today.Reveal()));
 
         menu.Items.Add("拍一下试试", null, (_, _) => window.Dispatcher.BeginInvoke(testTap));
+        menu.Items.Add("设置…", null, (_, _) => OpenSettings());
 
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("退出", null, (_, _) => window.Dispatcher.BeginInvoke(() => app.Shutdown()));
@@ -245,6 +240,32 @@ public static class Program
 
         tray.MouseClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) today.Dispatcher.BeginInvoke(() => today.Reveal()); };
         return tray;
+    }
+
+    private static readonly string Home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    /// <summary>设置页走完会在 config.json 里写 onboarded: true。</summary>
+    private static bool Onboarded()
+    {
+        try { return File.ReadAllText(Path.Combine(Home, ".claude", "shoulder-tap", "config.json")).Contains("\"onboarded\": true"); }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// 设置页是 skill 里的 onboard.mjs：本机起一个小服务，浏览器打开，设完自己退出。
+    /// 已经开着一个时它自己会把浏览器指过去，这里不用管。
+    /// </summary>
+    private static void OpenSettings()
+    {
+        var script = Path.Combine(Home, ".claude", "skills", "shoulder-tap", "onboard.mjs");
+        if (!File.Exists(script)) { Log("onboard.mjs missing"); return; }
+        try
+        {
+            var start = new System.Diagnostics.ProcessStartInfo("node") { UseShellExecute = false, CreateNoWindow = true };
+            start.ArgumentList.Add(script);
+            System.Diagnostics.Process.Start(start);
+        }
+        catch (Exception e) { Log("open settings: " + e.Message); }
     }
 
     /// <summary>

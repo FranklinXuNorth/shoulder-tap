@@ -26,7 +26,7 @@ export function missingHandDecision(payload) {
   return {
     decision: "block",
     reason:
-      "结尾漏了手。补上：一句话说这轮做了什么，然后原样打出拍拍那只手（focus_protocol 里有画，代码块）。" +
+      "结尾漏了手。补上：一句话说这轮做了什么，然后原样打出拍拍那只手（check_focus 的返回里有画，代码块）。" +
       "今天说好的那条还没动、或有习惯到点，就再打 taptap 那只手，最后加一句提醒。",
   };
 }

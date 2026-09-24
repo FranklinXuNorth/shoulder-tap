@@ -3,39 +3,15 @@
 你告诉模型今天要做什么。之后你每想干点别的，它在动手之前先拍你一下肩膀。
 
 不是 todo app——todo app 要你主动打开，而你跑偏的时候恰恰不会打开它。
-这个挂在你已经在用的 Claude Code 上。
+这个挂在你已经在用的 Claude Code / Codex 上。
 
-## 数据在你手里
+> **你的所有习惯 + 要做的事情的数据不上云。**
+> shoulder-tap 没有服务器：数据要么在这台机器的一个 JSON 文件里，要么在你自己的 Notion 里（这台机器直接连）。
 
-服务端不存任何人的 token，也不存任何人的任务。
+## 装
 
-MCP 配置里的 Bearer token 就是**你自己的 Notion integration secret**。每次调用，
-服务器拿着它读写**你自己的** Notion 库，返回结果，然后什么都不留。
-这里提供的只有一份 schema 和一条通路。
-
-开了跨机器（下面「跨机器」一节）之后，中转服务器会多存这些：账号邮箱、设备 ID（随机值）、
-平台、屏幕数、手势类型、时间戳，以及**加密后**的字条。密钥从你的 Notion token 派生，只在你的机器上，
-所以字条写了什么、任务是什么，服务端看不到。`.env` 里 `SHOULDER_TAP_TELEMETRY=0` 可以关掉
-平台 / 屏幕数 / 手势的上报，跨机器照常能用。
-
-文档：
-
-- [docs/behavior.html](docs/behavior.html) —— 行为契约：它怎么对你、谁说了算、每个决定放弃了什么
-- [docs/architecture.html](docs/architecture.html) —— 数据流：哪一跳交出了什么
-- [docs/pipeline.html](docs/pipeline.html) —— 数据处理：字段归谁管、ID 什么时候签、手改会怎样
-- [docs/rendering.html](docs/rendering.html) —— 渲染流程：那一下「拍肩」怎么落到聊天里
-- [docs/flow.html](docs/flow.html) —— 本地 + 跨机器的流程图（mermaid），以及 2026-09-24 这次更新加了什么
-- [docs/cross-machine.html](docs/cross-machine.html) —— 跨机器的 PRD：需求、取舍、账号、行为数据
-- [docs/ASSETS.md](docs/ASSETS.md) —— 素材需求
-- [desktop/README.md](desktop/README.md) —— 桌面端：那一下「拍肩」怎么落到屏幕上（Windows）
-- [desktop-mac/ShoulderTap.swift](desktop-mac/ShoulderTap.swift) —— macOS 桌面端：菜单栏常驻 App，单文件，同样三只手、两条道，同样接中转
-- [desktop-linux/README.md](desktop-linux/README.md) —— Linux 桌面端的接口约定（还没有实现，给写它的人）
-
-## 安装
-
-需要 Node 20+ 和 Claude Code。桌面端（屏幕上那只手）Windows 版要 .NET 10 SDK，
-macOS 版要 Xcode 命令行工具（`xcode-select --install`，提供 `swiftc`）；
-没有它们一切照常，拍肩落在聊天里而不是屏幕上。
+需要 Node 20+。桌面端（屏幕上那只手）Windows 版要 .NET 10 SDK，macOS 版要 Xcode 命令行工具
+（`xcode-select --install`）；没有它们一切照常，拍肩落在聊天里而不是屏幕上。
 
 ```bash
 git clone https://github.com/FranklinXuNorth/shoulder-tap.git
@@ -43,166 +19,86 @@ cd shoulder-tap
 node install.mjs
 ```
 
-脚本把 skill 拷到 `~/.claude/skills/shoulder-tap`、把四个钩子写进 `~/.claude/settings.json`、
-把「专注」那一节粘进 `~/.claude/CLAUDE.md`，再把桌面端编译到 `~/.claude/shoulder-tap/app`
-（Windows 编 `desktop/`，macOS 编 `desktop-mac/ShoulderTap.swift`）。
-可以重复跑，已有的 `.env` 不会被覆盖。
+装完浏览器里会打开设置页（只监听 127.0.0.1），四步，每步都能跳过：
 
-然后两步要你自己的密钥：
+1. **接上编程工具** —— 一键把本机 MCP 接进 Claude Code / Codex。
+2. **第一个习惯** —— 名字你自己定。**软习惯**不能跳过，到点就提醒到你做了为止（喝水这种）；
+   **硬习惯**可以说「今天不做」（健身这种）。
+3. **今天要做的事** —— 一行一件，按先后顺序。
+4. **数据放哪** —— 就放这台机器（默认，什么都不用配），或者你自己的 Notion（手机上也能看）。
 
-1. [建一个 Notion integration](https://www.notion.so/profile/integrations)，拿 `ntn_` 开头的密钥。
-   写进 `~/.claude/skills/shoulder-tap/.env` 的 `NOTION_TOKEN=`，再接上 Claude Code：
-   ```bash
-   claude mcp add --transport http shoulder-tap https://shoulder-tap-relay.shoulder-tap.workers.dev/mcp \
-     -s user -H "Authorization: Bearer ntn_你的密钥"
-   ```
-2. 挑一个 Notion 页面，⋯ → **Connections** → 把这个 integration 加进去。（漏这步必报 `object_not_found`。）
-   然后在 Claude Code 里说「接上 shoulder-tap」，把页面链接给它——它会在那底下建好库。
-
-### 装完之后 Claude Code 那边是什么样
-
-`install.mjs` 替你做了三件事，都在 `~/.claude` 下，想看或想改可以直接开文件：
-
-| 文件 | 它放了什么 | 作用 |
-| --- | --- | --- |
-| `settings.json` → `hooks` | 四个钩子：`UserPromptSubmit`、`PostToolUse`、`Stop`、`PreToolUse`（只匹配 `AskUserQuestion`），都跑 `watch.mjs` | 哨兵：你每次开口、每次工具调用后、模型每说完一轮、模型要问你话时，替模型看一眼清单、拍一下桌面 |
-| `CLAUDE.md` → 「## 专注」 | [skill/CLAUDE.md.snippet](skill/CLAUDE.md.snippet) 的内容 | 告诉模型怎么用 `check_focus`、跑偏时怎么提醒、每轮结尾打哪只手 |
-| `skills/shoulder-tap/` | skill 本体、`.env`、`watch.mjs` | 密钥和配置都在 `.env`，不进仓库 |
-
-MCP 那一步（`claude mcp add ...`）要你自己的 Notion 密钥，脚本不代劳，装完会把命令打出来。
-跑完之后在 Claude Code 里 `/mcp` 能看到 `shoulder-tap` 就是接上了；`/hooks` 能看到那四个钩子。
-换机器、更新版本，重跑 `node install.mjs` 即可，已有的 `.env` 不会被覆盖。
-
-### 桌面端在后台怎么跑
-
-Windows 上 `install.mjs` 会把 exe 注册成开机自启（HKCU 的 Run 键，不需要管理员），并立刻拉起来。
-它是一个只有托盘图标的常驻进程：左键点图标看今天的清单，右键菜单能试拍、退出。
-不带参数启动就是常驻不拍，所以自启不会一开机就拍你一下。
-
-不想自启（PowerShell）：`Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name shoulder-tap`，
-之后它会在第一次钩子触发时自己起来，只是 Claude Code 没开的时候接不到别的机器发来的拍肩。
-托盘里点「退出」只退这一次，下次开机照常。
-
-macOS 上 `install.mjs` 把它包成 `ShoulderTap.app`（只有菜单栏图标，不进 Dock），注册成 LaunchAgent 登录自启并立刻拉起。
-本机编译，不需要签名，也不会被 Gatekeeper 拦。取消自启：`launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.shoulder-tap.tap.plist`。
-
-Linux 还没有桌面端，接口约定在 [desktop-linux/README.md](desktop-linux/README.md)。
-
-不想跑脚本的话，四步手动做：拷 skill、配钩子（UserPromptSubmit / PostToolUse / Stop，以及 matcher 为 `AskUserQuestion` 的 PreToolUse，都跑 `node "$HOME/.claude/skills/shoulder-tap/watch.mjs"`）、
-粘 `skill/CLAUDE.md.snippet`、编桌面端：
-
-```bash
-# Windows
-dotnet publish desktop -c Release -o ~/.claude/shoulder-tap/app
-# macOS：两张 sprite sheet 要放在可执行文件旁边
-mkdir -p ~/.claude/shoulder-tap/app
-cp skill/shoulder-tap/ui/sprites/{tap-glove,completion-hand}-sheet.png ~/.claude/shoulder-tap/app/
-swiftc -O desktop-mac/ShoulderTap.swift -o ~/.claude/shoulder-tap/app/shoulder-tap-tap
-```
+之后随时回来改：Windows 托盘 / macOS 菜单栏里点「设置…」，或者 `node ~/.claude/skills/shoulder-tap/onboard.mjs`。
 
 ## 一次拍肩怎么走
 
-先看本机是不是你在用的那台，是就直接拍；不是才上云送到那台。完整版（含时序图）在 [docs/flow.html](docs/flow.html)。
-
 ```mermaid
 flowchart LR
-  subgraph A["机器 A（agent 在这跑）"]
-    CC["Claude Code"] -->|"Stop / PreToolUse(AskUserQuestion) …"| W["watch.mjs"]
-    W --> L{"active.json：<br/>活跃的是本机？"}
-    L -->|"是"| D["shoulder-tap-tap"] --> S["屏幕：手 + 字条"]
-    L -->|"不是"| E["relay.mjs<br/>HKDF(token) → AES-GCM"]
-    W -->|"check_focus …"| MCP["/mcp"]
-  end
-  subgraph CF["Cloudflare Worker"]
-    MCP -.->|"你的 token"| N[("你的 Notion")]
-    CH[("Channel DO<br/>谁活跃 · 密文历史")]
-  end
-  E -.->|"POST /ch/send"| CH
-  CH -.->|"delivered: false → 本机拍"| D
-  subgraph B["机器 B（你盯着的那台）"]
-    DB["shoulder-tap-tap"] -->|"解密 · [A] 字条"| SB["屏幕"]
-  end
-  DB -.->|"WebSocket · active：刚被碰过"| CH
-  CH -.->|"tap：密文"| DB
+  U["你"] -->|"说一句话"| CC["Claude Code / Codex"]
+  CC -->|"钩子"| W["watch.mjs"]
+  W -->|"今天的清单 + 判断规则"| CC
+  CC -->|"check_focus / set_focus / log_habit …"| M["mcp.mjs（本机）"]
+  M --> D[("data.json 或你的 Notion")]
+  W --> D
+  CC -->|"说完一轮，结尾带手"| W
+  W -->|"拍一下"| A["桌面端：屏幕右缘那只手"]
 ```
 
-## 跨机器
+每一块是什么看 [docs/architecture.html](docs/architecture.html)，完整的流程（第一次设置、每一轮对话、
+三档判断、习惯）看 [docs/flow.html](docs/flow.html)。
 
-开着好几台电脑的时候，agent 在 Mac 上跑完了，而你正盯着 Windows —— 手应该拍在你眼睛所在的那台上。
-每一下拍肩（拍拍、taptap、响指）都先经一个中转，送给**最近被你碰过、而且在线**的那台；
-谁都不在线就不送，只记进历史。中转是一个 Cloudflare Worker，你自己部署，个人用量在免费档里，
-不需要 Tailscale，不用开端口。
+## 装了些什么
 
-### 设置
+`install.mjs` 可以重复跑，已有的 `.env` 不会被覆盖。它动的都在 `~/.claude` 下：
 
-**1. 中转在哪**
+| 位置 | 放了什么 | 作用 |
+| --- | --- | --- |
+| `skills/shoulder-tap/` | `mcp.mjs`、`watch.mjs`、`onboard.mjs`、`core/` | 本机 MCP、钩子、设置页。没有 npm 依赖 |
+| `settings.json` → `hooks` | `UserPromptSubmit`、`PostToolUse`、`Stop`、`PreToolUse`（只匹配 `AskUserQuestion`），都跑 `watch.mjs` | 你每次开口、每次工具调用后、模型每说完一轮、模型要问你话时，替模型看一眼清单、拍一下桌面 |
+| `CLAUDE.md` → 「## 专注」 | [skill/CLAUDE.md.snippet](skill/CLAUDE.md.snippet) | 告诉模型怎么用 `check_focus`、跑偏时怎么提醒、每轮结尾打哪只手。已有这一节就不动 |
+| `shoulder-tap/app/` | 桌面端 | 见下 |
+| `shoulder-tap/data.json` · `config.json` | 本地数据、选了哪种存储 | 设置页写，MCP 读写 |
 
-跟 MCP 是同一台 Worker：用官方那台就是 `https://shoulder-tap-relay.shoulder-tap.workers.dev`；
-自己部署看下面「自己部署」（`npx wrangler deploy` 要在 `worker/` 目录里跑，在别处会被当成静态站点报错）。
-
-**2. 可选：Google 登录**
-
-不配就只有邮箱密码登录。要配的话，在 [Google Cloud Console](https://console.cloud.google.com/)：
-
-- **APIs & Services → OAuth consent screen**：User Type 选 External，填应用名和邮箱。
-  应用在「Testing」状态时只有 Test users 里的邮箱能登，把你自己的加进去；要给别人用得发布。
-- **Credentials → Create Credentials → OAuth client ID**：类型选 Web application，
-  Authorized redirect URIs 填 `https://<你的 Worker 地址>/auth/google/callback`。
-- 拿到 Client ID 和 Client secret，在 `worker/` 里塞进 Cloudflare（不进代码，不进仓库）：
-  ```bash
-  npx wrangler secret put GOOGLE_CLIENT_ID
-  npx wrangler secret put GOOGLE_CLIENT_SECRET
-  ```
-  塞完登录页自动多出「用 Google 登录 / 注册」，不用重新部署。
-
-**3. 每台机器登录**
-
-把中转地址写进 `~/.claude/skills/shoulder-tap/.env` 的 `SHOULDER_TAP_RELAY=`，再跑：
+在 Claude Code 里 `/mcp` 能看到 `shoulder-tap`、`/hooks` 能看到那四个钩子，就是接上了。
+不想用设置页，MCP 也可以手动接：
 
 ```bash
-node install.mjs
+claude mcp add -s user shoulder-tap -- node ~/.claude/skills/shoulder-tap/mcp.mjs
 ```
 
-它会打印一个链接（设备码 10 分钟有效）。浏览器里打开，用邮箱密码（「注册」标签建账号，「登录」标签进已有账号）
-或 Google 登录，终端自动拿到设备令牌写进 `.env`，之后就不用管了。
-每台机器都这么做一遍，登**同一个账号**，它们就连在一起了。`node install.mjs --login` 重新登。
+Codex 在 `~/.codex/config.toml` 里加：
 
-`.env` 里还有一个开关：`SHOULDER_TAP_TELEMETRY=0` 不上报平台 / 屏幕数 / 手势类型，跨机器照常能用。
+```toml
+[mcp_servers.shoulder-tap]
+command = "node"
+args = ["/Users/你/.claude/skills/shoulder-tap/mcp.mjs"]
+```
 
-### 它怎么知道你在哪台
+## 桌面端
 
-先看本机：常驻进程把「现在活跃的是不是我」写在 `~/.claude/shoulder-tap/active.json` 里。
-钩子一看是本机，就直接拍，不绕云端（150 毫秒上下）；不是本机才经中转送过去；中转没送到，退回本机拍。
+屏幕右缘那只手。三种手势：**拍拍**（这轮做完了）、**taptap**（跑偏了 / 习惯到点了）、**响指**（模型弹了个问题在等你）。
 
-每台机器的常驻进程每秒看一眼本机有没有键鼠输入。刚有输入、而且（它不是当前活跃的那台，或者前台窗口换了块屏）
-就上报一次；中转把「现在是谁」广播给所有机器。不上报坐标、窗口标题，也不上报你在敲什么。
-通过远程桌面操作另一台时，那台会把自己算成活跃的，手拍在它的画面里，你透过远程窗口照样看得到。
+- **Windows**：只有托盘图标的常驻进程，开机自启（HKCU 的 Run 键，不需要管理员）。左键看今天的清单，右键试拍、设置、退出。
+  不想自启：`Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name shoulder-tap`。
+- **macOS**：包成 `ShoulderTap.app`，只有菜单栏图标，LaunchAgent 登录自启。本机编译，不需要签名，也不会被 Gatekeeper 拦。
+  取消自启：`launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.shoulder-tap.tap.plist`。
+  **这一版是在没有 Mac 的机器上写的，还没在真机上编过**——`node install.mjs` 报错就把错误贴回来。
+- **Linux**：还没有，接口约定在 [desktop-linux/README.md](desktop-linux/README.md)。
 
-### 服务端看得到什么
-
-账号邮箱、设备 ID（随机值）、平台、屏幕数、手势类型、时间戳，以及**加密后**的字条。
-字条的密钥从你的 Notion token 派生，只在你自己的机器上；服务端和历史记录里都只有密文。
-没有登录限速、改密码、找回密码、注销设备 —— 现在的账号只够把机器连起来。
-
-### 现在能做到的
-
-- Windows：能收能发。
-- macOS：菜单栏常驻 App，能收能发。**代码是在没有 Mac 的机器上写的，还没在真机上编过**——第一次跑 `node install.mjs` 报错就把错误贴回来。
-- Linux：能发（同一份 `watch.mjs`），收不到，也没有桌面端。接口约定在 [desktop-linux/README.md](desktop-linux/README.md)，做好放到 `~/.claude/shoulder-tap/app/shoulder-tap-tap` 就会被用上。
-- 中转不通（没配、没登录、超时）时一切照旧：拍在本机。
+第一次启动时如果还没设置过，它会自己打开设置页。细节见 [desktop/README.md](desktop/README.md)。
 
 ## 工具
 
-| | |
+| 工具 | 做什么 |
 | --- | --- |
-| `check_focus(activity?)` | 拦路的那个。返回今天的清单和一段判断规则：相关就放行，不相关就停下来问你。顺带报超时的习惯。 |
-| `set_focus` / `add_focus` / `complete_focus` | 按顺序记、插队、勾掉。只有你说完成才算完成。 |
-| `add_habit` / `log_habit` | 盯一个习惯（名字你自己定，不预设任何东西；隔多久一次，或每天几点）／记一笔刚做了，或今天跳过。 |
-| `setup` / `ping` | 建库 / 健康检查。 |
+| `check_focus(activity?)` | 拦路的那个。返回今天的清单、当前那条、该怎么处理你现在想做的事，顺带报到点的习惯 |
+| `set_focus` / `add_focus` / `complete_focus` | 按顺序记、插队、勾掉。只有你说完成才算完成 |
+| `add_habit(name, kind, …)` | 盯一个习惯：隔多久一次，或每天几点。`kind` = `soft`（不能跳过）/ `hard`（可以说今天不做） |
+| `log_habit(habit, skip?)` | 记一笔刚做了；`skip` = 今天不做，软习惯会被拒绝 |
+| `setup(notion_page)` | 用 Notion 存储时建库 / 接管已有的库 |
 
-语义判断是**调用方的模型**做的，服务端不跑模型、不花 token。
+时区从你机器上读，不写死：你换了地方它自己就变。语义判断是调用方的模型做的。
 
-## Notion 里长什么样
+## 用 Notion 存的时候长什么样
 
 一个库 `Shoulder Tap`，靠 `Kind` 区分两种行：
 
@@ -218,33 +114,28 @@ node install.mjs
 | `EveryMinutes` | number | — | 隔多久提醒一次（和 `At` 二选一） |
 | `At` | rich_text | — | 每天几点提醒，`HH:MM` |
 | `Last` | date | — | 上次做（或跳过）的时间 |
+| `Type` | select | — | `soft`（不能跳过）/ `hard`（可以说今天不做） |
 | `Note` | rich_text | 执行细节 | 备注，跳过的原因也写这 |
 
-建完就是普通的 Notion 数据库，加视图、改间隔、手机上勾，都随你。
-
-## 自己部署
-
-整个后端是一个 Cloudflare Worker（[worker/](worker/)）：`/mcp` 是清单和习惯那套工具，`/ch` 是跨机器中转，
-`/link` 是登录页。不需要数据库以外的任何东西，Durable Object 自带 SQLite。
-
-```bash
-cd worker && npm install
-npx wrangler login
-npx wrangler deploy     # 打印出 https://shoulder-tap-relay.<你的子域>.workers.dev
-```
-
-MCP 客户端配 `<那个地址>/mcp`，`.env` 的 `SHOULDER_TAP_URL` 也指它；跨机器的 `SHOULDER_TAP_RELAY` 填不带 `/mcp` 的地址。
-可选的密钥用 `npx wrangler secret put <名字>` 塞进去：
-
-- `SHOULDER_TAP_KEY` —— 门禁，挡路人蹭额度。客户端对应带 `X-Shoulder-Tap-Key` 头。不过用回 403
-  而不是 401：MCP 客户端把 401 读成「请走 OAuth」，然后整个服务器会显示连不上。
-- `JEV_API_KEY` —— 配了才有 `classify_focus`。代价是两行文字会离开这台机器。
-- `DAY_STARTS_AT_HOUR` —— 一天从几点开始，默认 4：熬到凌晨的人还在昨天。
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` —— Google 登录，见上面「跨机器」。
+建完就是普通的 Notion 数据库，加视图、改间隔、手机上勾，都随你。已有的库会被接管，只补缺的字段。
 
 ## 本机直连 Jev（可选）
 
-`watch.mjs` 在 UserPromptSubmit 时可以直接从你机器上请求 Jev 做首轮「相不相关」的比较，不经过服务端。
+`watch.mjs` 在你开口时可以直接从你机器上请求 Jev 做首轮「相不相关」的比较。
 在 `~/.claude/skills/shoulder-tap/.env` 里填 `JEV_API_KEY`（`JEV_BASE_URL` 默认 `https://api.typesafe.ai`）就开了；
-不填就由对话模型自己判。请求 2 秒超时，超了或出错都静默退回模型判断。
-`SHOULDER_TAP_LOCAL_JEV=0` 可以临时关掉。这条路只发两行文字，不碰 MCP，也不碰 Notion。
+不填就由对话模型自己判。请求 2 秒超时，超了或出错都静默退回模型判断。`SHOULDER_TAP_LOCAL_JEV=0` 可以临时关掉。
+这条路只发两行文字（你现在要做的、当前那条），不碰你的其它数据。
+
+## 测试
+
+```bash
+node skill/shoulder-tap/core/tools.test.mjs      # 本地存储走一遍全部工具（临时目录，不碰你的数据）
+node skill/shoulder-tap/core/protocol.test.mjs   # 习惯到点的算术
+node skill/shoulder-tap/completion.test.mjs      # 结尾那只手的识别
+dotnet build desktop-tests -c Release && desktop-tests/bin/Release/net10.0-windows/ShoulderTap.Tests.exe <shoulder-tap-tap.exe 路径>
+```
+
+## 跨设备
+
+一台机器的 agent 跑完了、手拍到你正盯着的另一台上 —— 这部分在 [`cross-machine`](../../tree/cross-machine) 分支，
+还在自己测，demo v1 不带。

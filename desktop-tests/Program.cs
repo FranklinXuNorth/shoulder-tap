@@ -37,12 +37,6 @@ internal static class Tests
                 var captioned = TapRequest.FromArgs(["--text", "hi", "--caption", "聚焦 A ｜ 刚才 B"]);
                 if (TapRequest.FromJson(captioned.ToJson())?.Caption != "聚焦 A ｜ 刚才 B")
                     throw new Exception("Caption did not survive the round trip");
-                // 密钥派生和解封要跟 relay.mjs 一字不差：常量来自 relay.test.mjs 的输出。
-                var key = Relay.KeyOf("ntn_test_token");
-                if (Convert.ToHexString(key).ToLowerInvariant() != "6c5a6d323c943d6315203790bec542aa22d0127f48afa15303e090ecd5e16a5f")
-                    throw new Exception("HKDF drifted from relay.mjs");
-                if (Relay.Unseal(key, args[1]) != "{\"host\":\"MAC\",\"gesture\":\"snap\",\"caption\":\"问题？\",\"text\":\"问题？\"}")
-                    throw new Exception("AES-GCM unseal disagrees with relay.mjs");
                 var plan = TodayWindow.PlanText("时区 x\n2026-09-22 说好要做的事：\n  ▸ 1. Example\n\n进度 0/1\n\n用户现在要做的是：secret\n【rules】");
                 if (!plan.Contains("Example") || plan.Contains("secret") || plan.Contains("rules"))
                     throw new Exception("Today panel exposed model context");

@@ -8,10 +8,8 @@
  *   3. CLAUDE.md → 把 skill/CLAUDE.md.snippet 粘进 ~/.claude/CLAUDE.md（已有「## 专注」就跳过）
  *   4. 桌面端 → Windows 用 .NET SDK 编到 ~/.claude/shoulder-tap/app 并注册开机自启；
  *              macOS 用 swiftc 包成 ShoulderTap.app 并注册 LaunchAgent；Linux 只指一下接口文档。没有也不影响文本拍肩
- *   5. 跨机器 → .env 里有 SHOULDER_TAP_RELAY 但还没登录，就打印一个链接让你在浏览器里登录，
- *              登录完把设备令牌写进 .env。node install.mjs --login 可以重新登。
- *
- * 不做的事：不碰 Notion，不碰 MCP 配置 —— 那两步要你的密钥，最后会把命令打出来。
+ *   5. 设置页 → 桌面端第一次起来会自己打开它；没有桌面端（Linux）就直接打开。
+ *              接 MCP、第一个习惯、今天的事、数据放哪，都在那一页里点。
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -26,11 +24,12 @@ const skillDst = path.join(claude, "skills", "shoulder-tap");
 const appDir = path.join(claude, "shoulder-tap", "app");
 const log = (s) => console.log("  " + s);
 
-// 1. skill
+// 1. skill。先清掉上一版留下的文件（.env 除外）：只覆盖不清理，删掉的旧文件会一直躺在那。
 fs.mkdirSync(skillDst, { recursive: true });
+for (const name of fs.readdirSync(skillDst)) if (name !== ".env") fs.rmSync(path.join(skillDst, name), { recursive: true, force: true });
 for (const name of fs.readdirSync(skillSrc)) {
-  if (name === ".env" || name.endsWith(".test.mjs")) continue;
-  fs.cpSync(path.join(skillSrc, name), path.join(skillDst, name), { recursive: true, force: true });
+  if (name === ".env") continue;
+  fs.cpSync(path.join(skillSrc, name), path.join(skillDst, name), { recursive: true, force: true, filter: (src) => !src.endsWith(".test.mjs") });
 }
 const env = path.join(skillDst, ".env");
 if (!fs.existsSync(env)) fs.copyFileSync(path.join(skillSrc, ".env.example"), env);
@@ -142,47 +141,10 @@ else {
   spawnSync(exe, [], { stdio: "ignore" }); // 现在就拉起来常驻
 }
 
-// 5. 跨机器：登录换设备令牌
-const dotenv = Object.fromEntries(
-  fs.readFileSync(env, "utf8").split("\n").map((l) => l.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/)).filter(Boolean).map((m) => [m[1], m[2]]),
-);
-const relay = (dotenv.SHOULDER_TAP_RELAY || "").trim().replace(/\/+$/, "");
-if (!relay) log("跨机器没开：想开的话把 worker/ 部署到 Cloudflare，把地址填进 .env 的 SHOULDER_TAP_RELAY，再跑一次");
-else if (dotenv.SHOULDER_TAP_DEVICE_TOKEN && !process.argv.includes("--login")) log("跨机器 → 已登录（重新登：node install.mjs --login）");
-else await login(relay);
-
-async function login(base) {
-  const issued = await (await fetch(`${base}/device/code`, { method: "POST" })).json();
-  console.log(`
-  在浏览器里打开这个链接登录（Google 或邮箱密码），这台机器就连上了：
-
-    ${issued.url}
-
-  等你……`);
-  const deadline = Date.now() + 10 * 60_000;
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 2000));
-    // 网络抖一下不算失败：码还活着，下一轮接着问。
-    let polled;
-    try { polled = await (await fetch(`${base}/device/poll?code=${issued.code}&secret=${issued.secret}`)).json(); } catch { continue; }
-    if (polled.error) { log(`登录没成功：${polled.error}`); return; }
-    if (!polled.token) continue;
-    const text = fs.readFileSync(env, "utf8");
-    const line = `SHOULDER_TAP_DEVICE_TOKEN=${polled.token}`;
-    fs.writeFileSync(env, /^SHOULDER_TAP_DEVICE_TOKEN=.*$/m.test(text) ? text.replace(/^SHOULDER_TAP_DEVICE_TOKEN=.*$/m, line) : text.trimEnd() + "\n" + line + "\n");
-    log(`跨机器 → 登录成功（${polled.email}），设备令牌已写进 .env`);
-    return;
-  }
-  log("十分钟没等到登录，下次跑 node install.mjs --login 再来");
-}
-
+// 5. 设置页。桌面端在跑的话它已经打开了（第一次启动会自己开）；没有桌面端就在这里开，开着直到你点完成。
 console.log(`
-还差两步，都要你自己的密钥：
-
-  1. 建一个 Notion integration，拿 ntn_ 开头的密钥，
-     写进 ${env} 的 NOTION_TOKEN=，
-     再把 Claude Code 接上：
-       claude mcp add --transport http shoulder-tap https://shoulder-tap-relay.shoulder-tap.workers.dev/mcp -s user -H "Authorization: Bearer ntn_你的密钥"
-  2. 挑一个 Notion 页面，⋯ → Connections 加上这个 integration，然后在 Claude Code 里说
-     「接上 shoulder-tap」，把页面链接给它，它会在那底下建库。
+装好了。设置页会在浏览器里打开（没开的话：node "${path.join(skillDst, "onboard.mjs")}"）：
+接上 Claude Code / Codex、定第一个习惯、写下今天要做的事、选数据放哪。
 `);
+const hasDesktop = fs.existsSync(path.join(appDir, "shoulder-tap-tap.exe")) || fs.existsSync(path.join(appDir, "ShoulderTap.app"));
+if (!hasDesktop) spawnSync(process.execPath, [path.join(skillDst, "onboard.mjs")], { stdio: "inherit" });

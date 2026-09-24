@@ -1,8 +1,7 @@
 # shoulder-tap Linux 桌面端 —— 接口约定
 
-还没有 Linux 桌面端。这份文档是给动手写它的人的：把下面的约定照做，`watch.mjs`、`install.mjs`
-和 Cloudflare 中转都不用改，装上就能用。发送那一半（钩子经中转把拍肩送到别的机器）在 Linux 上**已经能用**，
-因为钩子是 Node；缺的是接收那一半：屏幕上那只手，和「我是活跃的那台」的上报。
+还没有 Linux 桌面端。这份文档是给动手写它的人的：把下面的约定照做，`watch.mjs` 和 `install.mjs`
+都不用改，装上就能用。钩子、本机 MCP、设置页都是 Node，在 Linux 上**已经能用**；缺的只是屏幕上那只手。
 
 先读 [desktop/README.md](../desktop/README.md)（Windows 版，行为的原型）和
 [desktop-mac/ShoulderTap.swift](../desktop-mac/ShoulderTap.swift)（单文件，最容易照抄结构）。
@@ -53,39 +52,6 @@ Linux 用 `flock` 锁 + Unix domain socket 或 D-Bus 都行）。
 - 播完停到 3.3 秒（`snap` 到 4.25 秒），0.24 秒淡出，收。系统关了动画就静止显示同样时长。
 - 深浅色跟系统：浅色 墨 `#181818` 纸 `#FFFFFF`，深色 墨 `#FAFAFA` 纸 `#171717`。
 
-## 跨机器（常驻进程要做的）
-
-读 `~/.claude/skills/shoulder-tap/.env`（其次 `~/.claude/shoulder-tap/.env`，最后进程环境）：
-
-| 变量 | 用途 |
-| --- | --- |
-| `SHOULDER_TAP_RELAY` | 中转地址，如 `https://shoulder-tap-relay.xxx.workers.dev`。没有就整个不启动这条线 |
-| `SHOULDER_TAP_DEVICE_TOKEN` | 设备令牌，`node install.mjs` 登录时写入 |
-| `NOTION_TOKEN` | 派生密钥用 |
-| `SHOULDER_TAP_TELEMETRY` | `0` = 不上报平台 / 屏幕数 / 手势 |
-
-设备 ID 在 `~/.claude/shoulder-tap/state.json` 的 `device` 字段；没有就生成一个 UUID 写进去（跟 `watch.mjs` 共用）。
-
-**WebSocket**：`wss://<relay>/ch?device=<id>&platform=linux&screens=<N>&t=<1|0>`，
-请求头 `Authorization: Bearer <设备令牌>`。断了退避重连（1s 起，翻倍到 30s 封顶）。
-
-收：
-- `{"type":"active","device":"<id>"}` —— 现在活跃的是谁。把 `{"active":<是不是我>,"at":<毫秒时间戳>}` 写进
-  `~/.claude/shoulder-tap/active.json`。钩子看它决定是直接在本机拍还是走中转。断线时写 `false`。
-- `{"type":"tap","from":"<id>","blob":"<base64>","ts":...}` —— 解开 `blob` 得到
-  `{"host","gesture","caption","text"}`，当成一次本机拍肩进队列。`host` 不是本机名就在字条前面加 `[host] `。
-
-发：
-- `{"type":"active","screens":<N>}` —— 每秒看一眼：本机 1.5 秒内有键鼠输入，而且（我不是活跃的那台，或者前台窗口换了块屏）就发一次。
-  发完先把 `active.json` 写成 `true`，服务端广播回来再纠正。**不上报坐标、窗口标题、按了什么键。**
-  X11 用 XScreenSaver 扩展的 idle 时间；Wayland 上 `ext-idle-notify-v1`，拿不到就退化成「前台窗口换屏才报」。
-- `{"type":"record","gesture":"<mode>","blob":"<base64>"}` —— 本机直接拍的那一下（不是从中转来的）补记进历史。
-
-**密钥与封装**（跟 [`relay.mjs`](../skill/shoulder-tap/relay.mjs) 逐字节一致，那里有测试向量）：
-- `key = HKDF-SHA256(ikm = NOTION_TOKEN 的 UTF-8, salt = 空, info = "shoulder-tap/key", 32 字节)`
-- `blob = base64( iv(12) ‖ AES-256-GCM 密文 ‖ tag(16) )`，明文是 JSON。
-- 自检：`node skill/shoulder-tap/relay.test.mjs` 会打印 `ntn_test_token` 派生出的 key 的 hex，跟你的实现比。
-
 ## 开机自启
 
 写一个 `~/.config/autostart/shoulder-tap.desktop`（`Exec=<可执行文件>`，不带参数 = 常驻不拍）。
@@ -95,6 +61,4 @@ Linux 用 `flock` 锁 + Unix domain socket 或 D-Bus 都行）。
 
 1. `shoulder-tap-tap --mode tap --text x --caption "你好"` 0.2 秒内返回，屏幕右缘 30% 处出现手和字条，3.5 秒后消失。
 2. 连发一个 `complete` 和一个 `snap`，两只手同时在屏上，不重叠。
-3. 配好 `.env`，常驻进程起来后 `~/.claude/shoulder-tap/active.json` 出现；在另一台机器上跑
-   `node install.mjs` 登同一个账号，那边说完一轮，这边屏上出现带 `[那台机器名]` 的拍拍。
-4. 一次都不抢焦点：正在打字的窗口光标不丢。
+3. 一次都不抢焦点：正在打字的窗口光标不丢。

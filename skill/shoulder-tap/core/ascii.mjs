@@ -6,43 +6,37 @@
  *
  * 这是服务端唯一「生成内容」的地方，而它生成的是一张画，不是你的数据。
  */
-
 /** taptap：食指点三下。跑偏了、习惯到点了，用它。 */
 const HAND = [
-  "                 tap tap",
-  "       __________       |",
-  "  ____/  ________/)   .  |",
-  " /      (___            |",
-  "|       (___)           |",
-  " \\______(__)            |",
+    "                 tap tap",
+    "       __________       |",
+    "  ____/  ________/)   .  |",
+    " /      (___            |",
+    "|       (___)           |",
+    " \\______(__)            |",
 ].join("\n");
-
 /** 拍拍：摊开的手掌拍一下。这一轮真做完了一件事，用它。 */
 const PAT = [
-  "                 pat pat",
-  "        _  _  _         |",
-  "       | || || |  _     |",
-  "       | || || | | |    |",
-  "       |          _|    |",
-  "        \\________/      |",
+    "                 pat pat",
+    "        _  _  _         |",
+    "       | || || |  _     |",
+    "       | || || | | |    |",
+    "       |          _|    |",
+    "        \\________/      |",
 ].join("\n");
-
 /** 真跑偏了：手 + 一句点破 + 一个问题，然后停住。 */
-export function offTaskBanner(): string {
-  return ["```", HAND, "```"].join("\n");
+export function offTaskBanner() {
+    return ["```", HAND, "```"].join("\n");
 }
-
 /**
  * 到点的习惯用同一只手，但**不在当下打断**。
  * 见 protocolText：等当前这条做完，或者做到一半有自然停顿时才带出来。
  */
-export function dueBanner(): string {
-  return offTaskBanner();
+export function dueBanner() {
+    return offTaskBanner();
 }
-
 /** 做完了：拍拍。跟 taptap 同一轮都要打的话，拍拍在前，各自一个代码块。 */
-export function doneBanner(): string {
-  return ["```", PAT, "```"].join("\n");
+export function doneBanner() {
+    return ["```", PAT, "```"].join("\n");
 }
-
 export { HAND, PAT };

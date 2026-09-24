@@ -11,15 +11,12 @@
  *   Stop              模型说完一轮   → 结尾有哪只 ASCII 手就拍哪下：拍拍 = 做完了，taptap = 提醒
  *   PreToolUse        模型要问你话   → AskUserQuestion 弹出来之前打个响指，问题贴在手旁边
  *
- * 跨机器：常驻进程把「我是不是最近被碰过的那台」写在 active.json 里。是本机就直接拍，不绕云端；
- * 不是才经中转（relay.mjs）送到那台；没配、没登录、没人在线、超时，都退回本机拍。
- *
  * 为什么读缓存：网络那一趟是 400ms，而它**卡在你按回车到模型开口之间**。
  * 今天的清单一天才变几次，用几分钟前的副本判断「这件事相不相关」，结论一模一样。
  *
  * 三条硬规矩：
  *   1. 永远 exit 0。哨兵坏了不能把你的会话也搞坏。
- *   2. 有超时。服务端或 Notion 慢了，宁可用旧的。
+ *   2. 不等网络。Notion 慢了，宁可用几分钟前的缓存。
  *   3. 没话说就一个字都不输出。上下文很贵。
  */
 
@@ -30,10 +27,9 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { completionGestures, desktopArgs, doneLine, missingHandDecision } from "./completion.mjs";
 import { localJudgement } from "./local-jev.mjs";
-import { relaySend } from "./relay.mjs";
-import crypto from "node:crypto";
+import { callText } from "./core/tools.mjs";
+import { loadEnv } from "./core/store.mjs";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SELF = fileURLToPath(import.meta.url);
 
 /**
@@ -61,34 +57,12 @@ const TAIL_CHARS = 800;
 
 const TICK_MINUTES = 10; // PostToolUse 定时那一档的节流
 const REFRESH_COOLDOWN_MS = 20_000; // 防止后台刷新扎堆
-const TIMEOUT_MS = 4000;
 
 /** 缓存里存的是带占位符的整段返回，注入前把这一处换成你当下说的话。 */
 const ACTIVITY_SLOT = "__SHOULDER_TAP_ACTIVITY__";
 
 /** 这些工具会改 Notion，调完立刻刷新，不等十分钟。 */
 const WRITE_TOOLS = ["set_focus", "add_focus", "complete_focus", "add_habit", "log_habit", "setup"];
-
-// ---------- 配置：skill 自己的 .env，不进仓库，不上传任何地方 ----------
-
-function loadEnv() {
-  const out = { ...process.env };
-  const files = [
-    path.join(HERE, ".env"),
-    path.join(os.homedir(), ".claude", "skills", "shoulder-tap", ".env"),
-    path.join(STATE_DIR, ".env"),
-  ];
-  for (const file of files) {
-    try {
-      for (const line of fs.readFileSync(file, "utf8").split("\n")) {
-        if (line.trim().startsWith("#")) continue;
-        const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
-        if (m) out[m[1]] = m[2].replace(/^["']|["']$/g, "");
-      }
-    } catch {}
-  }
-  return out;
-}
 
 // ---------- 状态 ----------
 
@@ -108,72 +82,13 @@ function writeState(patch) {
 }
 
 /**
- * 常驻进程按中转的广播写的：现在活跃的是不是本机。十分钟没更新就当不知道，走中转让它判。
- * 没这个文件（没开跨机器、常驻进程没起来）也走中转 —— relaySend 没配会立刻返回 false，最后还是本机拍。
- */
-function locallyActive() {
-  try {
-    const { active, at = 0 } = JSON.parse(fs.readFileSync(path.join(STATE_DIR, "active.json"), "utf8"));
-    return active === true && Date.now() - at < 10 * 60_000;
-  } catch {
-    return false;
-  }
-}
-
-/** 这台机器在频道里的名字：第一次生成，之后不变。随机值，跟机器名无关。 */
-function deviceId() {
-  const { device } = readState();
-  if (device) return device;
-  const fresh = crypto.randomUUID();
-  writeState({ device: fresh });
-  return fresh;
-}
-
-// ---------- 跟 MCP 说话 ----------
-
-async function callTool(env, name, args) {
-  const url = env.SHOULDER_TAP_URL || "https://shoulder-tap-relay.shoulder-tap.workers.dev/mcp";
-  const headers = {
-    "Content-Type": "application/json; charset=utf-8",
-    Accept: "application/json, text/event-stream",
-  };
-  if (env.NOTION_TOKEN) headers.Authorization = `Bearer ${env.NOTION_TOKEN}`;
-  if (env.SHOULDER_TAP_KEY) headers["X-Shoulder-Tap-Key"] = env.SHOULDER_TAP_KEY;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "tools/call",
-      params: { name, arguments: args },
-    }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-
-  const raw = await res.text();
-  if (!res.ok) return "";
-  try {
-    const text = JSON.parse(raw)?.result?.content?.[0]?.text;
-    if (text) return text;
-  } catch {}
-  for (const line of raw.split("\n")) {
-    if (!line.startsWith("data: ")) continue;
-    const text = JSON.parse(line.slice(6))?.result?.content?.[0]?.text;
-    if (text) return text;
-  }
-  return "";
-}
-
-/**
  * 去拿一份新的。活动那一行用占位符填，因为整段返回里只有那一行跟「你当下说什么」有关，
  * 其余（清单、当前是第几条、三档规则、到期习惯）都只取决于 Notion 的状态。
  */
 async function refresh(env) {
   // 时区从这台机器上读，不写死 —— 哨兵跑在用户身边，它比服务端清楚用户在哪。
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const plan = await callTool(env, "check_focus", { activity: ACTIVITY_SLOT, tz });
+  const plan = await callText("check_focus", { activity: ACTIVITY_SLOT, tz });
   if (plan) writeState({ plan, planAt: Date.now() });
 }
 
@@ -303,8 +218,6 @@ async function main() {
       const mode = gesture === "tap" ? "tap" : "complete";
       const text = mode === "tap" ? reminder : "";
       const caption = mode === "tap" ? reminder : doneLine(payload.last_assistant_message);
-      // 本机就是你在用的那台：直接拍。否则经中转送过去；送到了那台会自己拍。
-      if (!locallyActive() && (await relaySend(env, deviceId(), mode, { caption, text }))) continue;
       tapDesktop(env, text, payload, mode, caption);
     }
     return;
@@ -315,8 +228,7 @@ async function main() {
   if (event === "PreToolUse") {
     if (payload.tool_name === "AskUserQuestion") {
       const question = questionLine(payload.tool_input);
-      if (locallyActive() || !(await relaySend(env, deviceId(), "snap", { caption: question, text: question })))
-        tapDesktop(env, question, payload, "snap", question);
+      tapDesktop(env, question, payload, "snap", question);
     }
     return;
   }

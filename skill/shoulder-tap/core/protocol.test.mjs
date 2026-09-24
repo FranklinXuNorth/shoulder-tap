@@ -1,14 +1,7 @@
-// node src/lib/protocol.test.mjs —— 到期判断的最小自检。没有测试框架：用 wrangler 自带的 esbuild 打成 CJS 再断言。
-import { buildSync } from "esbuild";
-import { createRequire } from "node:module";
+// node core/protocol.test.mjs —— 到期判断的最小自检。
 import assert from "node:assert/strict";
-import os from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-const out = path.join(os.tmpdir(), "shoulder-tap-protocol-test.cjs");
-buildSync({ entryPoints: [path.join(path.dirname(fileURLToPath(import.meta.url)), "protocol.ts")], bundle: true, format: "cjs", platform: "node", outfile: out, logLevel: "error" });
-const { overdueMinutes, whatIsDue } = createRequire(import.meta.url)(out);
+import { overdueMinutes, whatIsDue } from "./protocol.mjs";
 
 const tz = "America/New_York";
 const T = (s) => Date.parse(s);
