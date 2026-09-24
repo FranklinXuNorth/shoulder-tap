@@ -20,9 +20,6 @@ public sealed class TapRequest
     /// <summary>手旁边那一小条字：现在聚焦哪条、这轮干了什么。有它，手敲完会多停两秒。</summary>
     [JsonPropertyName("caption")] public string Caption { get; set; } = "";
 
-    /// <summary>true = 从中转来的，别再往中转记一遍。</summary>
-    [JsonIgnore] public bool FromRelay { get; set; }
-
     /// <summary>true = 不是来拍肩的，是来让常驻进程退出的。</summary>
     [JsonPropertyName("quit")] public bool Quit { get; set; }
 

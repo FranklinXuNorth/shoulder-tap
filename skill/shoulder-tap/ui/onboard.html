@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设置 shoulder-tap</title>
+<style>
+  :root {
+    --bg: #eef1f2; --surface: #ffffff; --surface-2: #f6f8f8;
+    --ink: #14191a; --muted: #5d6b6d; --line: #d3dbdc; --line-strong: #aebabc;
+    --accent: #0e7c7b; --accent-ink: #ffffff; --accent-soft: #d9ecec;
+    --signal: #c1471d; --signal-soft: #f9e4dc;
+    --radius: 10px;
+    --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1213; --surface: #161c1d; --surface-2: #1b2223;
+      --ink: #e6ecec; --muted: #94a3a4; --line: #2a3435; --line-strong: #3d4a4b;
+      --accent: #4bb5b2; --accent-ink: #0e1213; --accent-soft: #123231;
+      --signal: #e98055; --signal-soft: #35201a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 ui-sans-serif, system-ui, "Microsoft YaHei UI", "PingFang SC", sans-serif; }
+  main { max-width: 620px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 26px; margin: 0; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 6px 0 24px; }
+  ol.steps { display: flex; gap: 6px; list-style: none; padding: 0; margin: 0 0 20px; }
+  ol.steps li { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+  ol.steps li.on { background: var(--accent); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+  .card h2 { font-size: 19px; margin: 0 0 4px; }
+  .card .why { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+  input[type=text], input[type=password], input[type=number], input[type=time], textarea {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 7px;
+    background: var(--surface-2); color: var(--ink); font: inherit;
+  }
+  textarea { min-height: 120px; resize: vertical; }
+  input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .choice { display: grid; gap: 10px; }
+  .opt { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+  .opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt input { margin-top: 4px; accent-color: var(--accent); }
+  .opt b { display: block; font-weight: 600; }
+  .opt span { color: var(--muted); font-size: 13.5px; }
+  button { font: inherit; padding: 10px 18px; border-radius: 7px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .nav { display: flex; justify-content: space-between; margin-top: 22px; gap: 10px; }
+  .client { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); gap: 12px; }
+  .client:first-of-type { border-top: 0; }
+  .client small { color: var(--muted); display: block; }
+  .ok { color: var(--accent); font-weight: 600; }
+  pre { background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; padding: 10px 12px; font: 12.5px/1.5 var(--mono); white-space: pre-wrap; word-break: break-all; margin: 8px 0 0; }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 13.5px; }
+  .promise { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 14px; border-radius: 0 8px 8px 0; margin-bottom: 16px; font-weight: 600; }
+  .promise span { display: block; font-weight: 400; color: var(--muted); font-size: 13.5px; margin-top: 2px; }
+  .msg { margin-top: 12px; font-size: 14px; white-space: pre-wrap; min-height: 1.4em; }
+  .msg.err { color: var(--signal); }
+  .hidden { display: none; }
+  ul.list { padding-left: 18px; margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+</style>
+
+<main>
+  <h1>设置 shoulder-tap</h1>
+  <p class="sub">四步，每一步都能跳过，之后在托盘里点「设置…」随时回来改。</p>
+  <ol class="steps" id="bar"><li></li><li></li><li></li><li></li></ol>
+
+  <!-- 1 -->
+  <section class="card step" data-step="0">
+    <h2>接上你的编程工具</h2>
+    <p class="why">让 Claude Code / Codex 能读到你今天要做的事，在你跑偏的时候拍你一下。它跑在你自己的机器上。</p>
+    <div id="clients"></div>
+    <details>
+      <summary>想自己动手，或者让模型帮你接</summary>
+      <label>在终端里跑：</label>
+      <pre id="cmd"></pre>
+      <label>Codex：加进 ~/.codex/config.toml</label>
+      <pre id="codex"></pre>
+    </details>
+    <div class="msg" id="msg0"></div>
+  </section>
+
+  <!-- 2 -->
+  <section class="card step hidden" data-step="1">
+    <h2>第一个习惯</h2>
+    <p class="why">名字你自己定。它会在你做完一件事、有个停顿的时候提一句，不会打断你。</p>
+    <label for="hname">习惯</label>
+    <input type="text" id="hname" placeholder="比如：喝水、健身、站起来走走">
+    <label>什么时候提醒</label>
+    <div class="row">
+      <label class="opt" style="margin:0;flex:1"><input type="radio" name="when" value="every" checked><div><b>每隔</b><div class="row"><input type="number" id="every" value="60" min="1" style="width:90px"> <span>分钟</span></div></div></label>
+      <label class="opt" style="margin:0;flex:1"><input type="radio" name="when" value="at"><div><b>每天</b><input type="time" id="at" value="22:30"></div></label>
+    </div>
+    <label>它能不能跳过</label>
+    <div class="choice">
+      <label class="opt"><input type="radio" name="kind" value="soft" checked><div><b>软习惯 · 不能跳过</b><span>到点就提醒，直到你说做了为止。喝水、护眼这种。</span></div></label>
+      <label class="opt"><input type="radio" name="kind" value="hard"><div><b>硬习惯 · 可以说今天不做</b><span>说一句原因，今天就不再提。健身、读书这种。</span></div></label>
+    </div>
+    <div class="msg" id="msg1"></div>
+  </section>
+
+  <!-- 3 -->
+  <section class="card step hidden" data-step="2">
+    <h2>今天要做的事</h2>
+    <p class="why">一行一件，按先后顺序。第一行就是它会盯着你的那件。</p>
+    <textarea id="tasks" placeholder="做作品集&#10;接着做推理编排&#10;回邮件"></textarea>
+    <div id="already"></div>
+    <div class="msg" id="msg2"></div>
+  </section>
+
+  <!-- 4 -->
+  <section class="card step hidden" data-step="3">
+    <h2>数据放哪</h2>
+    <div class="promise">你的所有习惯 + 要做的事情的数据不上云。<span>shoulder-tap 没有自己的服务器替你存它们：要么就在这台机器上，要么在你自己的 Notion 里。</span></div>
+    <div class="choice">
+      <label class="opt"><input type="radio" name="storage" value="local" checked><div><b>就放在这台机器上</b><span>一个 JSON 文件，什么都不用配。只在这一台电脑上有。</span></div></label>
+      <label class="opt"><input type="radio" name="storage" value="notion"><div><b>我自己的 Notion</b><span>手机上也能看、能勾。这台机器直接连你的 Notion，中间不经过任何人。</span></div></label>
+    </div>
+    <div id="notionBox" class="hidden">
+      <label for="ntoken">Notion integration 密钥（ntn_ 开头）</label>
+      <input type="password" id="ntoken" placeholder="ntn_…" autocomplete="off">
+      <label for="npage">一个 Notion 页面的链接</label>
+      <input type="text" id="npage" placeholder="https://www.notion.so/…">
+      <ul class="list">
+        <li>密钥在 <a href="https://www.notion.so/profile/integrations" target="_blank" rel="noreferrer">notion.so/profile/integrations</a> 新建一个 integration 拿。</li>
+        <li>那个页面右上角 ⋯ → Connections → 加上这个 integration，否则连不上。</li>
+        <li>前面几步填的习惯和今天的事，会一起搬过去。</li>
+      </ul>
+    </div>
+    <div class="msg" id="msg3"></div>
+  </section>
+
+  <section class="card hidden" id="done">
+    <h2>好了</h2>
+    <p class="why">打开 Claude Code 或 Codex，说一句话试试。你一跑偏，屏幕右边会有只手拍你一下。这一页可以关了。</p>
+  </section>
+
+  <div class="nav" id="nav">
+    <button id="back">上一步</button>
+    <div class="row">
+      <button id="skip">跳过</button>
+      <button class="primary" id="next">下一步</button>
+    </div>
+  </div>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let step = 0, S = null;
+  const api = async (method, path, body) => {
+    const r = await fetch(path, { method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "没成功");
+    return j;
+  };
+  const say = (i, text, err = false) => { const m = $("msg" + i); m.textContent = text; m.className = "msg" + (err ? " err" : ""); };
+
+  function show() {
+    document.querySelectorAll(".step").forEach((s) => s.classList.toggle("hidden", Number(s.dataset.step) !== step));
+    [...$("bar").children].forEach((li, i) => li.classList.toggle("on", i <= step));
+    $("back").disabled = step === 0;
+    $("next").textContent = step === 3 ? "完成" : "下一步";
+  }
+
+  function renderClients() {
+    const m = S.mcp;
+    $("cmd").textContent = m.command;
+    $("codex").textContent = m.codexBlock;
+    $("clients").innerHTML = "";
+    for (const [key, label] of [["claude", "Claude Code"], ["codex", "Codex"]]) {
+      const c = m[key];
+      const row = document.createElement("div");
+      row.className = "client";
+      row.innerHTML = `<div><b>${label}</b><small>${c.connected ? "已经接上了" : c.remote ? "接的是以前的远程版，换成本机版" : c.installed ? "装了，还没接" : "这台机器上没找到"}</small></div>`;
+      const btn = document.createElement("button");
+      if (c.connected) { btn.textContent = "✓ 已接上"; btn.disabled = true; btn.className = "ok"; }
+      else {
+        btn.textContent = c.remote ? "换成本机版" : "接上"; btn.className = "primary"; btn.disabled = !c.installed;
+        btn.onclick = async () => {
+          btn.disabled = true; say(0, "接着……");
+          try { say(0, (await api("POST", "/api/mcp", { client: key })).message); await load(); }
+          catch (e) { say(0, e.message, true); btn.disabled = false; }
+        };
+      }
+      row.appendChild(btn);
+      $("clients").appendChild(row);
+    }
+  }
+
+  function renderToday() {
+    if (!S.today.length) { $("already").innerHTML = ""; return; }
+    $("already").innerHTML = `<label>今天已经记着的（填了新的会替换掉）</label><ul class="list">${S.today.map((t) => `<li>${t.done ? "✓ " : ""}${t.task.replace(/</g, "&lt;")}</li>`).join("")}</ul>`;
+  }
+
+  async function load() {
+    S = await api("GET", "/api/state");
+    renderClients(); renderToday();
+    document.querySelector(`input[name=storage][value=${S.storage}]`).checked = true;
+    $("notionBox").classList.toggle("hidden", S.storage !== "notion");
+  }
+
+  document.querySelectorAll("input[name=storage]").forEach((r) => r.onchange = () => $("notionBox").classList.toggle("hidden", r.value !== "notion" || !r.checked));
+
+  /** 每一步「下一步」要做的事。返回 false 就停在这一步。 */
+  const save = [
+    async () => true,
+    async () => {
+      const name = $("hname").value.trim();
+      if (!name) return true;
+      const when = document.querySelector("input[name=when]:checked").value;
+      const body = { name, kind: document.querySelector("input[name=kind]:checked").value };
+      if (when === "every") body.every_minutes = Number($("every").value) || 60; else body.at = $("at").value;
+      say(1, (await api("POST", "/api/habit", body)).message);
+      $("hname").value = "";
+      return true;
+    },
+    async () => {
+      const tasks = $("tasks").value.split("\n").map((s) => s.trim()).filter(Boolean);
+      if (!tasks.length) return true;
+      say(2, (await api("POST", "/api/today", { tasks })).message);
+      await load();
+      return true;
+    },
+    async () => {
+      const mode = document.querySelector("input[name=storage]:checked").value;
+      const body = mode === "notion" ? { mode, token: $("ntoken").value, page: $("npage").value } : { mode };
+      if (mode === "notion" && (!body.token.trim() || !body.page.trim())) { say(3, "Notion 要填密钥和页面链接两样。", true); return false; }
+      say(3, "设置中……");
+      say(3, (await api("POST", "/api/storage", body)).message);
+      return true;
+    },
+  ];
+
+  async function finish() {
+    await api("POST", "/api/finish");
+    document.querySelectorAll(".step").forEach((s) => s.classList.add("hidden"));
+    $("nav").classList.add("hidden");
+    $("done").classList.remove("hidden");
+    [...$("bar").children].forEach((li) => li.classList.add("on"));
+  }
+
+  $("next").onclick = async () => {
+    $("next").disabled = true;
+    try {
+      if (!(await save[step]())) return;
+      if (step === 3) return finish();
+      step++; show();
+    } catch (e) { say(step, e.message, true); }
+    finally { $("next").disabled = false; }
+  };
+  $("skip").onclick = () => (step === 3 ? finish() : (step++, show()));
+  $("back").onclick = () => { if (step > 0) { step--; show(); } };
+
+  load().then(show).catch((e) => say(0, e.message, true));
+</script>
+</html>

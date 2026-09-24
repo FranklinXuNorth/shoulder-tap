@@ -6,16 +6,11 @@
 // 跟 Windows 版同一套命令行（--mode tap|complete|snap|bind|quit，--caption，--text）和同一套行为：
 //   · 命令行那一端永远立刻返回：常驻进程在跑就把话交过去，不在就派一个 --daemon 出去再交。
 //   · 常驻进程两条道（taptap / 响指在 30% 高，拍拍在 52%），各自排队，可以同时在屏上。
-//   · 配了跨机器（.env 里 SHOULDER_TAP_RELAY + SHOULDER_TAP_DEVICE_TOKEN）就挂上中转的 WebSocket：
-//     收到密文解开当本机拍肩；本机刚有键鼠输入就上报「我是活跃的那台」；把结论写进 active.json 给钩子看。
-//   · 密钥从 Notion token 派生（HKDF-SHA256 空盐，info = shoulder-tap/key），AES-256-GCM，iv(12)|密文|tag(16)，
-//     跟 relay.mjs / Relay.cs 一字不差。
 //
 // 进程间用 NSDistributedNotificationCenter 交话，单实例用 ~/.claude/shoulder-tap/mac.lock 上的 flock。
 // 两张（三张）sprite sheet 在 .app 的 Resources 里；不在 .app 里跑时就找可执行文件旁边。
 
 import AppKit
-import CryptoKit
 import Foundation
 import ImageIO
 
@@ -33,7 +28,6 @@ struct TapRequest: Codable {
     var text = ""
     var caption = ""
     var quit = false
-    var fromRelay = false
 
     var hasMessage: Bool { mode == "complete" || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
@@ -53,7 +47,6 @@ struct TapRequest: Codable {
 let home = FileManager.default.homeDirectoryForCurrentUser
 let stateDir = home.appendingPathComponent(".claude/shoulder-tap")
 let lockPath = stateDir.appendingPathComponent("mac.lock").path
-let activeFile = stateDir.appendingPathComponent("active.json")
 let notificationName = Notification.Name("shoulder-tap.tap")
 
 func log(_ line: String) {
@@ -63,38 +56,6 @@ func log(_ line: String) {
     } else {
         FileManager.default.createFile(atPath: NSTemporaryDirectory() + "shoulder-tap-tap.log", contents: "\(stamp) \(line)\n".data(using: .utf8))
     }
-}
-
-/// 跟 watch.mjs 同样的三个来源：进程环境、skill 的 .env、状态目录的 .env。
-func loadEnv() -> [String: String] {
-    var env = ProcessInfo.processInfo.environment
-    for file in [home.appendingPathComponent(".claude/skills/shoulder-tap/.env"), stateDir.appendingPathComponent(".env")] {
-        guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
-        for raw in text.split(separator: "\n") {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.hasPrefix("#") || line.isEmpty { continue }
-            guard let eq = line.firstIndex(of: "=") else { continue }
-            let key = line[..<eq].trimmingCharacters(in: .whitespaces)
-            var value = line[line.index(after: eq)...].trimmingCharacters(in: .whitespaces)
-            if value.count >= 2, (value.hasPrefix("\"") && value.hasSuffix("\"")) || (value.hasPrefix("'") && value.hasSuffix("'")) {
-                value = String(value.dropFirst().dropLast())
-            }
-            if !key.isEmpty, key.range(of: "^[A-Z_][A-Z0-9_]*$", options: .regularExpression) != nil { env[key] = value }
-        }
-    }
-    return env
-}
-
-/// 跟 watch.mjs 共用 state.json 里的 device；谁先跑到谁生成。
-func deviceId() -> String {
-    let path = stateDir.appendingPathComponent("state.json")
-    var state = (try? JSONSerialization.jsonObject(with: Data(contentsOf: path))) as? [String: Any] ?? [:]
-    if let d = state["device"] as? String, !d.isEmpty { return d }
-    let fresh = UUID().uuidString.lowercased()
-    state["device"] = fresh
-    try? FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
-    if let data = try? JSONSerialization.data(withJSONObject: state, options: [.prettyPrinted, .sortedKeys]) { try? data.write(to: path) }
-    return fresh
 }
 
 // MARK: - 帧
@@ -138,7 +99,6 @@ func activeScreen() -> NSScreen {
     return NSScreen.main ?? NSScreen.screens[0]
 }
 
-func screenId(_ s: NSScreen) -> Int { (s.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.intValue ?? 0 }
 
 // MARK: - 一条道：一扇窗、一个队列
 
@@ -249,174 +209,12 @@ final class Lane {
     }
 }
 
-// MARK: - 密钥与封装：跟 relay.mjs / Relay.cs 对齐
-
-enum Crypto {
-    static func keyOf(_ notionToken: String) -> SymmetricKey {
-        HKDF<SHA256>.deriveKey(inputKeyMaterial: SymmetricKey(data: Data(notionToken.utf8)), salt: Data(), info: Data("shoulder-tap/key".utf8), outputByteCount: 32)
-    }
-
-    static func seal(_ key: SymmetricKey, _ plain: String) -> String? {
-        guard let box = try? AES.GCM.seal(Data(plain.utf8), using: key) else { return nil }
-        return (box.nonce.withUnsafeBytes { Data($0) } + box.ciphertext + box.tag).base64EncodedString()
-    }
-
-    static func unseal(_ key: SymmetricKey, _ blob: String) -> String? {
-        guard let raw = Data(base64Encoded: blob), raw.count > 28,
-              let nonce = try? AES.GCM.Nonce(data: raw.prefix(12)),
-              let box = try? AES.GCM.SealedBox(nonce: nonce, ciphertext: raw.subdata(in: 12..<(raw.count - 16)), tag: raw.suffix(16)),
-              let plain = try? AES.GCM.open(box, using: key) else { return nil }
-        return String(data: plain, encoding: .utf8)
-    }
-}
-
-// MARK: - 跨机器那条线
-
-final class Relay {
-    private let endpoint: URL
-    private let token: String
-    private let key: SymmetricKey
-    private let device: String
-    private let telemetry: Bool
-    private let deliver: (TapRequest) -> Void
-    private var task: URLSessionWebSocketTask?
-    private var delay: TimeInterval = 1
-    private var active = false
-    private var screen = 0
-    private var stopped = false
-
-    init?(deliver: @escaping (TapRequest) -> Void) {
-        let env = loadEnv()
-        guard let relay = env["SHOULDER_TAP_RELAY"]?.trimmingCharacters(in: .whitespacesAndNewlines), !relay.isEmpty,
-              let token = env["SHOULDER_TAP_DEVICE_TOKEN"]?.trimmingCharacters(in: .whitespacesAndNewlines), !token.isEmpty,
-              let notion = env["NOTION_TOKEN"]?.trimmingCharacters(in: .whitespacesAndNewlines), !notion.isEmpty,
-              var comps = URLComponents(string: relay.replacingOccurrences(of: "/+$", with: "", options: .regularExpression)) else { return nil }
-        comps.scheme = comps.scheme == "http" ? "ws" : "wss"
-        comps.path = comps.path.replacingOccurrences(of: "/+$", with: "", options: .regularExpression) + "/ch"
-        guard let url = comps.url else { return nil }
-        endpoint = url
-        self.token = token
-        key = Crypto.keyOf(notion)
-        device = deviceId()
-        telemetry = env["SHOULDER_TAP_TELEMETRY"]?.trimmingCharacters(in: .whitespaces) != "0"
-        self.deliver = deliver
-    }
-
-    func start() {
-        connect()
-        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.observe() }
-    }
-
-    func stop() {
-        stopped = true
-        task?.cancel(with: .goingAway, reason: nil)
-        writeActive(false)
-    }
-
-    private func writeActive(_ value: Bool) {
-        active = value
-        try? FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
-        let json = "{\"active\":\(value),\"at\":\(Int(Date().timeIntervalSince1970 * 1000))}"
-        try? json.write(to: activeFile, atomically: true, encoding: .utf8)
-    }
-
-    private func connect() {
-        guard !stopped else { return }
-        var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)!
-        comps.queryItems = [
-            URLQueryItem(name: "device", value: device), URLQueryItem(name: "platform", value: "mac"),
-            URLQueryItem(name: "screens", value: String(NSScreen.screens.count)), URLQueryItem(name: "t", value: telemetry ? "1" : "0"),
-        ]
-        var request = URLRequest(url: comps.url!)
-        request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
-        let task = URLSession.shared.webSocketTask(with: request)
-        self.task = task
-        task.resume()
-        log("relay connecting")
-        receive(task)
-    }
-
-    private func receive(_ task: URLSessionWebSocketTask) {
-        task.receive { [weak self] result in
-            guard let self = self else { return }
-            switch result {
-            case .success(let message):
-                self.delay = 1
-                if case .string(let text) = message { DispatchQueue.main.async { self.handle(text) } }
-                self.receive(task)
-            case .failure(let error):
-                log("relay \(error.localizedDescription)")
-                DispatchQueue.main.async {
-                    self.task = nil
-                    self.writeActive(false)
-                    // 断了就退避重连，最多半分钟一次。
-                    DispatchQueue.main.asyncAfter(deadline: .now() + self.delay) { self.connect() }
-                    self.delay = min(self.delay * 2, 30)
-                }
-            }
-        }
-    }
-
-    private func handle(_ text: String) {
-        guard let msg = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any] else { return }
-        switch msg["type"] as? String {
-        case "active":
-            // 服务端说了算：不是我，下次被碰到就得重新报。
-            writeActive((msg["device"] as? String) == device)
-        case "tap":
-            guard let blob = msg["blob"] as? String, let plain = Crypto.unseal(key, blob),
-                  let body = (try? JSONSerialization.jsonObject(with: Data(plain.utf8))) as? [String: Any] else { log("relay unseal failed"); return }
-            let host = body["host"] as? String ?? ""
-            let gesture = body["gesture"] as? String ?? "tap"
-            var caption = body["caption"] as? String ?? ""
-            let text = body["text"] as? String ?? ""
-            // 别的机器发来的，字条前面带上它的名字。
-            let mine = ProcessInfo.processInfo.hostName.split(separator: ".").first.map(String.init) ?? ""
-            if host.caseInsensitiveCompare(mine) != .orderedSame && host.caseInsensitiveCompare(ProcessInfo.processInfo.hostName) != .orderedSame {
-                caption = caption.isEmpty ? "[\(host)]" : "[\(host)] \(caption)"
-            }
-            var req = TapRequest()
-            req.mode = ["complete", "snap"].contains(gesture) ? gesture : "tap"
-            req.text = text.isEmpty ? caption : text
-            req.caption = caption
-            req.fromRelay = true
-            deliver(req)
-        default: break
-        }
-    }
-
-    /// 本机直接拍的那一下也记进频道的历史。连接不在就算了。
-    func record(_ req: TapRequest) {
-        guard let task = task else { return }
-        let host = ProcessInfo.processInfo.hostName.split(separator: ".").first.map(String.init) ?? ProcessInfo.processInfo.hostName
-        guard let inner = try? JSONSerialization.data(withJSONObject: ["host": host, "gesture": req.mode, "caption": req.caption, "text": req.text]),
-              let blob = Crypto.seal(key, String(data: inner, encoding: .utf8) ?? ""),
-              let line = try? JSONSerialization.data(withJSONObject: ["type": "record", "gesture": req.mode, "blob": blob]) else { return }
-        task.send(.string(String(data: line, encoding: .utf8)!)) { if let e = $0 { log("relay record \(e.localizedDescription)") } }
-    }
-
-    /// 每秒看一眼：刚有键鼠输入，而且（我不是活跃的那台，或者前台窗口换了块屏）→ 报一次。
-    /// 只上报「被碰了」和屏幕数，不上报坐标，也不上报窗口。不读键盘内容，不需要辅助功能权限。
-    private func observe() {
-        guard let task = task else { return }
-        let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
-        guard idle < 1.5 else { return }
-        let now = screenId(activeScreen())
-        if active && now == screen { return }
-        screen = now
-        writeActive(true) // 先当作是我，服务端广播回来会纠正
-        let line = "{\"type\":\"active\",\"screens\":\(NSScreen.screens.count)}"
-        task.send(.string(line)) { if let e = $0 { log("relay send \(e.localizedDescription)") } }
-    }
-}
-
 // MARK: - 常驻进程
 
 final class Resident: NSObject, NSApplicationDelegate {
     private let taps = Lane(fromTop: 0.30)   // taptap / 响指：提醒
     private let pats = Lane(fromTop: 0.52)   // 拍拍：做完了
     private var status: NSStatusItem?
-    private var relay: Relay?
     private let first: TapRequest
 
     init(first: TapRequest) { self.first = first }
@@ -426,6 +224,7 @@ final class Resident: NSObject, NSApplicationDelegate {
         status?.button?.image = trayImage()
         let menu = NSMenu()
         menu.addItem(withTitle: "拍一下试试", action: #selector(testTap), keyEquivalent: "")
+        menu.addItem(withTitle: "设置…", action: #selector(openSettings), keyEquivalent: ",")
         menu.addItem(.separator())
         menu.addItem(withTitle: "退出", action: #selector(quit), keyEquivalent: "q")
         menu.items.forEach { $0.target = self }
@@ -433,11 +232,25 @@ final class Resident: NSObject, NSApplicationDelegate {
 
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(incoming(_:)), name: notificationName, object: nil)
 
-        relay = Relay { [weak self] req in self?.handle(req) }
-        relay?.start()
-        log(relay == nil ? "relay off" : "relay on")
-
+        if !onboarded() { openSettings() } // 第一次打开：先把设置页拉起来
         if first.hasMessage { handle(first) }
+    }
+
+    /// 设置页走完会在 config.json 里写 onboarded: true。
+    private func onboarded() -> Bool {
+        (try? String(contentsOf: stateDir.appendingPathComponent("config.json"), encoding: .utf8))?.contains("\"onboarded\": true") ?? false
+    }
+
+    /// 设置页是 skill 里的 onboard.mjs：本机起一个小服务，浏览器打开，设完自己退出。
+    /// LaunchAgent 起来的进程 PATH 很短，node 可能不在上面，所以走登录 shell 找。
+    @objc private func openSettings() {
+        let script = home.appendingPathComponent(".claude/skills/shoulder-tap/onboard.mjs").path
+        guard FileManager.default.fileExists(atPath: script) else { log("onboard.mjs missing"); return }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        p.arguments = ["-lc", "node \"$0\"", script]
+        p.standardOutput = nil; p.standardError = nil
+        do { try p.run() } catch { log("open settings: \(error.localizedDescription)") }
     }
 
     @objc private func incoming(_ note: Notification) {
@@ -447,18 +260,15 @@ final class Resident: NSObject, NSApplicationDelegate {
     }
 
     func handle(_ req: TapRequest) {
-        log("handle mode=\(req.mode) caption=\"\(req.caption)\" relay=\(req.fromRelay)")
+        log("handle mode=\(req.mode) caption=\"\(req.caption)\"")
         if req.quit { NSApp.terminate(nil); return }
         if req.mode == "bind" || req.mode == "today" { return } // Mac 上没有要绑的窗口，也没有今日面板
         if req.mode != "complete" && !req.hasMessage { return }
-        if !req.fromRelay { relay?.record(req) } // 本机直接拍的，也进频道的历史
         (req.mode == "complete" ? pats : taps).enqueue(req)
     }
 
     @objc private func testTap() { var r = TapRequest(); r.text = "试拍"; r.caption = "试拍"; handle(r) }
     @objc private func quit() { NSApp.terminate(nil) }
-
-    func applicationWillTerminate(_ notification: Notification) { relay?.stop() }
 
     /// 菜单栏图标：taptap 那张 sheet 的第一帧，缩到 18pt，当模板图用。
     private func trayImage() -> NSImage? {
