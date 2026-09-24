@@ -59,19 +59,73 @@ flowchart LR
 | `shoulder-tap/data.json` · `config.json` | 本地数据、选了哪种存储 | 设置页写，MCP 读写 |
 
 在 Claude Code 里 `/mcp` 能看到 `shoulder-tap`、`/hooks` 能看到那四个钩子，就是接上了。
-不想用设置页，MCP 也可以手动接：
 
-```bash
-claude mcp add -s user shoulder-tap -- node ~/.claude/skills/shoulder-tap/mcp.mjs
-```
+### 不跑 install.mjs，手动装
 
-Codex 在 `~/.codex/config.toml` 里加：
+不想让脚本动 `~/.claude`，或者不用 coding agent 装，上面那张表的每一行都能自己敲。全程只要 Node 和 `claude` 命令行。
 
-```toml
-[mcp_servers.shoulder-tap]
-command = "node"
-args = ["/Users/你/.claude/skills/shoulder-tap/mcp.mjs"]
-```
+1. **skill**：把仓库里的 `skill/shoulder-tap/` 整个拷到 `~/.claude/skills/shoulder-tap/`（`*.test.mjs` 不用拷）。
+
+   ```bash
+   mkdir -p ~/.claude/skills && cp -r skill/shoulder-tap ~/.claude/skills/
+   # Windows PowerShell：Copy-Item -Recurse skill\shoulder-tap "$HOME\.claude\skills\"
+   ```
+
+2. **MCP**：Claude Code 一条命令；Codex 改 `~/.codex/config.toml`。
+
+   ```bash
+   claude mcp add -s user shoulder-tap -- node ~/.claude/skills/shoulder-tap/mcp.mjs
+   claude mcp get shoulder-tap   # 显示 stdio、Connected 就对了
+   ```
+
+   ```toml
+   [mcp_servers.shoulder-tap]
+   command = "node"
+   args = ["/Users/你/.claude/skills/shoulder-tap/mcp.mjs"]
+   ```
+
+3. **钩子**：在 `~/.claude/settings.json` 的 `hooks` 里加这四段（文件不存在就新建，`{ "hooks": { … } }`）。
+
+   ```json
+   {
+     "hooks": {
+       "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/skills/shoulder-tap/watch.mjs\"", "timeout": 10 }] }],
+       "PostToolUse":      [{ "matcher": "*", "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/skills/shoulder-tap/watch.mjs\"", "timeout": 10 }] }],
+       "Stop":             [{ "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/skills/shoulder-tap/watch.mjs\"", "timeout": 10 }] }],
+       "PreToolUse":       [{ "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/skills/shoulder-tap/watch.mjs\"", "timeout": 10 }] }]
+     }
+   }
+   ```
+
+4. **CLAUDE.md**：把 [skill/CLAUDE.md.snippet](skill/CLAUDE.md.snippet) 的内容贴到 `~/.claude/CLAUDE.md` 末尾。
+
+   ```bash
+   cat skill/CLAUDE.md.snippet >> ~/.claude/CLAUDE.md
+   ```
+
+5. **桌面端**（可选，没有就只在聊天里拍）：
+
+   ```bash
+   # Windows（要 .NET 10 SDK）
+   dotnet publish desktop -c Release -o "$HOME/.claude/shoulder-tap/app"
+   # 开机自启（可选）
+   Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name shoulder-tap -Value "`"$HOME\.claude\shoulder-tap\app\shoulder-tap-tap.exe`""
+
+   # macOS（要 Xcode 命令行工具）：目录结构和 Info.plist 照 install.mjs 里的写
+   mkdir -p ~/.claude/shoulder-tap/app/ShoulderTap.app/Contents/{MacOS,Resources}
+   swiftc -O desktop-mac/ShoulderTap.swift -o ~/.claude/shoulder-tap/app/ShoulderTap.app/Contents/MacOS/shoulder-tap-tap
+   cp skill/shoulder-tap/ui/sprites/*.png ~/.claude/shoulder-tap/app/ShoulderTap.app/Contents/Resources/
+   ```
+
+   然后双击 / 直接跑那个可执行文件，它常驻在托盘或菜单栏。
+
+6. **设置页**：习惯、今天的事、数据放哪，都在这里点。
+
+   ```bash
+   node ~/.claude/skills/shoulder-tap/onboard.mjs
+   ```
+
+重开一次 Claude Code 会话，工具和钩子就生效了。
 
 ## 桌面端
 
