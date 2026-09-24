@@ -65,8 +65,9 @@ public sealed class TodayWindow : Window
                 var dpi = VisualTreeHelper.GetDpi(this);
                 var width = Math.Min(screen.Width - 40, (int)(Width * dpi.DpiScaleX));
                 var height = Math.Min(screen.Height - 40, (int)(Height * dpi.DpiScaleY));
-                SourceWindow.SetWindowPos(hwnd, new IntPtr(-1), screen.Right - width - 20,
-                    screen.Bottom - height - 20, width, height, 0x0010);
+                // 开在你正看着的那块屏幕正中间。
+                SourceWindow.SetWindowPos(hwnd, new IntPtr(-1), screen.Left + (screen.Width - width) / 2,
+                    screen.Top + (screen.Height - height) / 2, width, height, 0x0010);
             }
             Opacity = 1;
         }

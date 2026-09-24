@@ -142,9 +142,13 @@ public partial class TapWindow : Window
     private BitmapSource[] LoadFrames(string filename)
     {
         var file = Path.Combine(SkinsDir, _skin, filename);
-        var sheet = File.Exists(file)
-            ? new BitmapImage(new Uri(file))
-            : new BitmapImage(new Uri($"pack://application:,,,/shoulder-tap-tap;component/{filename}"));
+        // 整张读进内存再关文件：不然 WPF 会一直占着 png，用户换皮肤时覆盖不了。
+        var sheet = new BitmapImage();
+        sheet.BeginInit();
+        sheet.CacheOption = BitmapCacheOption.OnLoad;
+        sheet.UriSource = File.Exists(file) ? new Uri(file) : new Uri($"pack://application:,,,/shoulder-tap-tap;component/{filename}");
+        sheet.EndInit();
+        sheet.Freeze();
         return Enumerable.Range(0, 9).Select(i => {
             var frame = new CroppedBitmap(sheet, new Int32Rect(i * 96, 0, 96, 80));
             frame.Freeze();
