@@ -21,3 +21,6 @@ Cat-paw style is semi-exaggerated: rounded white paw, short wrist, native 96x80 
 
 Artwork was initially generated with GPT and repaired with native Aseprite pixel strokes. Older standalone sources, intermediate poses and generation scripts are obsolete but still present pending cleanup. Edit the six current sources directly.
 
+
+Cat-only action accents are editable in the 'Action puffs - cat only' layer: three small irregular open-arc puffs on tap/pat contact frames 3, 6, 8 and snap open frames 2, 4, 6, 8, 9. Glove accents remain unchanged. After exporting Aseprite sources, run python preview-cat-paw.py to refresh the GIF/review images and cat WebP files. add-cat-paw-marks.lua regenerates only this effect layer; do not rerun it after manually editing the puffs.
+
