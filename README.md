@@ -164,3 +164,7 @@ You can also just tell Claude Code "uninstall shoulder-tap"; it knows to run thi
 - What each part is, what the data looks like: [docs/architecture.html](docs/architecture.html)
 - How one tap works, the three-way judgment, habit rules: [docs/flow.html](docs/flow.html)
 - Cross-device (one machine finishes, the tap lands on the one you're looking at): the [`cross-machine`](../../tree/cross-machine) branch, still in testing, not in this version
+
+## License
+
+Code is MIT. The hand and cat-paw artwork (images and Aseprite files in `skill/shoulder-tap/ui/sprites/`, plus `docs/hands-banner.gif`) is CC BY-NC-ND 4.0: share it unchanged for non-commercial use, no selling, no modified versions. The name "Shoulder Tap" is not licensed, so a product built from this code needs its own name and its own art. Details in [LICENSE](LICENSE).

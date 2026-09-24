@@ -1,5 +1,7 @@
 ﻿# Pixel sprites / Aseprite
 
+The images and .aseprite files here are CC BY-NC-ND 4.0, not MIT; the scripts are MIT. See [LICENSE](../../../../LICENSE).
+
 The six current editable sources are skins/glove/{tap,pat,snap}.aseprite and skins/cat-paw/{tap,pat,snap}.aseprite. Each contains nine 96x80 frames.
 
 Glove sources separate white fill and black ink. Cat sources separate white fur, outline, and toe creases/pads, plus a hidden before-repair reference layer.
