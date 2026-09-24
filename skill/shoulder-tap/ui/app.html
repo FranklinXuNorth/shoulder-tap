@@ -353,7 +353,7 @@
       noDesktop: "这台机器没装桌面端，拍肩只落在聊天里。",
       connectH: "编程工具", connectWhy: "让 Claude Code / Codex 看到你今天要做的事。都在这台机器上跑。",
       connectMore: "自己动手，或交给模型", connectCmd: "终端里跑：", connectCodex: "Codex：加进 ~/.codex/config.toml", connectAgent: "或把这段发给你的 coding agent：", copy: "复制",
-      connected: "已接上", remote: "接的是旧的远程版", installed: "装了，还没接", missing: "没找到", btnSwap: "换成本机版", btnConnect: "接上", connecting: "接着……",
+      desktopNote: "只有工具，没有钩子：不会自己拦你、拍你", connected: "已接上", remote: "接的是旧的远程版", installed: "装了，还没接", missing: "没找到", btnSwap: "换成本机版", btnConnect: "接上", connecting: "接着……",
       copied: "复制好了。", copyFail: "浏览器不让复制，手动选中吧。",
       storageH: "数据放哪", promise: "你的所有习惯 + 要做的事情的数据不上云。", promiseWhy: "shoulder-tap 没有服务器。数据在这台机器上，或在你自己的 Notion 里。",
       local: "这台机器", localWhy: "一个 JSON 文件，不用配。只在这一台上有。", notion: "我自己的 Notion", notionWhy: "手机上也能看。这台机器直连你的 Notion。",
@@ -399,7 +399,7 @@
       noDesktop: "No desktop app on this machine; taps land in the chat only.",
       connectH: "Coding tools", connectWhy: "So Claude Code / Codex can see what you're doing today. Everything runs on this machine.",
       connectMore: "Do it yourself, or hand it to the model", connectCmd: "In a terminal:", connectCodex: "Codex: add to ~/.codex/config.toml", connectAgent: "Or paste this to your coding agent:", copy: "Copy",
-      connected: "Connected", remote: "Points at the old remote version", installed: "Installed, not connected", missing: "Not found", btnSwap: "Switch to local", btnConnect: "Connect", connecting: "Connecting…",
+      desktopNote: "tools only, no hooks: it won't stop you or tap on its own", connected: "Connected", remote: "Points at the old remote version", installed: "Installed, not connected", missing: "Not found", btnSwap: "Switch to local", btnConnect: "Connect", connecting: "Connecting…",
       copied: "Copied.", copyFail: "Clipboard blocked. Select it by hand.",
       storageH: "Where data lives", promise: "Your habits and tasks never leave your machine.", promiseWhy: "shoulder-tap has no server. Data stays on this machine or in your own Notion.",
       local: "This machine", localWhy: "One JSON file, nothing to configure. This computer only.", notion: "My own Notion", notionWhy: "Visible on your phone. This machine talks to Notion directly.",
@@ -564,11 +564,11 @@
       catch { say("connect", t("copyFail"), true); }
     };
     $("clients").innerHTML = "";
-    for (const [key, label] of [["claude", "Claude Code"], ["codex", "Codex"]]) {
+    for (const [key, label] of [["claude", "Claude Code"], ["codex", "Codex"], ["desktop", "Claude Desktop"]]) {
       const c = m[key];
       const row = document.createElement("div");
       row.className = "client";
-      row.innerHTML = `<div><b>${label}</b><small>${t(c.connected ? "connected" : c.remote ? "remote" : c.installed ? "installed" : "missing")}</small></div>`;
+      row.innerHTML = `<div><b>${label}</b><small>${t(c.connected ? "connected" : c.remote ? "remote" : c.installed ? "installed" : "missing")}${key === "desktop" ? " · " + t("desktopNote") : ""}</small></div>`;
       const btn = document.createElement("button");
       if (c.connected) { btn.textContent = "✓ " + t("connected"); btn.disabled = true; btn.className = "ok"; }
       else {
