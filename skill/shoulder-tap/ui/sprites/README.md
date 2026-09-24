@@ -1,5 +1,14 @@
 # Pixel hand / Aseprite
 
+## Skins
+
+The players read three sheets from `skins/<name>/`: `tap.png` (tap tap), `pat.png` (pat pat), `snap.png` (snap).
+Each is 864×80: nine 96×80 frames in a row, black / white / transparent only, nearest-neighbor scaling.
+`glove` is the built-in set (the sheets described below). Drop another folder next to it — say `skins/cat-paw/` —
+and it shows up on the hands page (`node onboard.mjs --hands`) and in the tray window; the choice is `skin` in
+`~/.claude/shoulder-tap/config.json`. Timing is fixed per gesture, not per skin: tap/pat 250, 90, 90, 150, 90, 90, 150, 90, 300 ms;
+snap 9 × 250 ms alternating loaded / snapped, ending on snapped.
+
 ## Current direction: cartoon pointer glove
 
 `tap-glove.aseprite` is the revised design: bold two-pixel black contour, oversized round index finger, plump four-finger white glove, three back-of-hand stitches and a rolled cuff. The entire hand stays inside the canvas and points right.

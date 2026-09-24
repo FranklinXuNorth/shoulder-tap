@@ -20,9 +20,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Resource Include="..\skill\shoulder-tap\ui\sprites\completion-hand-sheet.png" Link="completion-hand-sheet.png" />
-    <Resource Include="..\skill\shoulder-tap\ui\sprites\tap-glove-sheet.png" Link="tap-glove-sheet.png" />
-    <Resource Include="..\skill\shoulder-tap\ui\sprites\snap-glove-sheet.png" Link="snap-glove-sheet.png" />
+    <!-- 内置的 glove 皮肤。其它皮肤从 ~/.claude/skills/shoulder-tap/ui/sprites/skins/<名字>/ 按文件读。 -->
+    <Resource Include="..\skill\shoulder-tap\ui\sprites\skins\glove\tap.png" Link="tap.png" />
+    <Resource Include="..\skill\shoulder-tap\ui\sprites\skins\glove\pat.png" Link="pat.png" />
+    <Resource Include="..\skill\shoulder-tap\ui\sprites\skins\glove\snap.png" Link="snap.png" />
     <Resource Include="Fonts\fusion-pixel-12px-proportional-zh_hans.ttf" />
     <EmbeddedResource Include="..\skill\shoulder-tap\ui\sprites\tap-glove.png" Link="tap-glove.png" />
   </ItemGroup>

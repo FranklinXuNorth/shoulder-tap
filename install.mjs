@@ -34,6 +34,8 @@ for (const name of fs.readdirSync(skillSrc)) {
 const env = path.join(skillDst, ".env");
 if (!fs.existsSync(env)) fs.copyFileSync(path.join(skillSrc, ".env.example"), env);
 log(`skill → ${skillDst}`);
+// 卸载是单独一个 skill：用户说「卸载 shoulder-tap」模型就知道跑 uninstall.mjs。
+fs.cpSync(path.join(root, "skill", "shoulder-tap-uninstall"), path.join(claude, "skills", "shoulder-tap-uninstall"), { recursive: true, force: true });
 
 // 2. 钩子。四个事件各挂一次 watch.mjs；已经挂了就不重复。
 const settingsPath = path.join(claude, "settings.json");
@@ -64,8 +66,12 @@ else {
 }
 
 // 4. 桌面端
+// 桌面端编不出来只是降级（拍肩落在聊天里），不能把整条安装链拖垮：编译一律 try/catch。
+const tryBuild = (fn) => { try { fn(); return true; } catch (e) { log(`桌面端没编出来（${e.message?.split("\n")[0]}）。文本拍肩照常用；修好后再跑一次这个脚本`); return false; } };
 if (process.platform === "darwin") {
-  if (spawnSync("swiftc", ["--version"], { stdio: "ignore" }).status !== 0)
+  // 走 xcrun 而不是裸 swiftc：PATH 里可能有 swiftly 之类指向不存在工具链的 shim；xcrun 是 CLT 自带的。
+  const swiftc = ["xcrun", "-sdk", "macosx", "swiftc"];
+  if (spawnSync(swiftc[0], [...swiftc.slice(1), "--version"], { stdio: "ignore" }).status !== 0)
     log("没找到 swiftc：先跑 xcode-select --install，再跑一次这个脚本");
   else {
     // 包成一个只有菜单栏图标的 .app：LSUIElement 不进 Dock；sprite 放 Resources。
@@ -74,25 +80,16 @@ if (process.platform === "darwin") {
     const res = path.join(bundle, "Contents", "Resources");
     fs.mkdirSync(macos, { recursive: true });
     fs.mkdirSync(res, { recursive: true });
-    for (const sheet of ["tap-glove-sheet.png", "completion-hand-sheet.png", "snap-glove-sheet.png"])
-      fs.copyFileSync(path.join(skillSrc, "ui", "sprites", sheet), path.join(res, sheet));
-    fs.writeFileSync(path.join(bundle, "Contents", "Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>CFBundleIdentifier</key><string>com.shoulder-tap.tap</string>
-  <key>CFBundleName</key><string>shoulder-tap</string>
-  <key>CFBundleExecutable</key><string>shoulder-tap-tap</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.2</string>
-  <key>LSUIElement</key><true/>
-  <key>LSMinimumSystemVersion</key><string>12.0</string>
-  <key>NSHighResolutionCapable</key><true/>
-</dict></plist>
-`);
+    for (const sheet of ["tap.png", "pat.png", "snap.png"]) // 内置 glove；别的皮肤从 skill 目录按文件读
+      fs.copyFileSync(path.join(skillSrc, "ui", "sprites", "skins", "glove", sheet), path.join(res, sheet));
+    fs.copyFileSync(path.join(root, "desktop-mac", "Info.plist"), path.join(bundle, "Contents", "Info.plist")); // 手动装也用同一份
     const bin = path.join(macos, "shoulder-tap-tap");
-    spawnSync(bin, ["--quit"], { stdio: "ignore" }); // 常驻的那个在跑就先请它退出
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 800);
-    execFileSync("swiftc", ["-O", path.join(root, "desktop-mac", "ShoulderTap.swift"), "-o", bin], { stdio: "inherit" });
+    if (fs.existsSync(bin)) {
+      spawnSync(bin, ["--quit"], { stdio: "ignore" }); // 常驻的那个在跑就先请它退出
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 800);
+    }
+    const built = tryBuild(() => execFileSync(swiftc[0], [...swiftc.slice(1), "-O", path.join(root, "desktop-mac", "ShoulderTap.swift"), "-o", bin], { stdio: "inherit" }));
+    if (built) {
     log(`桌面端 → ${bundle}`);
     // 登录时自启：LaunchAgent，不需要管理员。--daemon 起来就是常驻不拍。
     const agents = path.join(os.homedir(), "Library", "LaunchAgents");
@@ -114,6 +111,7 @@ if (process.platform === "darwin") {
       ? `登录自启 → ${plist}（取消：launchctl bootout gui/${uid} ${plist}）`
       : "登录自启没注册上，手动 launchctl bootstrap 一下，或者在系统设置 → 登录项里加上 ShoulderTap.app");
     spawnSync(bin, [], { stdio: "ignore" }); // 现在就拉起来常驻
+    }
   }
 } else if (process.platform === "linux") {
   log(`Linux 还没有桌面端：接口约定在 ${path.join(root, "desktop-linux", "README.md")}；做好放到 ${path.join(appDir, "shoulder-tap-tap")} 就会被用上。文本拍肩和跨机器发送照常工作`);
@@ -126,7 +124,7 @@ else {
     spawnSync(exe, ["--quit"], { stdio: "ignore" }); // 常驻的那个占着 dll，先请它退出
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1500);
   }
-  execFileSync("dotnet", ["publish", path.join(root, "desktop"), "-c", "Release", "-o", appDir, "--nologo", "-v", "q"], { stdio: "inherit" });
+  if (tryBuild(() => execFileSync("dotnet", ["publish", path.join(root, "desktop"), "-c", "Release", "-o", appDir, "--nologo", "-v", "q"], { stdio: "inherit" }))) {
   log(`桌面端 → ${exe}`);
   // 开机自启：HKCU 的 Run 键，不要管理员。不带参数启动就是常驻不拍。
   // 不常驻的话，Claude Code 没开时别的机器发来的拍肩就没人接。
@@ -139,6 +137,7 @@ else {
     ? "开机自启 → 已注册（取消：Remove-ItemProperty -Path '" + runKey + "' -Name shoulder-tap）"
     : "开机自启没注册上，手动把 exe 的快捷方式放进 shell:startup 也行");
   spawnSync(exe, [], { stdio: "ignore" }); // 现在就拉起来常驻
+  }
 }
 
 // 5. 设置页。桌面端在跑的话它已经打开了（第一次启动会自己开）；没有桌面端就在这里开，开着直到你点完成。

@@ -10,10 +10,10 @@
 
 - 可执行文件：`~/.claude/shoulder-tap/app/shoulder-tap-tap`。`watch.mjs` 在 Linux 上找这个路径，找不到就安静地只在聊天里拍。
   想放别处，`.env` 里 `SHOULDER_TAP_APP=` 指过去。
-- 三张 sprite sheet 放在可执行文件旁边（或你自己的资源目录）：
-  [`tap-glove-sheet.png`](../skill/shoulder-tap/ui/sprites/tap-glove-sheet.png)、
-  [`completion-hand-sheet.png`](../skill/shoulder-tap/ui/sprites/completion-hand-sheet.png)、
-  [`snap-glove-sheet.png`](../skill/shoulder-tap/ui/sprites/snap-glove-sheet.png)。每张 864×80，横排 9 帧，每帧 96×80，只有黑、白、透明。
+- 三张 sprite sheet 从皮肤目录读：`~/.claude/skills/shoulder-tap/ui/sprites/skins/<皮肤>/` 下的
+  `tap.png`（taptap）、`pat.png`（拍拍）、`snap.png`（响指）。皮肤名读 `~/.claude/shoulder-tap/config.json` 的 `skin`，
+  没有就是 `glove`（[内置那套](../skill/shoulder-tap/ui/sprites/skins/glove/)）。**每次拍之前重读**，用户在设置页换了皮肤不用重启。
+  每张 864×80，横排 9 帧，每帧 96×80，只有黑、白、透明。
 - 语言随意。X11 上 Python + GTK/Tk 都够；Wayland 上要 layer-shell（gtk4-layer-shell），普通窗口置不了顶也做不了穿透。
   最好一份代码两边都能跑，实在不行先只做 X11，README 里写清楚。
 

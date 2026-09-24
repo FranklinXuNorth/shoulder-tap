@@ -4,7 +4,7 @@
 两种动画都以最近邻方式三倍显示：96×80 原图显示为 288×240，九帧轻点三次共 1.3 秒，
 停留两秒后淡出。手始终位于画面内部。
 
-普通 tap 使用 `tap-glove-sheet.png`；拍拍继续使用 `completion-hand-sheet.png`。
+三张 sheet 在 `ui/sprites/skins/<皮肤>/`（`tap.png` / `pat.png` / `snap.png`），内置的是 glove；config.json 的 `skin` 选哪套，每次拍之前重读。
 传入 `--caption` 时，简短文字显示在手左侧，与手一起淡出；`--text` 仍只用于托盘提示。
 网页预览位于 [ui/index.html](../skill/shoulder-tap/ui/index.html)，也已换成食指白手套像素动画。
 

@@ -35,6 +35,9 @@ Come back any time: "Settings…" in the Windows tray / macOS menu bar, or:
 node ~/.claude/skills/shoulder-tap/onboard.mjs
 ```
 
+To preview the hand and pick a style: "Hand style…" in the tray / menu bar, or `node ~/.claude/skills/shoulder-tap/onboard.mjs --hands`.
+Both pages have a 中文 / English switch in the top right.
+
 Restart your Claude Code session and it's connected. `/mcp` shows `shoulder-tap`, `/hooks` shows four hooks.
 
 ## 3. Use it
@@ -97,9 +100,11 @@ If you'd rather not let a script touch `~/.claude`, do each step yourself:
    # Windows
    dotnet publish desktop -c Release -o "$HOME/.claude/shoulder-tap/app"
    # macOS
-   mkdir -p ~/.claude/shoulder-tap/app/ShoulderTap.app/Contents/{MacOS,Resources}
-   swiftc -O desktop-mac/ShoulderTap.swift -o ~/.claude/shoulder-tap/app/ShoulderTap.app/Contents/MacOS/shoulder-tap-tap
-   cp skill/shoulder-tap/ui/sprites/*.png ~/.claude/shoulder-tap/app/ShoulderTap.app/Contents/Resources/
+   APP=~/.claude/shoulder-tap/app/ShoulderTap.app
+   mkdir -p $APP/Contents/{MacOS,Resources}
+   xcrun -sdk macosx swiftc -O desktop-mac/ShoulderTap.swift -o $APP/Contents/MacOS/shoulder-tap-tap
+   cp skill/shoulder-tap/ui/sprites/skins/glove/{tap,pat,snap}.png $APP/Contents/Resources/
+   cp desktop-mac/Info.plist $APP/Contents/
    ```
 
    Run the executable once and it stays in the tray / menu bar.
@@ -114,8 +119,19 @@ The hand at the right edge of your screen: **snap** (turn finished), **pat pat**
   `Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name shoulder-tap`
 - **macOS**: lives in the menu bar, starts at login. To stop:
   `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.shoulder-tap.tap.plist`
-  This build has never been compiled on a real Mac. If `node install.mjs` fails, paste the error back.
 - **Linux**: not yet. The contract is in [desktop-linux/README.md](desktop-linux/README.md).
+
+All three platforms read the hand sprites from `~/.claude/skills/shoulder-tap/ui/sprites/skins/<style>/`. To draw your own, see the README there.
+
+## Uninstall
+
+```bash
+node ~/.claude/skills/shoulder-tap/uninstall.mjs          # keeps your data
+node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # removes data and keys too
+```
+
+Same on all three platforms: quits the desktop app and removes autostart, the MCP, the hooks, the CLAUDE.md section and the skill. Your Notion database is untouched.
+You can also just tell Claude Code "uninstall shoulder-tap"; it knows to run this.
 
 ## What leaves this machine
 

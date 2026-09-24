@@ -36,6 +36,9 @@ node install.mjs
 node ~/.claude/skills/shoulder-tap/onboard.mjs
 ```
 
+想先看看那只手长什么样、换一套样式：托盘 / 菜单栏里点「手的样式…」，或者 `node ~/.claude/skills/shoulder-tap/onboard.mjs --hands`。
+页面右上角可以切中英文。
+
 重开一次 Claude Code 会话，就接上了。`/mcp` 里能看到 `shoulder-tap`，`/hooks` 里能看到四个钩子。
 
 ## 三、用
@@ -98,9 +101,11 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
    # Windows
    dotnet publish desktop -c Release -o "$HOME/.claude/shoulder-tap/app"
    # macOS
-   mkdir -p ~/.claude/shoulder-tap/app/ShoulderTap.app/Contents/{MacOS,Resources}
-   swiftc -O desktop-mac/ShoulderTap.swift -o ~/.claude/shoulder-tap/app/ShoulderTap.app/Contents/MacOS/shoulder-tap-tap
-   cp skill/shoulder-tap/ui/sprites/*.png ~/.claude/shoulder-tap/app/ShoulderTap.app/Contents/Resources/
+   APP=~/.claude/shoulder-tap/app/ShoulderTap.app
+   mkdir -p $APP/Contents/{MacOS,Resources}
+   xcrun -sdk macosx swiftc -O desktop-mac/ShoulderTap.swift -o $APP/Contents/MacOS/shoulder-tap-tap
+   cp skill/shoulder-tap/ui/sprites/skins/glove/{tap,pat,snap}.png $APP/Contents/Resources/
+   cp desktop-mac/Info.plist $APP/Contents/
    ```
 
    跑一下那个可执行文件，它就常驻在托盘 / 菜单栏了。
@@ -115,8 +120,19 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
   `Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name shoulder-tap`
 - **macOS**：菜单栏常驻，登录自启。取消：
   `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.shoulder-tap.tap.plist`
-  这一版还没在真机上编过，`node install.mjs` 报错就把错误贴回来。
 - **Linux**：还没有，接口约定在 [desktop-linux/README.md](desktop-linux/README.md)。
+
+三个平台都从 `~/.claude/skills/shoulder-tap/ui/sprites/skins/<样式>/` 读手的图，想画一套自己的看那里的 README。
+
+## 卸载
+
+```bash
+node ~/.claude/skills/shoulder-tap/uninstall.mjs          # 数据留着
+node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # 数据和密钥也删
+```
+
+三个平台一样：桌面端退出并取消自启、MCP、钩子、CLAUDE.md 那一节、skill，全部还原。Notion 里的库不动。
+也可以直接跟 Claude Code 说「卸载 shoulder-tap」，它知道跑这条。
 
 ## 什么会离开这台机器
 

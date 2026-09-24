@@ -1,3 +1,4 @@
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media;
@@ -74,10 +75,13 @@ public partial class TapWindow : Window
     private readonly DispatcherTimer _hide;
     private readonly DispatcherTimer _frames = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly Stopwatch _clock = new();
-    private readonly BitmapSource[] _tapSprites;
-    private readonly BitmapSource[] _completionSprites;
-    private readonly BitmapSource[] _snapSprites;
-    private BitmapSource[] _sprites;
+    private BitmapSource[] _tapSprites = null!;
+    private BitmapSource[] _completionSprites = null!;
+    private BitmapSource[] _snapSprites = null!;
+    private BitmapSource[] _sprites = null!;
+    private string _skin = "";
+    private static readonly string SkinsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "skills", "shoulder-tap", "ui", "sprites", "skins");
+    private static readonly string ConfigPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "shoulder-tap", "config.json");
     private static readonly int[] FrameEnds = [250, 340, 430, 580, 670, 760, 910, 1000, 1300];
     /// <summary>响指只有两张图（准备 / 打响）来回切，4fps。</summary>
     private static readonly int[] SnapEnds = [250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250];
@@ -97,10 +101,7 @@ public partial class TapWindow : Window
             rows[0].Height = new GridLength(13, GridUnitType.Star);
             rows[2].Height = new GridLength(12, GridUnitType.Star);
         }
-        _tapSprites = LoadFrames("tap-glove-sheet.png");
-        _completionSprites = LoadFrames("completion-hand-sheet.png");
-        _snapSprites = LoadFrames("snap-glove-sheet.png");
-        _sprites = _tapSprites;
+        LoadSkin();
         _frames.Tick += (_, _) => {
             var index = Array.FindIndex(_ends, end => _clock.ElapsedMilliseconds < end);
             PixelHand.Source = _sprites[index < 0 ? 8 : index];
@@ -115,9 +116,35 @@ public partial class TapWindow : Window
         new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
     }
 
-    private static BitmapSource[] LoadFrames(string filename)
+    /// <summary>config.json 里的 skin，默认 glove。设置页和今日面板都能改。</summary>
+    public static string CurrentSkin()
     {
-        var sheet = new BitmapImage(new Uri($"pack://application:,,,/shoulder-tap-tap;component/{filename}"));
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(ConfigPath));
+            return doc.RootElement.TryGetProperty("skin", out var s) ? s.GetString() ?? "glove" : "glove";
+        }
+        catch { return "glove"; }
+    }
+
+    /// <summary>皮肤换了就重读三张 sheet。文件不在就退回内置的 glove。</summary>
+    private void LoadSkin()
+    {
+        var skin = CurrentSkin();
+        if (skin == _skin) return;
+        _skin = skin;
+        _tapSprites = LoadFrames("tap.png");
+        _completionSprites = LoadFrames("pat.png");
+        _snapSprites = LoadFrames("snap.png");
+        _sprites = _tapSprites;
+    }
+
+    private BitmapSource[] LoadFrames(string filename)
+    {
+        var file = Path.Combine(SkinsDir, _skin, filename);
+        var sheet = File.Exists(file)
+            ? new BitmapImage(new Uri(file))
+            : new BitmapImage(new Uri($"pack://application:,,,/shoulder-tap-tap;component/{filename}"));
         return Enumerable.Range(0, 9).Select(i => {
             var frame = new CroppedBitmap(sheet, new Int32Rect(i * 96, 0, 96, 80));
             frame.Freeze();
@@ -146,6 +173,7 @@ public partial class TapWindow : Window
         _frames.Stop();
         PixelHand.BeginAnimation(OpacityProperty, null);
         CaptionBox.BeginAnimation(OpacityProperty, null);
+        LoadSkin();
         _sprites = complete ? _completionSprites : snap ? _snapSprites : _tapSprites;
         _ends = snap ? SnapEnds : FrameEnds;
         PixelHand.Source = _sprites[0];
