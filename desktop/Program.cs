@@ -188,10 +188,15 @@ public static class Program
             if (!resident) self.Window.Dismissed += () => self.Window.Dispatcher.BeginInvoke(() => app.Shutdown());
         }
 
+        Relay? relay = null;
         if (resident)
         {
             tray = BuildTray(taps.Window, today, app, () => Handle(new TapRequest { Text = "试拍" }));
             instance!.Listen(req => taps.Window.Dispatcher.BeginInvoke(() => Handle(req)));
+            // 跨机器：配了就挂上中转，别的机器（或本机的钩子经中转）发来的拍肩从这进来。
+            relay = Relay.Load(req => taps.Window.Dispatcher.BeginInvoke(() => Handle(req)));
+            relay?.Start();
+            Log(relay is null ? "relay off" : "relay on");
         }
 
         app.Startup += (_, _) =>
@@ -202,6 +207,7 @@ public static class Program
 
         var code = app.Run();
 
+        relay?.Dispose();
         if (tray is not null) { tray.Visible = false; tray.Dispose(); }
         taps.Window.Close();
         pats.Window.Close();
