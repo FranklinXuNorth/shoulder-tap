@@ -14,6 +14,7 @@
   `tap.png`（taptap）、`pat.png`（拍拍）、`snap.png`（响指）。皮肤名读 `~/.claude/shoulder-tap/config.json` 的 `skin`，
   没有就是 `glove`（[内置那套](../skill/shoulder-tap/ui/sprites/skins/glove/)）。**每次拍之前重读**，用户在设置页换了皮肤不用重启。
   每张 864×80，横排 9 帧，每帧 96×80，只有黑、白、透明。
+  **加载时把九帧都空着的右侧透明列裁掉**（Windows / Mac 都这么做），伸得最远的那帧要贴到屏幕右边，别留缝。
 - 语言随意。X11 上 Python + GTK/Tk 都够；Wayland 上要 layer-shell（gtk4-layer-shell），普通窗口置不了顶也做不了穿透。
   最好一份代码两边都能跑，实在不行先只做 X11，README 里写清楚。
 

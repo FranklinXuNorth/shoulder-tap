@@ -598,15 +598,36 @@
     const g = GESTURES.find((x) => x.key === key), el = document.querySelector(`[data-stage=${key}] .sprite`);
     if (!el) return;
     clearTimeout(timers[key]);
-    const t0 = performance.now();
+    const t0 = performance.now(), w = Number(el.dataset.w || 96);
     const tick = () => {
       const i = g.ends.findIndex((e) => performance.now() - t0 < e);
-      el.style.backgroundPosition = `${(i < 0 ? 8 : i) * 12.5}% 0`; // 9 帧：第 i 帧在 i/8
+      el.style.backgroundPosition = `${((i < 0 ? 8 : i) * 96) / (864 - w) * 100}% 0`; // 第 i 帧从 i×96 起，只露出左边 w 列
       if (i >= 0) timers[key] = setTimeout(tick, 16);
     };
     tick();
   }
   const playAll = () => GESTURES.forEach((g, i) => setTimeout(() => play(g.key), 150 + i * 350));
+  // 跟桌面端一样：量出九帧里离右边最近的那帧还空几列透明像素，裁掉，手就贴着台子右缘（屏幕边）。
+  const gaps = {};
+  async function rightGap(url) {
+    if (url in gaps) return gaps[url];
+    const img = new Image(); img.src = url; await img.decode();
+    const c = Object.assign(document.createElement("canvas"), { width: img.width, height: img.height }), x = c.getContext("2d");
+    x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, c.width, c.height).data;
+    let gap = 96;
+    for (let f = 0; f < 9; f++)
+      scan: for (let col = 95; col >= 96 - gap; col--)
+        for (let y = 0; y < c.height; y++) if (d[(y * c.width + f * 96 + col) * 4 + 3]) { gap = Math.min(gap, 95 - col); break scan; }
+    return (gaps[url] = gap === 96 ? 0 : gap);
+  }
+  function trim(el, url) {
+    rightGap(url).then((gap) => {
+      const w = 96 - gap;
+      Object.assign(el.style, { aspectRatio: `${w} / 80`, backgroundSize: `${(864 / w) * 100}% 100%`, backgroundPosition: "100% 0" });
+      el.dataset.w = w;
+    }).catch(() => {});
+  }
   function renderHands() {
     $("gestures").innerHTML = GESTURES.map((g) => `
       <div class="gesture">
@@ -618,6 +639,7 @@
         <div class="thumb"><div style="background-image:url(/skins/${name}/tap.webp)"></div></div>
         <div class="name">${esc(name)}${name === S.skin ? `<i>${t("inUse")}</i>` : ""}</div>
       </button>`).join("");
+    document.querySelectorAll("[data-stage] .sprite").forEach((el) => trim(el, `/skins/${S.skin}/${el.closest("[data-stage]").dataset.stage}.webp`));
   }
   $("gestures").onclick = async (e) => {
     const b = e.target.closest("button");

@@ -78,8 +78,26 @@ func loadFrames(_ name: String) -> [CGImage] {
     let url = skinDir().appendingPathComponent(name)
     guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
           let sheet = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return [] }
-    let frames = (0..<9).compactMap { sheet.cropping(to: CGRect(x: $0 * 96, y: 0, width: 96, height: 80)) }
+    // 画布右边留的透明列裁掉：伸得最远的那一帧要真的碰到屏幕边，别离着一截。
+    let width = 96 - rightGap(sheet)
+    let frames = (0..<9).compactMap { sheet.cropping(to: CGRect(x: $0 * 96, y: 0, width: width, height: 80)) }
     return frames.count == 9 ? frames : []
+}
+
+/// 九帧里离右边最近的那一帧，右边还空着几列透明像素。整张都空就当 0。
+func rightGap(_ sheet: CGImage) -> Int {
+    let w = sheet.width, h = sheet.height
+    var px = [UInt8](repeating: 0, count: w * h * 4)
+    guard let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                              space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return 0 }
+    ctx.draw(sheet, in: CGRect(x: 0, y: 0, width: w, height: h))
+    var gap = 96
+    for f in 0..<9 {
+        scan: for x in stride(from: 95, through: max(0, 96 - gap), by: -1) {
+            for y in 0..<h where px[(y * w + f * 96 + x) * 4 + 3] > 0 { gap = min(gap, 95 - x); break scan }
+        }
+    }
+    return gap == 96 ? 0 : gap
 }
 
 func sheetName(for mode: String) -> String {
@@ -137,7 +155,7 @@ final class Lane {
     }
 
     private func play(frames: [CGImage], ends: [Int], caption: String, done: @escaping () -> Void) {
-        let hand = NSSize(width: 288, height: 240) // 96×80 三倍，最近邻
+        let hand = NSSize(width: CGFloat(frames[0].width * 3), height: 240) // 裁过的宽 ×3，高 80×3，最近邻
         let captionMax: CGFloat = 440
         let gap: CGFloat = 12
         let width = hand.width + gap + captionMax
