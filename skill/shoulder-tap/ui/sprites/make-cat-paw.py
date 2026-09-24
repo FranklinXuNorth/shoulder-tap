@@ -22,8 +22,11 @@ def frame(name, dx=0, dy=0):
     return result
 
 
-tap = [frame("tap-ready", dx, dy) for dx, dy in
-       [(0, 0), (2, 0), (4, -2), (0, 0), (2, 0), (4, -2), (0, 0), (4, -2), (0, 0)]]
+tap = [frame(name, dx, 0) for name, dx in [
+    ("tap-ready", 0), ("tap-ready", 1), ("tap-contact", 2),
+    ("tap-ready", 0), ("tap-ready", 1), ("tap-contact", 2),
+    ("tap-ready", 0), ("tap-contact", 2), ("tap-ready", 0),
+]]
 pat = [frame(name, dx, dy) for name, dx, dy in [
     ("pat-ready", 0, -2), ("pat-ready", 2, 0), ("pat-contact", 2, 0),
     ("pat-ready", 0, -2), ("pat-ready", 2, 0), ("pat-contact", 2, 0),
