@@ -35,7 +35,7 @@ claude mcp add -s user shoulder-tap -- node ~/.claude/skills/shoulder-tap/mcp.mj
 | `set_focus(tasks)` | 他说「今天要做 A、B、C」或要重排 |
 | `add_focus(task, position?)` | 他明确要插一条 |
 | `complete_focus(position, dropped?)` | **只有他明确说完成了**才调；你觉得做完了最多问一句 |
-| `add_habit(name, kind, every_minutes \| at)` | 他要盯一个习惯。`kind`：`hard` 可以说今天不做（健身），`soft` 不许跳过（喝水）。拿不准就问他 |
+| `add_habit(name, kind, every_minutes \| at)` | 他要盯一个习惯。`kind`：`soft` 简单随手就能做，所以不许跳过（喝水）；`hard` 受当天情况影响大，可以说今天不做（健身）。拿不准就问他 |
 | `log_habit(habit, skip?, note?)` | 他说做了；说今天不做就带 `skip: true` 和原因。软习惯会被拒绝，照实告诉他 |
 | `stop_habit(habit)` | 他明确说以后不用盯了。说「今天不做」不是这个 |
 | `habit_history(habit?)` | 他问「这周喝了几次水」「上次健身是什么时候」 |

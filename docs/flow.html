@@ -109,9 +109,9 @@ flowchart TB
 <pre class="mermaid">
 stateDiagram-v2
   [*] --> pending: add_habit
-  pending --> pending: 软习惯说不做 · 拒绝，照样提醒
+  pending --> pending: 软习惯（随手就能做）说不做 · 拒绝，照样提醒
   pending --> done: 你说做了（log_habit）
-  pending --> dropped: 硬习惯说今天不做（skip）
+  pending --> dropped: 硬习惯（看当天情况）说今天不做（skip）
   pending --> stopped: 不再盯了（stop_habit）
   done --> [*]
   dropped --> [*]

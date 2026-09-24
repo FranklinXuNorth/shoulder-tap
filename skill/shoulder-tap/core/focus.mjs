@@ -434,7 +434,7 @@ async function createHabitRow(token, h, activated) {
 }
 /**
  * every 和 at 二选一：隔多久一次，或者每天几点（HH:MM，按 tz 算）。
- * kind：hard = 可以说「今天不做」（健身这种）；soft = 不许跳过，到点就催到做了为止（喝水这种）。
+ * kind：soft = 简单、随手就能做（喝水这种），所以不许跳过，到点就催到做了为止；hard = 受当天情况影响大（健身这种），可以说「今天不做」。
  */
 export async function addHabit(token, name, everyMinutes, note, tz, at, kind = "hard") {
     const existing = await activeHabits(token);

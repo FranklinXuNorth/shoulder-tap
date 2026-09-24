@@ -45,7 +45,7 @@ export const TOOLS = [
   },
   {
     name: "add_habit",
-    description: "用户说「每 N 分钟提醒我做某件事」或「每天几点提醒我」时用。名字用他自己的说法，不要给建议清单。kind：hard = 可以说今天不做（健身这类）；soft = 不许跳过、到点就催（喝水这类）。不确定就问他一句。",
+    description: "用户说「每 N 分钟提醒我做某件事」或「每天几点提醒我」时用。名字用他自己的说法，不要给建议清单。kind：soft = 简单、随手就能做的（喝水这类），所以不许跳过，到点就催到做了为止；hard = 受当天情况影响大的（健身这类），可以说今天不做。不确定就问他一句。",
     inputSchema: {
       type: "object", required: ["name", "kind"],
       properties: {
@@ -58,7 +58,7 @@ export const TOOLS = [
   },
   {
     name: "log_habit",
-    description: "用户说他刚做了某个习惯，就调用这个把计时清零。他说今天不做了，传 skip=true 并把原因写进 note —— 但软习惯（soft）不许跳过，会被拒绝，照实告诉他。不要替他记：他没说做，就是没做。",
+    description: "用户说他刚做了某个习惯，就调用这个把计时清零。他说今天不做了，传 skip=true 并把原因写进 note —— 但软习惯（soft）是随手就能做的事，不许跳过，会被拒绝，照实告诉他。不要替他记：他没说做，就是没做。",
     inputSchema: { type: "object", required: ["habit"], properties: { habit: { type: "string", description: "习惯名或短 ID，模糊匹配" }, skip: { type: "boolean" }, note: { type: "string" }, tz: tzProp } },
   },
   {
@@ -85,7 +85,7 @@ function zoneOf(tz, day) {
 }
 
 const when = (h) => (h.at ? `每天 ${h.at}` : `每 ${h.everyMin} 分钟`);
-const kindName = (k) => (k === "soft" ? "软习惯，不许跳过" : "硬习惯，可以说今天不做");
+const kindName = (k) => (k === "soft" ? "软习惯，随手就能做，不许跳过" : "硬习惯，看当天情况，可以说今天不做");
 
 export async function call(name, a) {
   const store = openStore();
@@ -119,7 +119,7 @@ export async function call(name, a) {
     }
     case "log_habit": {
       const hit = await store.logHabit(a.habit, requireTz(a.tz || machineTz()), a.note, a.skip === true);
-      if (hit?.refused) return `「${hit.name}」是软习惯，不能跳过。什么都没记，到点照样会提醒 —— 把这句照实告诉他。`;
+      if (hit?.refused) return `「${hit.name}」是软习惯，随手就能做的事不能跳过。什么都没记，到点照样会提醒 —— 把这句照实告诉他。`;
       if (hit) return a.skip ? `记下了：${hit.name} 今天跳过。` : `记下了：${hit.name}，下次提醒${hit.at ? `明天 ${hit.at}` : `在 ${hit.everyMin} 分钟后`}。`;
       const all = await store.listHabits().catch(() => []);
       return `没找到「${a.habit}」。` + (all.length ? `他盯着的是这些：${all.map((h) => h.name).join("、")}。` : "他还没加过任何习惯。");

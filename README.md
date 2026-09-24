@@ -22,8 +22,8 @@ node install.mjs
 装完浏览器里会打开设置页（只监听 127.0.0.1），四步，每步都能跳过：
 
 1. **接上编程工具** —— 一键把本机 MCP 接进 Claude Code / Codex。
-2. **第一个习惯** —— 名字你自己定。**软习惯**不能跳过，到点就提醒到你做了为止（喝水这种）；
-   **硬习惯**可以说「今天不做」（健身这种）。
+2. **第一个习惯** —— 名字你自己定。**软习惯**是简单、随手就能做的（喝水这种），正因为简单所以不能跳过，
+   到点就提醒到你做了为止；**硬习惯**受当天情况影响大（健身这种），可以说「今天不做」。
 3. **今天要做的事** —— 一行一件，按先后顺序。
 4. **数据放哪** —— 就放这台机器（默认，什么都不用配），或者你自己的 Notion（手机上也能看）。
 
@@ -93,7 +93,7 @@ args = ["/Users/你/.claude/skills/shoulder-tap/mcp.mjs"]
 | --- | --- |
 | `check_focus(activity?)` | 拦路的那个。返回今天的清单、当前那条、该怎么处理你现在想做的事，顺带报到点的习惯 |
 | `set_focus` / `add_focus` / `complete_focus` | 按顺序记、插队、勾掉。只有你说完成才算完成 |
-| `add_habit(name, kind, …)` | 盯一个习惯：隔多久一次，或每天几点。`kind` = `soft`（不能跳过）/ `hard`（可以说今天不做） |
+| `add_habit(name, kind, …)` | 盯一个习惯：隔多久一次，或每天几点。`kind` = `soft`（简单随手，不能跳过）/ `hard`（看情况，可以说今天不做） |
 | `log_habit(habit, skip?)` | 记一笔刚做了；`skip` = 今天不做，软习惯会被拒绝 |
 | `stop_habit(habit)` | 以后不用再盯了。历史留着，只是不再提醒 |
 | `habit_history(habit?)` | 每一次做了 / 跳过的记录，新的在前 |
@@ -117,7 +117,7 @@ args = ["/Users/你/.claude/skills/shoulder-tap/mcp.mjs"]
 | `EveryMinutes` | number | — | 隔多久提醒一次（和 `At` 二选一） |
 | `At` | rich_text | — | 每天几点提醒，`HH:MM` |
 | `Last` | date | — | 这一次做完（或跳过）的时刻 |
-| `Type` | select | — | `soft`（不能跳过）/ `hard`（可以说今天不做） |
+| `Type` | select | — | `soft`（简单随手，不能跳过）/ `hard`（看情况，可以说今天不做） |
 | `Note` | rich_text | 执行细节 | 备注，跳过的原因也写这 |
 
 习惯**一次一行**：做了，这一行变 `done`，同时生成下一行 `pending`；跳过，这一行变 `dropped`，下一行从明天算起；
