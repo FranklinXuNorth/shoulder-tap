@@ -16,8 +16,8 @@ description: 接上 shoulder-tap（设置页、MCP、存储），以及在用户
 node ~/.claude/skills/shoulder-tap/onboard.mjs
 ```
 
-它会在浏览器里打开一个只给本机看的页面，四步：接上 Claude Code / Codex 的 MCP → 第一个习惯 →
-今天要做的事 → 数据放哪。让用户自己点，不要替他填习惯和任务。
+它会在浏览器里打开一个只给本机看的页面，五步：接上 Claude Code / Codex 的 MCP → 第一个习惯 →
+今天要做的事 → 数据放哪 → 手的样式。让用户自己点，不要替他填习惯和任务。
 
 想直接在终端接 MCP（本机 stdio，不经过任何服务器）：
 

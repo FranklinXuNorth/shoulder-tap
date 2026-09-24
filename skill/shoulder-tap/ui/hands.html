@@ -70,7 +70,10 @@
       tapText: "Drink water — 45 min overdue", patText: "Is this one done?", snapText: "Done: README got an uninstall section", noDesktop: "No desktop app on this machine.",
       skinH: "Style", skinHint: "To add one: make a folder under ui/sprites/skins/ with tap.png, pat.png, snap.png (864×80, 9 frames each).", saved: "Switched. Next tap uses it.", fail: "Failed" },
   };
-  let lang = localStorage.getItem("lang") || (navigator.language.startsWith("zh") ? "zh" : "en");
+  // 嵌在设置页里时：没有自己的标题栏和语言按钮，语言由外面那页传进来。
+  const q = new URLSearchParams(location.search);
+  if (q.has("embed")) { document.querySelector("main > .row").style.display = "none"; document.querySelector("main").style.padding = "22px"; }
+  let lang = q.get("lang") || localStorage.getItem("lang") || (navigator.language.startsWith("zh") ? "zh" : "en");
   const t = (k) => T[lang][k];
   function applyLang() {
     document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";

@@ -5,7 +5,7 @@
  *
  *   node ~/.claude/skills/shoulder-tap/onboard.mjs
  *
- * 四步：接上编程工具的 MCP → 第一个习惯 → 今天要做的事 → 数据放哪（本地 / 你自己的 Notion）。
+ * 五步：接上编程工具的 MCP → 第一个习惯 → 今天要做的事 → 数据放哪（本地 / 你自己的 Notion）→ 手（预览、换皮肤）。
  * 端口被占着说明已经开着一个，直接把浏览器指过去。
  * `--hands`：直接开 /hands，预览三种手势、换手的样式（皮肤）。
  */
@@ -169,7 +169,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && (req.url === "/" || req.url === "/index.html"))
     return send(200, fs.readFileSync(path.join(HERE, "ui", "onboard.html"), "utf8"), "text/html; charset=utf-8");
-  if (req.method === "GET" && req.url === "/hands")
+  if (req.method === "GET" && req.url.split("?")[0] === "/hands")
     return send(200, fs.readFileSync(path.join(HERE, "ui", "hands.html"), "utf8"), "text/html; charset=utf-8");
   const sprite = req.method === "GET" && /^\/skins\/([\w-]+)\/(tap|pat|snap)\.png$/.exec(req.url);
   if (sprite) {
