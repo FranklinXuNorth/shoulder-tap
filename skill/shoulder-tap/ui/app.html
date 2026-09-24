@@ -142,7 +142,7 @@
   .skin .name { padding: 8px 12px; font-size: 14px; display: flex; justify-content: space-between; }
   .skin .name i { font-style: normal; color: var(--accent); font-size: 13px; }
 
-  /* 打开时的加载：手摆好响指的姿势等着，数据到了打一下，然后渐入 */
+  /* 打开时的加载：手摆好响指的姿势等着，页面真的就绪后 0.5 秒打一下，然后渐入 */
   #boot { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: grid; place-items: center; transition: opacity .45s ease; }
   #boot.out { opacity: 0; pointer-events: none; }
   #boot .snap { width: 192px; height: 160px; background: url(/skins/current/snap.webp) 0 0 / 1728px 160px no-repeat; image-rendering: pixelated; animation: ready 1.2s ease-in-out infinite; }
@@ -479,6 +479,8 @@
       if (!days.has(k)) days.set(k, []);
       days.get(k).push(x);
     }
+    // 同一天里的时间戳可能不一样（继承过来的、后加的），按第几条排才对得上「现在该做这条」
+    for (const list of days.values()) list.sort((a, b) => a.order - b.order);
     const today = days.get(todayKey).filter((x) => x.status !== "dropped");
     $("progress").textContent = today.length ? t("progress")(today.filter((x) => x.done).length, today.length) : "";
     const cur = today.find((x) => !x.done);
@@ -667,7 +669,17 @@
 
   applyLang();
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  Promise.all([load().then(() => { route(); applyLang(); }).catch((e) => say("connect", e.message, true)), sleep(1000)])
+  // 真的加载好了才打响指：数据到了、页面画出来了、要用的手的图解码完了、字体好了。然后再停 0.5 秒。
+  const decoded = () => Promise.all(["tap", "pat", "snap"].map((g) => {
+    const img = new Image(); img.src = `/skins/${S.skin}/${g}.webp`; return img.decode().catch(() => {});
+  }));
+  const painted = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  // 每一步都有上限：哪一步卡住（后台标签页不出帧、图坏了），也不能把人关在加载页里
+  const capped = (p, ms) => Promise.race([p, sleep(ms)]);
+  load().then(() => { route(); applyLang(); }).catch((e) => say("connect", e.message, true))
+    .then(() => capped(Promise.all([S && decoded(), document.fonts.ready]), 2000))
+    .then(() => capped(painted(), 200))
+    .then(() => sleep(500))
     .then(async () => {
       $("bootSnap").classList.add("go"); // 打响
       await sleep(260);
