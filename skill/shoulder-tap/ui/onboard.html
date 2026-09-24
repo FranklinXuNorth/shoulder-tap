@@ -177,7 +177,9 @@
       "# 帮我接上 shoulder-tap 的 MCP（本机 stdio，不经过任何服务器）",
       "", "Claude Code：在终端跑", "", "```bash", m.command, "```", "",
       "Codex：把这段加进 ~/.codex/config.toml（已有 [mcp_servers.shoulder-tap] 就替换）", "", "```toml", m.codexBlock, "```", "",
-      "接完用 `claude mcp get shoulder-tap` 确认是 stdio 且 Connected，然后告诉我重开一次会话。",
+      "接完用 `claude mcp get shoulder-tap` 确认是 stdio 且 Connected，然后跑下面这条打开设置页，让我自己把习惯、今天要做的事、数据放哪填完：", "",
+      "```bash", `node ${JSON.stringify(m.onboard)}`, "```", "",
+      "最后提醒我重开一次会话。",
     ].join("\n");
     $("manual").textContent = manual;
     $("copyManual").onclick = async () => {

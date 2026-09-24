@@ -25,7 +25,8 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 claude mcp add -s user shoulder-tap -- node ~/.claude/skills/shoulder-tap/mcp.mjs
 ```
 
-接完告诉他重开一次会话让工具生效。
+接完 MCP 只是第一步：跑一次上面的 `onboard.mjs` 把设置页打开，让他自己填习惯、今天的事、数据放哪。
+然后告诉他重开一次会话让工具生效。
 
 ## 工具
 
