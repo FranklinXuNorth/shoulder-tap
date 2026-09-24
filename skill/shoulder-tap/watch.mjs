@@ -89,8 +89,7 @@ async function refresh(env) {
   // 时区从这台机器上读，不写死 —— 哨兵跑在用户身边，它比服务端清楚用户在哪。
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const plan = await callText("check_focus", { activity: ACTIVITY_SLOT, tz });
-  const history = await callText("habit_history", { limit: 30 }); // 桌面端的今日面板也要看
-  if (plan) writeState({ plan, history, planAt: Date.now() });
+  if (plan) writeState({ plan, planAt: Date.now() });
 }
 
 /** 把刷新甩到一个独立进程里，本进程立刻退出，不让你等。 */

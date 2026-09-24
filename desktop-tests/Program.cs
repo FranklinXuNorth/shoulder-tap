@@ -37,9 +37,6 @@ internal static class Tests
                 var captioned = TapRequest.FromArgs(["--text", "hi", "--caption", "聚焦 A ｜ 刚才 B"]);
                 if (TapRequest.FromJson(captioned.ToJson())?.Caption != "聚焦 A ｜ 刚才 B")
                     throw new Exception("Caption did not survive the round trip");
-                var plan = TodayWindow.PlanText("时区 x\n2026-09-22 说好要做的事：\n  ▸ 1. Example\n\n进度 0/1\n\n用户现在要做的是：secret\n【rules】");
-                if (!plan.Contains("Example") || plan.Contains("secret") || plan.Contains("rules"))
-                    throw new Exception("Today panel exposed model context");
                 var expected = new HashSet<int>();
                 for (var i = 0; i < 3; i++)
                 {
@@ -65,16 +62,7 @@ internal static class Tests
                     await Task.Delay(25);
                 }
                 if (seen.Count == 0) throw new Exception("Completion never showed"); // 位置跟前台窗口走，不再按会话窗口路由
-                await Send("--mode", "today");
-                await Task.Delay(500);
-                var todayVisible = false;
-                EnumWindows((hwnd, _) => {
-                    var title = new StringBuilder(256); GetWindowText(hwnd, title, 256);
-                    if (title.ToString().Contains("今日待办") && IsWindowVisible(hwnd)) todayVisible = true;
-                    return true;
-                }, IntPtr.Zero);
-                if (!todayVisible) throw new Exception("Today window was not visible");
-                Console.WriteLine("PASS: request IPC round trip, today-plan filtering, three queued completions routed to three source windows.");
+                Console.WriteLine("PASS: request IPC round trip, three queued completions routed to three source windows.");
             }
             catch (Exception error) { Console.Error.WriteLine(error); result = 1; }
             finally

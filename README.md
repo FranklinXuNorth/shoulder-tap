@@ -30,14 +30,14 @@ The installer opens a settings page in your browser (reachable only from this ma
 4. **Where data lives** — this machine (default, nothing to configure), or your own Notion (visible on your phone too).
 5. **The hand** — play the three gestures, pick a style (glove or cat paw), try a real tap on your desktop.
 
-Come back any time: "Settings…" in the Windows tray / macOS menu bar, or:
+Come back any time: click the Windows tray / macOS menu bar icon, or:
 
 ```bash
 node ~/.claude/skills/shoulder-tap/onboard.mjs
 ```
 
-To preview the hand and pick a style: "Hand style…" in the tray / menu bar, or `node ~/.claude/skills/shoulder-tap/onboard.mjs --hands`.
-Both pages have a 中文 / English switch in the top right.
+After setup, clicking the tray / menu bar icon opens the same page as a panel: **Today** (check off or rewrite the list), **Habits** (log one, see history), **Hand** (preview the three gestures, switch style, try a real tap), **Settings** (coding tools, where data lives, uninstall).
+There is a 中文 / English switch in the top right.
 
 Restart your Claude Code session and it's connected. `/mcp` shows `shoulder-tap`, `/hooks` shows four hooks.
 

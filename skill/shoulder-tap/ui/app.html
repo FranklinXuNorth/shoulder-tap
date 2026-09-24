@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shoulder-tap</title>
+<style>
+  :root {
+    --bg: #eef1f2; --surface: #ffffff; --surface-2: #f6f8f8;
+    --ink: #14191a; --muted: #5d6b6d; --faint: #8a9799; --line: #d3dbdc; --line-strong: #aebabc;
+    --accent: #0e7c7b; --accent-ink: #ffffff; --accent-soft: #d9ecec;
+    --signal: #c1471d; --signal-soft: #f9e4dc;
+    --stage: #f2f0ea; --stage-line: #dcd8cc; /* 手的预览台：永远是浅色，像你的屏幕边缘 */
+    --radius: 10px;
+    --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1213; --surface: #161c1d; --surface-2: #1b2223;
+      --ink: #e6ecec; --muted: #94a3a4; --faint: #6b797a; --line: #2a3435; --line-strong: #3d4a4b;
+      --accent: #4bb5b2; --accent-ink: #0e1213; --accent-soft: #123231;
+      --signal: #e98055; --signal-soft: #35201a;
+      --stage: #e4e1d9; --stage-line: #3d4a4b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 ui-sans-serif, system-ui, "Microsoft YaHei UI", "PingFang SC", sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 28px 16px 72px; }
+  button { font: inherit; padding: 8px 16px; border-radius: 7px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  button.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+  button.ghost:hover { color: var(--ink); background: var(--surface-2); }
+  button.small { padding: 4px 10px; font-size: 13px; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  a { color: var(--accent); }
+
+  /* 顶栏 */
+  .top { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.01em; }
+  .logo { width: 29px; height: 24px; background-size: 259px 24px; background-repeat: no-repeat; image-rendering: pixelated; }
+  .tabs { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 3px; margin-left: auto; }
+  .tabs button { border: 0; padding: 5px 12px; font-size: 14px; color: var(--muted); background: transparent; }
+  .tabs button.on { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+  #lang { margin-left: 4px; font-size: 13px; }
+  body[data-mode=wizard] #lang { margin-left: auto; }
+  @media (max-width: 560px) { .top { flex-wrap: wrap; } .tabs { order: 3; width: 100%; margin-left: 0; } .tabs button { flex: 1; } #lang { margin-left: auto; } }
+
+  /* 引导 */
+  h1 { font-size: 26px; margin: 0; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 6px 0 20px; }
+  ol.steps { display: flex; gap: 6px; list-style: none; padding: 0; margin: 0 0 18px; }
+  ol.steps li { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+  ol.steps li.on { background: var(--accent); }
+  .nav { display: flex; justify-content: space-between; margin-top: 20px; gap: 10px; }
+
+  /* 卡片和表单 */
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; margin-bottom: 14px; }
+  .card h2 { font-size: 18px; margin: 0 0 4px; }
+  .card h3 { font-size: 14px; margin: 22px 0 8px; color: var(--muted); font-weight: 600; }
+  .why { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+  input[type=text], input[type=password], input[type=number], input[type=time], textarea {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 7px;
+    background: var(--surface-2); color: var(--ink); font: inherit;
+  }
+  textarea { min-height: 110px; resize: vertical; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .choice { display: grid; gap: 8px; }
+  .opt { display: flex; gap: 12px; align-items: flex-start; padding: 11px 14px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; margin: 0; color: var(--ink); font-size: 15px; }
+  .opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt input { margin-top: 5px; accent-color: var(--accent); }
+  .opt b { display: block; font-weight: 600; }
+  .opt span { color: var(--muted); font-size: 13.5px; }
+  .client { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); gap: 12px; }
+  .client:first-of-type { border-top: 0; padding-top: 0; }
+  .client small { color: var(--muted); display: block; }
+  .ok { color: var(--accent); font-weight: 600; border-color: transparent; }
+  pre { background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; padding: 10px 12px; font: 12.5px/1.5 var(--mono); white-space: pre-wrap; word-break: break-all; margin: 8px 0 0; }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 13.5px; }
+  .promise { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 14px; border-radius: 0 8px 8px 0; margin-bottom: 16px; }
+  .promise b { display: block; }
+  .promise span { color: var(--muted); font-size: 13.5px; }
+  .msg { margin-top: 10px; font-size: 14px; white-space: pre-wrap; min-height: 1.4em; color: var(--muted); }
+  .msg.err { color: var(--signal); }
+  .hidden { display: none !important; }
+  ul.hint { padding-left: 18px; margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+  .empty { color: var(--faint); font-size: 14px; padding: 6px 0; }
+  body[data-mode=wizard] .panel-only, body[data-mode=panel] .wizard-only { display: none !important; }
+
+  /* 清单和习惯的行 */
+  .items { list-style: none; margin: 0; padding: 0; }
+  .items li { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: start; padding: 11px 0; border-top: 1px solid var(--line); }
+  .items li:first-child { border-top: 0; padding-top: 2px; }
+  .items .n { color: var(--faint); font-variant-numeric: tabular-nums; padding-top: 1px; }
+  .items .note { display: block; color: var(--muted); font-size: 13px; word-break: break-word; }
+  .items .acts { display: flex; gap: 6px; }
+  .items li.done .t { color: var(--faint); text-decoration: line-through; }
+  .items li.cur .n { color: var(--accent); font-weight: 700; }
+  .badge { display: inline-block; font-size: 12px; padding: 0 7px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); margin-left: 6px; vertical-align: 1px; }
+  .badge.now { background: var(--accent-soft); border-color: transparent; color: var(--accent); font-weight: 600; }
+  .badge.due { background: var(--signal-soft); border-color: transparent; color: var(--signal); font-weight: 600; }
+  .progress { color: var(--muted); font-size: 13px; }
+  .hist { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+  .hist li { display: grid; grid-template-columns: 18px 118px 1fr; gap: 8px; padding: 5px 0; color: var(--muted); }
+  .hist li b { color: var(--ink); font-weight: 500; }
+  .hist .mark.done { color: var(--accent); }
+
+  /* 手 */
+  .gestures { display: grid; gap: 12px; }
+  .gesture { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+  .gesture .head { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+  .gesture .head b { font-weight: 600; }
+  .gesture .head span { color: var(--muted); font-size: 13.5px; }
+  .gesture .head button { margin-left: auto; }
+  .stage { position: relative; height: 176px; background: var(--stage); border-top: 1px solid var(--stage-line); cursor: pointer; overflow: hidden; }
+  .stage::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 3px; background: #181818; opacity: .12; } /* 屏幕右缘 */
+  .sprite { position: absolute; right: 0; top: 8px; width: 192px; height: 160px; background-repeat: no-repeat; background-size: 1728px 160px; image-rendering: pixelated; }
+  /* 跟桌面端那条字一样：黑框白底、切角的像素框，挂在手的左边 */
+  .bubble { position: absolute; right: 204px; top: 50%; transform: translateY(-50%); max-width: calc(100% - 220px);
+    background: #fff; color: #181818; padding: 7px 12px; font: 14px/1.4 var(--mono);
+    box-shadow: 0 -2px 0 #181818, 0 2px 0 #181818, -2px 0 0 #181818, 2px 0 0 #181818; }
+  @media (max-width: 480px) { .bubble { right: 150px; max-width: calc(100% - 160px); font-size: 12.5px; } .sprite { transform: scale(.75); transform-origin: right center; } }
+  .skins { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .skin { border: 1px solid var(--line); border-radius: 9px; overflow: hidden; cursor: pointer; background: var(--surface); padding: 0; text-align: left; }
+  .skin.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .skin .thumb { height: 92px; background: var(--stage); display: grid; place-items: center; }
+  .skin .thumb div { width: 96px; height: 80px; background-size: 864px 80px; background-repeat: no-repeat; image-rendering: pixelated; }
+  .skin .name { padding: 8px 12px; font-size: 14px; display: flex; justify-content: space-between; }
+  .skin .name i { font-style: normal; color: var(--accent); font-size: 13px; }
+</style>
+
+<body data-mode="wizard">
+<main>
+  <header class="top">
+    <div class="brand"><div class="logo" id="logo"></div>shoulder-tap</div>
+    <nav class="tabs panel-only" id="tabs">
+      <button data-tab="today" data-t="tabToday"></button>
+      <button data-tab="habits" data-t="tabHabits"></button>
+      <button data-tab="hands" data-t="tabHands"></button>
+      <button data-tab="settings" data-t="tabSettings"></button>
+    </nav>
+    <button id="lang" class="ghost small" data-t="lang"></button>
+  </header>
+
+  <div class="wizard-only">
+    <h1 data-t="title"></h1>
+    <p class="sub" data-t="sub"></p>
+    <ol class="steps" id="bar"><li></li><li></li><li></li><li></li><li></li></ol>
+  </div>
+
+  <!-- 今天 -->
+  <section class="card" id="sec-today">
+    <div class="row" style="justify-content:space-between">
+      <h2 data-t="todayH"></h2><span class="progress panel-only" id="progress"></span>
+    </div>
+    <p class="why wizard-only" data-t="todayWhy"></p>
+    <ul class="items" id="todayList"></ul>
+    <h3 class="panel-only" data-t="todayRewrite"></h3>
+    <textarea id="tasks" data-p="todayPh"></textarea>
+    <p class="why wizard-only" id="todayNote" style="margin:8px 0 0"></p>
+    <div class="row panel-only" style="margin-top:10px"><button class="primary" data-save="today" data-t="saveList"></button></div>
+    <div class="msg" id="msg-today"></div>
+  </section>
+
+  <!-- 习惯 -->
+  <section class="card" id="sec-habit">
+    <div class="panel-only">
+      <h2 data-t="habitsH"></h2>
+      <ul class="items" id="habitList"></ul>
+      <h3 data-t="historyH"></h3>
+      <ul class="hist" id="historyList"></ul>
+      <h3 data-t="addHabitH"></h3>
+    </div>
+    <div class="wizard-only">
+      <h2 data-t="habitH"></h2>
+      <p class="why" data-t="habitWhy"></p>
+    </div>
+    <label for="hname" data-t="habitName"></label>
+    <input type="text" id="hname" data-p="habitPh">
+    <label data-t="habitWhen"></label>
+    <div class="row">
+      <label class="opt" style="flex:1"><input type="radio" name="when" value="every" checked><div><b data-t="every"></b><div class="row" style="gap:6px"><input type="number" id="every" value="60" min="1" style="width:84px"> <span data-t="min"></span></div></div></label>
+      <label class="opt" style="flex:1"><input type="radio" name="when" value="at"><div><b data-t="daily"></b><input type="time" id="at" value="22:30"></div></label>
+    </div>
+    <label data-t="habitKind"></label>
+    <div class="choice">
+      <label class="opt"><input type="radio" name="kind" value="soft" checked><div><b data-t="soft"></b><span data-t="softWhy"></span></div></label>
+      <label class="opt"><input type="radio" name="kind" value="hard"><div><b data-t="hard"></b><span data-t="hardWhy"></span></div></label>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="primary panel-only" data-save="habit" data-t="addHabit"></button>
+      <button id="tryTap" data-t="tryTap"></button>
+      <span class="why" style="margin:0" data-t="tryTapWhy"></span>
+    </div>
+    <div class="msg" id="msg-habit"></div>
+  </section>
+
+  <!-- 手 -->
+  <section class="card" id="sec-hands">
+    <h2 data-t="handsH"></h2>
+    <p class="why" data-t="handsWhy"></p>
+    <div class="gestures" id="gestures"></div>
+    <h3 data-t="styleH"></h3>
+    <div class="skins" id="skins"></div>
+    <p class="why" style="margin:10px 0 0;font-size:13px" data-t="styleHint"></p>
+    <div class="msg" id="msg-hands"></div>
+  </section>
+
+  <!-- 编程工具 -->
+  <section class="card" id="sec-connect">
+    <h2 data-t="connectH"></h2>
+    <p class="why" data-t="connectWhy"></p>
+    <div id="clients"></div>
+    <details>
+      <summary data-t="connectMore"></summary>
+      <label data-t="connectCmd"></label>
+      <pre id="cmd"></pre>
+      <label data-t="connectCodex"></label>
+      <pre id="codex"></pre>
+      <label data-t="connectAgent"></label>
+      <pre id="manual"></pre>
+      <div class="row" style="margin-top:8px"><button id="copyManual" data-t="copy"></button></div>
+    </details>
+    <div class="msg" id="msg-connect"></div>
+  </section>
+
+  <!-- 数据放哪 -->
+  <section class="card" id="sec-storage">
+    <h2 data-t="storageH"></h2>
+    <div class="promise"><b data-t="promise"></b><span data-t="promiseWhy"></span></div>
+    <div class="choice">
+      <label class="opt"><input type="radio" name="storage" value="local" checked><div><b data-t="local"></b><span data-t="localWhy"></span></div></label>
+      <label class="opt"><input type="radio" name="storage" value="notion"><div><b data-t="notion"></b><span data-t="notionWhy"></span></div></label>
+    </div>
+    <div id="notionBox" class="hidden">
+      <label for="ntoken" data-t="ntoken"></label>
+      <input type="password" id="ntoken" placeholder="ntn_…" autocomplete="off">
+      <label for="npage" data-t="npage"></label>
+      <input type="text" id="npage" placeholder="https://www.notion.so/…">
+      <ul class="hint"><li data-t="n1"></li><li data-t="n2"></li><li data-t="n3"></li></ul>
+    </div>
+    <div class="row panel-only" style="margin-top:14px"><button class="primary" data-save="storage" data-t="save"></button></div>
+    <div class="msg" id="msg-storage"></div>
+  </section>
+
+  <!-- 更多（只在面板里） -->
+  <section class="card panel-only" id="sec-more">
+    <h2 data-t="moreH"></h2>
+    <p class="why" style="margin-bottom:8px"><a href="#setup" data-t="rerun"></a></p>
+    <label data-t="uninstall"></label>
+    <pre id="uninstallCmd"></pre>
+  </section>
+
+  <div class="nav wizard-only" id="nav">
+    <button id="back" data-t="back"></button>
+    <div class="row">
+      <button class="ghost" id="skip" data-t="skip"></button>
+      <button class="primary" id="next"></button>
+    </div>
+  </div>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  // 两种语言。一句话能说完的不写两句。
+  const T = {
+    zh: {
+      lang: "English", tabToday: "今天", tabHabits: "习惯", tabHands: "手", tabSettings: "设置",
+      title: "设置 shoulder-tap", sub: "五步，都能跳过。之后点托盘图标就回到这里。",
+      todayH: "今天要做的事", todayWhy: "一行一件，按顺序。第一行是它盯着的那件。", todayPh: "做作品集\n接着做推理编排\n回邮件",
+      todayRewrite: "重写今天的清单", todayReplace: "填了会替换上面这些。", todayEmpty: "今天还没记。", saveList: "保存清单",
+      now: "现在", doneBtn: "完成", dropBtn: "今天不做", progress: (d, n) => `${d}/${n}`,
+      habitsH: "在盯的习惯", historyH: "记录", addHabitH: "加一个", habitsEmpty: "还没有习惯。", historyEmpty: "还没有记录。",
+      habitH: "第一个习惯", habitWhy: "名字你定。它在你有停顿时提一句，不打断你。", habitName: "习惯", habitPh: "喝水、健身、站起来走走",
+      habitWhen: "什么时候提醒", every: "每隔", min: "分钟", daily: "每天", habitKind: "能不能跳过", addHabit: "加上",
+      soft: "软习惯 · 随手就能做", softWhy: "正因为简单，所以不能跳过。到点就提，直到你说做了。喝水这种。",
+      hard: "硬习惯 · 看当天情况", hardWhy: "可以说「今天不做」，给个原因，今天不再提。健身这种。",
+      softTag: "软", hardTag: "硬", everyTxt: (m) => `每 ${m} 分钟`, atTxt: (a) => `每天 ${a}`, dueTxt: (m) => `超了 ${m} 分钟`,
+      logBtn: "做了", skipBtn: "今天不做", skipWhy: "为什么今天不做？", stopped: "停用",
+      tryTap: "在屏幕上试一下", tryTapWhy: "到点时它就这样拍你。", tapSample: (n) => `${n} —— 该做了`,
+      handsH: "手", handsWhy: "点一下预览台看动作。「桌面上试」是真的拍。",
+      gTap: "跑偏了 / 习惯到点", gPat: "模型在等你回答", gSnap: "这轮做完了", tryDesk: "桌面上试",
+      tapText: "喝水 —— 45 分钟没动了", patText: "这条算完成了吗？", snapText: "做完了：README 加了卸载那节",
+      styleH: "样式", styleHint: "想加一套：在 ui/sprites/skins/ 下建个文件夹，放 tap.png、pat.png、snap.png（各 864×80，9 帧）。", inUse: "在用", switched: "换好了，下次拍就是它。",
+      noDesktop: "这台机器没装桌面端，拍肩只落在聊天里。",
+      connectH: "编程工具", connectWhy: "让 Claude Code / Codex 看到你今天要做的事。都在这台机器上跑。",
+      connectMore: "自己动手，或交给模型", connectCmd: "终端里跑：", connectCodex: "Codex：加进 ~/.codex/config.toml", connectAgent: "或把这段发给你的 coding agent：", copy: "复制",
+      connected: "已接上", remote: "接的是旧的远程版", installed: "装了，还没接", missing: "没找到", btnSwap: "换成本机版", btnConnect: "接上", connecting: "接着……",
+      copied: "复制好了。", copyFail: "浏览器不让复制，手动选中吧。",
+      storageH: "数据放哪", promise: "你的所有习惯 + 要做的事情的数据不上云。", promiseWhy: "shoulder-tap 没有服务器。数据在这台机器上，或在你自己的 Notion 里。",
+      local: "这台机器", localWhy: "一个 JSON 文件，不用配。只在这一台上有。", notion: "我自己的 Notion", notionWhy: "手机上也能看。这台机器直连你的 Notion。",
+      ntoken: "Notion integration 密钥（ntn_ 开头）", npage: "一个 Notion 页面的链接",
+      n1: "密钥在 notion.so/profile/integrations 新建一个 integration 拿。", n2: "那个页面右上角 ⋯ → Connections → 加上它。", n3: "已经记在本地的习惯和今天的事会一起搬过去。",
+      needBoth: "密钥和页面链接都要填。", saving: "保存中……", save: "保存",
+      moreH: "其它", rerun: "从头走一遍引导 →", uninstall: "卸载（数据留着；加 --purge 一起删）",
+      back: "上一步", skip: "跳过", next: "下一步", finish: "完成", fail: "没成功", welcome: "设置好了。以后点托盘图标就回到这里。",
+      agentMd: (m) => [
+        "# 帮我接上 shoulder-tap 的 MCP（本机 stdio，不经过服务器）", "",
+        "Claude Code：", "", "```bash", m.command, "```", "",
+        "Codex：加进 ~/.codex/config.toml（已有 [mcp_servers.shoulder-tap] 就替换）", "", "```toml", m.codexBlock, "```", "",
+        "接完用 `claude mcp get shoulder-tap` 确认是 stdio、Connected，然后打开设置页让我填剩下的：", "",
+        "```bash", `node ${JSON.stringify(m.onboard)}`, "```", "", "最后提醒我重开一次会话。",
+      ].join("\n"),
+    },
+    en: {
+      lang: "中文", tabToday: "Today", tabHabits: "Habits", tabHands: "Hand", tabSettings: "Settings",
+      title: "Set up shoulder-tap", sub: "Five steps, all skippable. Click the tray icon to come back here.",
+      todayH: "Today", todayWhy: "One per line, in order. The first is the one it watches.", todayPh: "portfolio\ninference orchestration\nreply to email",
+      todayRewrite: "Rewrite today's list", todayReplace: "Saving replaces the list above.", todayEmpty: "Nothing for today yet.", saveList: "Save list",
+      now: "now", doneBtn: "Done", dropBtn: "Not today", progress: (d, n) => `${d}/${n}`,
+      habitsH: "Habits", historyH: "History", addHabitH: "Add one", habitsEmpty: "No habits yet.", historyEmpty: "Nothing logged yet.",
+      habitH: "First habit", habitWhy: "Any name. It nudges you at a pause, never mid-task.", habitName: "Habit", habitPh: "drink water, workout, stand up",
+      habitWhen: "When to remind", every: "Every", min: "min", daily: "Daily at", habitKind: "Can it be skipped?", addHabit: "Add",
+      soft: "Soft · quick to do", softWhy: "Simple, so no skipping. Reminds until you say done. Drinking water.",
+      hard: "Hard · depends on the day", hardWhy: "You can say “not today” with a reason. Workout.",
+      softTag: "soft", hardTag: "hard", everyTxt: (m) => `every ${m} min`, atTxt: (a) => `daily ${a}`, dueTxt: (m) => `${m} min overdue`,
+      logBtn: "Did it", skipBtn: "Not today", skipWhy: "Why not today?", stopped: "stopped",
+      tryTap: "Try it on screen", tryTapWhy: "This is how it taps you when it's due.", tapSample: (n) => `${n} — time`,
+      handsH: "Hand", handsWhy: "Click a stage to play. “Try on desktop” really taps.",
+      gTap: "drifted / habit due", gPat: "model is waiting for you", gSnap: "turn finished", tryDesk: "Try on desktop",
+      tapText: "Drink water — 45 min overdue", patText: "Is this one done?", snapText: "Done: README got an uninstall section",
+      styleH: "Style", styleHint: "To add one: make a folder under ui/sprites/skins/ with tap.png, pat.png, snap.png (864×80, 9 frames each).", inUse: "in use", switched: "Switched. Next tap uses it.",
+      noDesktop: "No desktop app on this machine; taps land in the chat only.",
+      connectH: "Coding tools", connectWhy: "So Claude Code / Codex can see what you're doing today. Everything runs on this machine.",
+      connectMore: "Do it yourself, or hand it to the model", connectCmd: "In a terminal:", connectCodex: "Codex: add to ~/.codex/config.toml", connectAgent: "Or paste this to your coding agent:", copy: "Copy",
+      connected: "Connected", remote: "Points at the old remote version", installed: "Installed, not connected", missing: "Not found", btnSwap: "Switch to local", btnConnect: "Connect", connecting: "Connecting…",
+      copied: "Copied.", copyFail: "Clipboard blocked. Select it by hand.",
+      storageH: "Where data lives", promise: "Your habits and tasks never leave your machine.", promiseWhy: "shoulder-tap has no server. Data stays on this machine or in your own Notion.",
+      local: "This machine", localWhy: "One JSON file, nothing to configure. This computer only.", notion: "My own Notion", notionWhy: "Visible on your phone. This machine talks to Notion directly.",
+      ntoken: "Notion integration token (starts with ntn_)", npage: "Link to a Notion page",
+      n1: "Create an integration at notion.so/profile/integrations to get the token.", n2: "On that page: ⋯ → Connections → add it.", n3: "Habits and tasks already saved locally move over too.",
+      needBoth: "Both token and page link are needed.", saving: "Saving…", save: "Save",
+      moreH: "More", rerun: "Run the setup again →", uninstall: "Uninstall (keeps data; add --purge to delete it)",
+      back: "Back", skip: "Skip", next: "Next", finish: "Finish", fail: "Failed", welcome: "All set. Click the tray icon to come back here.",
+      agentMd: (m) => [
+        "# Connect the shoulder-tap MCP for me (local stdio, no server)", "",
+        "Claude Code:", "", "```bash", m.command, "```", "",
+        "Codex: add to ~/.codex/config.toml (replace an existing [mcp_servers.shoulder-tap]):", "", "```toml", m.codexBlock, "```", "",
+        "Then confirm with `claude mcp get shoulder-tap` (stdio, Connected) and open the settings page so I can fill in the rest:", "",
+        "```bash", `node ${JSON.stringify(m.onboard)}`, "```", "", "Finally remind me to restart the session.",
+      ].join("\n"),
+    },
+  };
+  let lang = (() => { try { return localStorage.getItem("lang"); } catch { return null; } })() || (navigator.language.startsWith("zh") ? "zh" : "en");
+  const t = (k) => T[lang][k];
+
+  const api = async (method, path, body) => {
+    const r = await fetch(path, { method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || t("fail"));
+    return j;
+  };
+  const say = (id, text, err = false) => { const m = $("msg-" + id); m.textContent = text; m.className = "msg" + (err ? " err" : ""); };
+
+  // 引导按这个顺序一页一块；面板按 tab 分组，同一块两边共用。
+  const STEPS = ["connect", "habit", "today", "storage", "hands"];
+  const TABS = { today: ["today"], habits: ["habit"], hands: ["hands"], settings: ["connect", "storage", "more"] };
+  let S = null, step = 0, mode = "wizard", tab = "today";
+
+  function route() {
+    const h = location.hash.slice(1);
+    mode = !S?.onboarded || h === "setup" ? "wizard" : "panel";
+    if (TABS[h]) tab = h;
+    if (mode === "wizard" && h === "setup") step = 0;
+    render();
+  }
+  function render() {
+    document.body.dataset.mode = mode;
+    const visible = mode === "wizard" ? [STEPS[step]] : TABS[tab];
+    document.querySelectorAll("main > section").forEach((s) => s.classList.toggle("hidden", !visible.includes(s.id.slice(4))));
+    document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
+    [...$("bar").children].forEach((li, i) => li.classList.toggle("on", i <= step));
+    $("back").disabled = step === 0;
+    $("next").textContent = step === STEPS.length - 1 ? t("finish") : t("next");
+    if (visible.includes("hands")) playAll();
+  }
+  function applyLang() {
+    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+    document.querySelectorAll("[data-t]").forEach((el) => { const v = t(el.dataset.t); if (typeof v === "string") el.textContent = v; });
+    document.querySelectorAll("[data-p]").forEach((el) => el.placeholder = t(el.dataset.p));
+    document.title = mode === "wizard" ? t("title") : "shoulder-tap";
+    if (S) renderData();
+    render();
+  }
+  $("lang").onclick = () => { lang = lang === "zh" ? "en" : "zh"; try { localStorage.setItem("lang", lang); } catch {} applyLang(); };
+  $("tabs").onclick = (e) => { const b = e.target.closest("button"); if (b) location.hash = b.dataset.tab; };
+  window.onhashchange = route;
+
+  // ---------- 数据 ----------
+  async function load() {
+    S = await api("GET", "/api/state");
+    document.querySelector(`input[name=storage][value=${S.storage}]`).checked = true;
+    $("notionBox").classList.toggle("hidden", S.storage !== "notion");
+    renderData();
+  }
+  function renderData() {
+    renderClients(); renderToday(); renderHabits(); renderHands();
+    $("logo").style.backgroundImage = `url(/skins/${S.skin}/tap.png)`;
+    $("uninstallCmd").textContent = `node "${S.mcp.onboard.replace(/onboard\.mjs$/, "uninstall.mjs")}"`;
+  }
+
+  function renderToday() {
+    const items = S.today, cur = items.find((i) => !i.done);
+    $("progress").textContent = items.length ? t("progress")(items.filter((i) => i.done).length, items.length) : "";
+    $("todayList").innerHTML = items.length ? items.map((i) => `
+      <li class="${i.done ? "done" : ""} ${i === cur ? "cur" : ""}">
+        <span class="n">${i.done ? "✓" : i.order}</span>
+        <div><span class="t">${esc(i.task)}</span>${i === cur ? `<span class="badge now">${t("now")}</span>` : ""}${i.note ? `<span class="note">${esc(i.note)}</span>` : ""}</div>
+        <div class="acts panel-only">${i.done ? "" : `<button class="small" data-done="${i.order}">${t("doneBtn")}</button><button class="small ghost" data-drop="${i.order}">${t("dropBtn")}</button>`}</div>
+      </li>`).join("") : `<li class="empty" style="display:block">${t("todayEmpty")}</li>`;
+    $("todayNote").textContent = items.length ? t("todayReplace") : "";
+  }
+  $("todayList").onclick = async (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    const position = Number(b.dataset.done || b.dataset.drop);
+    try { await api("POST", "/api/done", { position, dropped: Boolean(b.dataset.drop) }); await load(); }
+    catch (err) { say("today", err.message, true); }
+  };
+
+  function renderHabits() {
+    const fmt = (iso) => iso ? new Date(iso).toLocaleString(lang === "zh" ? "zh-CN" : "en-US", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+    $("habitList").innerHTML = S.habits.length ? S.habits.map((h) => `
+      <li>
+        <span class="n">${h.kind === "soft" ? t("softTag") : t("hardTag")}</span>
+        <div><span class="t">${esc(h.name)}</span>${h.overdueMin > 0 ? `<span class="badge due">${t("dueTxt")(h.overdueMin)}</span>` : ""}<span class="note">${h.at ? t("atTxt")(h.at) : t("everyTxt")(h.everyMin)}</span></div>
+        <div class="acts"><button class="small" data-log="${esc(h.sid || h.name)}">${t("logBtn")}</button>${h.kind === "soft" ? "" : `<button class="small ghost" data-skip="${esc(h.sid || h.name)}">${t("skipBtn")}</button>`}</div>
+      </li>`).join("") : `<li class="empty" style="display:block">${t("habitsEmpty")}</li>`;
+    $("historyList").innerHTML = S.history.length ? S.history.map((r) => `
+      <li><span class="mark ${r.status}">${r.status === "done" ? "✓" : "–"}</span><span>${fmt(r.finished)}</span><span><b>${esc(r.name)}</b>${r.status === "dropped" && r.note ? ` · ${esc(r.note)}` : ""}</span></li>`).join("")
+      : `<li class="empty" style="display:block">${t("historyEmpty")}</li>`;
+  }
+  $("habitList").onclick = async (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    const skip = Boolean(b.dataset.skip);
+    const note = skip ? prompt(t("skipWhy")) : undefined;
+    if (skip && note === null) return;
+    try { say("habit", (await api("POST", "/api/log", { habit: b.dataset.log || b.dataset.skip, skip, note })).message); await load(); }
+    catch (err) { say("habit", err.message, true); }
+  };
+
+  function renderClients() {
+    const m = S.mcp;
+    $("cmd").textContent = m.command;
+    $("codex").textContent = m.codexBlock;
+    const manual = t("agentMd")(m);
+    $("manual").textContent = manual;
+    $("copyManual").onclick = async () => {
+      try { await navigator.clipboard.writeText(manual); say("connect", t("copied")); }
+      catch { say("connect", t("copyFail"), true); }
+    };
+    $("clients").innerHTML = "";
+    for (const [key, label] of [["claude", "Claude Code"], ["codex", "Codex"]]) {
+      const c = m[key];
+      const row = document.createElement("div");
+      row.className = "client";
+      row.innerHTML = `<div><b>${label}</b><small>${t(c.connected ? "connected" : c.remote ? "remote" : c.installed ? "installed" : "missing")}</small></div>`;
+      const btn = document.createElement("button");
+      if (c.connected) { btn.textContent = "✓ " + t("connected"); btn.disabled = true; btn.className = "ok"; }
+      else {
+        btn.textContent = t(c.remote ? "btnSwap" : "btnConnect"); btn.className = "primary"; btn.disabled = !c.installed;
+        btn.onclick = async () => {
+          btn.disabled = true; say("connect", t("connecting"));
+          try { say("connect", (await api("POST", "/api/mcp", { client: key })).message); await load(); }
+          catch (e) { say("connect", e.message, true); btn.disabled = false; }
+        };
+      }
+      row.appendChild(btn);
+      $("clients").appendChild(row);
+    }
+  }
+  document.querySelectorAll("input[name=storage]").forEach((r) => r.onchange = () => $("notionBox").classList.toggle("hidden", r.value !== "notion" || !r.checked));
+
+  // ---------- 手 ----------
+  // 帧时刻跟桌面端一样：拍三下 1.3 秒；响指两张图来回切，4fps。
+  const TAPS = [250, 340, 430, 580, 670, 760, 910, 1000, 1300];
+  const GESTURES = [
+    { key: "tap", mode: "tap", why: "gTap", text: "tapText", ends: TAPS },
+    { key: "pat", mode: "complete", why: "gPat", text: "patText", ends: TAPS },
+    { key: "snap", mode: "snap", why: "gSnap", text: "snapText", ends: [250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250] },
+  ];
+  const timers = {};
+  function play(key) {
+    const g = GESTURES.find((x) => x.key === key), el = document.querySelector(`[data-stage=${key}] .sprite`);
+    if (!el) return;
+    clearTimeout(timers[key]);
+    const t0 = performance.now();
+    const tick = () => {
+      const i = g.ends.findIndex((e) => performance.now() - t0 < e);
+      el.style.backgroundPosition = `-${(i < 0 ? 8 : i) * 192}px 0`;
+      if (i >= 0) timers[key] = setTimeout(tick, 16);
+    };
+    tick();
+  }
+  const playAll = () => GESTURES.forEach((g, i) => setTimeout(() => play(g.key), 150 + i * 350));
+  function renderHands() {
+    $("gestures").innerHTML = GESTURES.map((g) => `
+      <div class="gesture">
+        <div class="head"><b>${g.key === "tap" ? "tap tap" : g.key === "pat" ? "pat pat" : "snap"}</b><span>${t(g.why)}</span><button class="small" data-try="${g.mode}" data-text="${g.text}">${t("tryDesk")}</button></div>
+        <div class="stage" data-stage="${g.key}"><span class="bubble">${esc(t(g.text))}</span><div class="sprite" style="background-image:url(/skins/${S.skin}/${g.key}.png);background-position:-1536px 0"></div></div>
+      </div>`).join("");
+    $("skins").innerHTML = S.skins.map((name) => `
+      <button class="skin ${name === S.skin ? "on" : ""}" data-skin="${name}">
+        <div class="thumb"><div style="background-image:url(/skins/${name}/tap.png)"></div></div>
+        <div class="name">${esc(name)}${name === S.skin ? `<i>${t("inUse")}</i>` : ""}</div>
+      </button>`).join("");
+  }
+  $("gestures").onclick = async (e) => {
+    const b = e.target.closest("button");
+    if (!b) { const s = e.target.closest("[data-stage]"); if (s) play(s.dataset.stage); return; }
+    try { const r = await api("POST", "/api/tap", { mode: b.dataset.try, text: t(b.dataset.text) }); say("hands", r.tapped ? "" : t("noDesktop"), !r.tapped); }
+    catch (err) { say("hands", err.message, true); }
+  };
+  $("skins").onclick = async (e) => {
+    const b = e.target.closest("[data-skin]"); if (!b || b.dataset.skin === S.skin) return;
+    try { await api("POST", "/api/hands", { skin: b.dataset.skin }); S.skin = b.dataset.skin; renderData(); playAll(); say("hands", t("switched")); }
+    catch (err) { say("hands", err.message, true); }
+  };
+  // 习惯那一步只试 tap：到点提醒就是这只手。
+  $("tryTap").onclick = async () => {
+    const name = $("hname").value.trim() || $("hname").placeholder.split(/[,、]/)[0].trim();
+    try { const r = await api("POST", "/api/tap", { mode: "tap", text: t("tapSample")(name) }); if (!r.tapped) say("habit", t("noDesktop"), true); }
+    catch (e) { say("habit", e.message, true); }
+  };
+
+  // ---------- 保存 ----------
+  /** 每块的保存。引导里按「下一步」调，面板里按那块自己的按钮调。返回 false 就停。 */
+  const save = {
+    async habit() {
+      const name = $("hname").value.trim();
+      if (!name) return true;
+      const body = { name, kind: document.querySelector("input[name=kind]:checked").value };
+      if (document.querySelector("input[name=when]:checked").value === "every") body.every_minutes = Number($("every").value) || 60; else body.at = $("at").value;
+      say("habit", (await api("POST", "/api/habit", body)).message);
+      $("hname").value = "";
+      return true;
+    },
+    async today() {
+      const tasks = $("tasks").value.split("\n").map((s) => s.trim()).filter(Boolean);
+      if (!tasks.length) return true;
+      await api("POST", "/api/today", { tasks });
+      $("tasks").value = "";
+      say("today", "");
+      return true;
+    },
+    async storage() {
+      const mode = document.querySelector("input[name=storage]:checked").value;
+      const body = mode === "notion" ? { mode, token: $("ntoken").value, page: $("npage").value } : { mode };
+      if (mode === "notion" && (!body.token.trim() || !body.page.trim())) { say("storage", t("needBoth"), true); return false; }
+      say("storage", t("saving"));
+      say("storage", (await api("POST", "/api/storage", body)).message);
+      return true;
+    },
+  };
+  document.querySelectorAll("[data-save]").forEach((b) => b.onclick = async () => {
+    const id = b.dataset.save;
+    b.disabled = true;
+    try { await save[id](); await load(); } catch (e) { say(id, e.message, true); } finally { b.disabled = false; }
+  });
+
+  async function finish() {
+    await api("POST", "/api/finish");
+    S.onboarded = true;
+    location.hash = "today";
+    route();
+    say("today", t("welcome"));
+  }
+  $("next").onclick = async () => {
+    const id = STEPS[step];
+    $("next").disabled = true;
+    try {
+      if (save[id] && !(await save[id]())) return;
+      await load();
+      if (step === STEPS.length - 1) return finish();
+      step++; render();
+    } catch (e) { say(id, e.message, true); }
+    finally { $("next").disabled = false; }
+  };
+  $("skip").onclick = () => (step === STEPS.length - 1 ? finish() : (step++, render()));
+  $("back").onclick = () => { if (step > 0) { step--; render(); } };
+
+  // 页面开着就让服务知道；关掉三分钟后它自己退出。
+  setInterval(() => fetch("/api/ping").catch(() => {}), 60_000);
+
+  applyLang();
+  load().then(() => { route(); applyLang(); }).catch((e) => say("connect", e.message, true));
+</script>
+</body>
+</html>
