@@ -116,7 +116,7 @@ public partial class TapWindow : Window
         new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
     }
 
-    /// <summary>config.json 里的 skin，默认 glove。设置页和今日面板都能改。</summary>
+    /// <summary>config.json 里的 skin，默认 glove。在 shoulder-tap 那一页的「手」里改。</summary>
     public static string CurrentSkin()
     {
         try

@@ -135,7 +135,6 @@ public static class Program
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         var taps = new Lane(lower: false);   // taptap：提醒，挂在屏幕 30% 高
         var pats = new Lane(lower: true);    // 响指（这轮做完了）/ 拍拍（在问你话）：挂在 52% 高
-        var today = new TodayWindow();
         Forms.NotifyIcon? tray = null;
         var bindings = new Dictionary<string, (IntPtr Handle, uint Pid)>();
         void Next(Lane lane)
@@ -164,7 +163,7 @@ public static class Program
         {
             Log("handle " + req.ToJson());
             if (req.Quit) { app.Shutdown(); return; }
-            if (req.Mode == "today") { today.Reveal(); return; }
+            if (req.Mode == "today") { OpenSettings(); return; } // 今天、习惯、手、设置都在那一页里
             if (req.Mode == "bind")
             {
                 var hwnd = new IntPtr(req.WindowHandle);
@@ -190,8 +189,8 @@ public static class Program
 
         if (resident)
         {
-            tray = BuildTray(taps.Window, today, app, () => Handle(new TapRequest { Text = "试拍" }));
-            if (!Onboarded()) OpenSettings(); // 第一次打开：先把设置页拉起来
+            tray = BuildTray(taps.Window, app, () => Handle(new TapRequest { Text = "试拍" }));
+            if (!Onboarded()) OpenSettings(); // 第一次打开：先把引导拉起来
             instance!.Listen(req => taps.Window.Dispatcher.BeginInvoke(() => Handle(req)));
         }
 
@@ -219,14 +218,12 @@ public static class Program
     /// 托盘图标是这个进程唯一「看得见自己还活着」的地方，也是唯一能关掉它的地方。
     /// 没有它，一个无窗口、不进任务栏的常驻进程只能靠任务管理器杀，太粗暴。
     /// </summary>
-    private static Forms.NotifyIcon BuildTray(TapWindow window, TodayWindow today, Application app, Action testTap)
+    private static Forms.NotifyIcon BuildTray(TapWindow window, Application app, Action testTap)
     {
+        // 今天、习惯、手、设置都是浏览器里的那一页（onboard.mjs），三个平台共用。
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("今日待办", null, (_, _) => today.Dispatcher.BeginInvoke(() => today.Reveal()));
-
+        menu.Items.Add("打开 shoulder-tap", null, (_, _) => OpenSettings());
         menu.Items.Add("拍一下试试", null, (_, _) => window.Dispatcher.BeginInvoke(testTap));
-        menu.Items.Add("设置…", null, (_, _) => OpenSettings());
-        menu.Items.Add("手的样式…", null, (_, _) => OpenSettings("--hands"));
 
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("退出", null, (_, _) => window.Dispatcher.BeginInvoke(() => app.Shutdown()));
@@ -239,7 +236,7 @@ public static class Program
             ContextMenuStrip = menu,
         };
 
-        tray.MouseClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) today.Dispatcher.BeginInvoke(() => today.Reveal()); };
+        tray.MouseClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) OpenSettings(); };
         return tray;
     }
 

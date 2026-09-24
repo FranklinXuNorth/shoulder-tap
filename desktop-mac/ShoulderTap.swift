@@ -233,8 +233,7 @@ final class Resident: NSObject, NSApplicationDelegate {
         status?.button?.image = trayImage()
         let menu = NSMenu()
         menu.addItem(withTitle: "拍一下试试", action: #selector(testTap), keyEquivalent: "")
-        menu.addItem(withTitle: "设置…", action: #selector(openSettings), keyEquivalent: ",")
-        menu.addItem(withTitle: "手的样式…", action: #selector(openHands), keyEquivalent: "")
+        menu.addItem(withTitle: "打开 shoulder-tap", action: #selector(openSettings), keyEquivalent: ",") // 今天、习惯、手、设置都在那一页
         menu.addItem(.separator())
         menu.addItem(withTitle: "退出", action: #selector(quit), keyEquivalent: "q")
         menu.items.forEach { $0.target = self }
@@ -253,9 +252,7 @@ final class Resident: NSObject, NSApplicationDelegate {
 
     /// 设置页是 skill 里的 onboard.mjs：本机起一个小服务，浏览器打开，设完自己退出。
     /// LaunchAgent 起来的进程 PATH 很短，node 可能不在上面，所以走登录 shell 找。
-    @objc private func openSettings() { openPage([]) }
-    @objc private func openHands() { openPage(["--hands"]) }
-    private func openPage(_ args: [String]) {
+    @objc private func openSettings() {
         let script = home.appendingPathComponent(".claude/skills/shoulder-tap/onboard.mjs").path
         guard FileManager.default.fileExists(atPath: script) else {
             // skill 被删了或只装了桌面端：说出来，别只写日志。
@@ -263,7 +260,7 @@ final class Resident: NSObject, NSApplicationDelegate {
         }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        p.arguments = ["-lc", "node \"$0\" \"$@\"", script] + args
+        p.arguments = ["-lc", "node \"$0\"", script]
         p.standardOutput = nil; p.standardError = nil
         do { try p.run() } catch { log("open settings: \(error.localizedDescription)") }
     }
@@ -277,7 +274,8 @@ final class Resident: NSObject, NSApplicationDelegate {
     func handle(_ req: TapRequest) {
         log("handle mode=\(req.mode) caption=\"\(req.caption)\"")
         if req.quit { NSApp.terminate(nil); return }
-        if req.mode == "bind" || req.mode == "today" { return } // Mac 上没有要绑的窗口，也没有今日面板
+        if req.mode == "today" { openSettings(); return } // 今天、习惯、手、设置都在浏览器那一页
+        if req.mode == "bind" { return } // Mac 上没有要绑的窗口
         if req.mode != "complete" && !req.hasMessage { return }
         (req.mode == "tap" ? taps : pats).enqueue(req) // taptap 自己一条道
     }

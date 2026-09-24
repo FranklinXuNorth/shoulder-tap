@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 /**
- * 设置页。桌面端第一次打开、或者托盘里点「设置…」时跑它：
- * 在 127.0.0.1 上起一个只给本机看的小服务，用浏览器打开，设置完自己退出。
+ * shoulder-tap 的页面。托盘 / 菜单栏点一下就跑它：在 127.0.0.1 上起一个只给本机看的小服务，用浏览器打开。
  *
- *   node ~/.claude/skills/shoulder-tap/onboard.mjs
+ *   node ~/.claude/skills/shoulder-tap/onboard.mjs [--hands | --setup]
  *
- * 五步：接上编程工具的 MCP → 第一个习惯 → 今天要做的事 → 数据放哪（本地 / 你自己的 Notion）→ 手（预览、换皮肤）。
- * 端口被占着说明已经开着一个，直接把浏览器指过去。
- * `--hands`：直接开 /hands，预览三种手势、换手的样式（皮肤）。
+ * 同一页两种样子（ui/app.html）：还没设置过 → 五步引导（编程工具 → 第一个习惯 → 今天的事 → 数据放哪 → 手）；
+ * 设置过 → 面板（今天 · 习惯 · 手 · 设置），同样那几块都能在里面改。
+ * 端口被占着说明已经开着一个，直接把浏览器指过去。页面关了三分钟没请求就自己退出。
  */
 import fs from "node:fs";
 import http from "node:http";
@@ -115,7 +114,11 @@ async function state() {
     onboarded: Boolean(readConfig().onboarded),
     mcp: mcpState(),
     habits: await store.listHabits().catch(() => []),
+    history: await store.habitHistory(30).catch(() => []),
     today: await store.listDay(win).catch(() => []),
+    skin: readConfig().skin ?? "glove",
+    skins: listSkins(),
+    desktop: fs.existsSync(APP),
   };
 }
 
@@ -128,9 +131,11 @@ const routes = {
     if (mode === "local") { writeConfig({ storage: "local" }); return { message: "就放在这台机器上：" + local.DATA }; }
     return { message: await useNotion(String(token || "").trim(), String(page || "").trim()) };
   },
-  // 点了完成不马上退：最后那页还有「看看那只手」的链接。一分钟没人来再退。
-  "POST /api/finish": () => { writeConfig({ onboarded: true }); idle(); return { message: "好了。" }; },
-  "POST /api/close": () => { setTimeout(() => process.exit(0), 300); return { message: "ok" }; }, // 手势页的「完成」：只退出，不动 onboarded
+  "POST /api/finish": () => { writeConfig({ onboarded: true }); return { message: "好了。" }; },
+  "GET /api/ping": () => ({}), // 页面开着就隔一会儿来一下，服务知道还有人在看
+  // 面板里勾掉 / 放弃一条、记一笔习惯：都是你自己点的，跟你在对话里说一样
+  "POST /api/done": async ({ position, dropped }) => ({ message: await callText("complete_focus", { position, dropped: dropped === true }) }),
+  "POST /api/log": async ({ habit, skip, note }) => ({ message: await callText("log_habit", { habit, skip: skip === true, note }) }),
   // 在屏幕上真拍一下：习惯那一步试 tap，手势页三种都能试。没装桌面端就说没装。
   "POST /api/tap": ({ mode = "tap", text = "" }) => {
     if (!["tap", "complete", "snap"].includes(mode)) throw new Error(`没有这种手势：${mode}`);
@@ -141,7 +146,6 @@ const routes = {
     return { tapped: true };
   },
   // 手的样式：ui/sprites/skins/<名字>/{tap,pat,snap}.png。桌面端每次拍之前重读 config.json 的 skin。
-  "GET /api/hands": () => ({ skin: readConfig().skin ?? "glove", skins: listSkins() }),
   "POST /api/hands": ({ skin }) => {
     if (!listSkins().includes(skin)) throw new Error(`没有这套皮肤：${skin}`);
     writeConfig({ skin });
@@ -149,8 +153,9 @@ const routes = {
   },
 };
 
+// ponytail: 靠页面每分钟 ping 一次判断还开着；关掉三分钟后退出。
 let bye = null;
-const idle = () => { clearTimeout(bye); bye = setTimeout(() => process.exit(0), 60_000); };
+const idle = () => { clearTimeout(bye); bye = setTimeout(() => process.exit(0), 180_000); };
 
 const SKINS = path.join(HERE, "ui", "sprites", "skins");
 const listSkins = () => fs.readdirSync(SKINS, { withFileTypes: true })
@@ -160,17 +165,15 @@ const listSkins = () => fs.readdirSync(SKINS, { withFileTypes: true })
 const server = http.createServer(async (req, res) => {
   const send = (status, body, type = "application/json; charset=utf-8") => {
     res.writeHead(status, { "content-type": type, "cache-control": "no-store" });
-    res.end(typeof body === "string" ? body : JSON.stringify(body));
+    res.end(typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body)); // png 是 Buffer，别 JSON 化
   };
   // 只认本机来的请求：防止别的网页借你的浏览器往这里 POST。
   const origin = req.headers.origin;
   if (origin && origin !== URL_.slice(0, -1)) return send(403, { error: "forbidden" });
-  if (bye) idle(); // 完成之后还有人在看，再等一分钟
+  idle();
 
-  if (req.method === "GET" && (req.url === "/" || req.url === "/index.html"))
-    return send(200, fs.readFileSync(path.join(HERE, "ui", "onboard.html"), "utf8"), "text/html; charset=utf-8");
-  if (req.method === "GET" && req.url.split("?")[0] === "/hands")
-    return send(200, fs.readFileSync(path.join(HERE, "ui", "hands.html"), "utf8"), "text/html; charset=utf-8");
+  if (req.method === "GET" && req.url.split("?")[0] === "/")
+    return send(200, fs.readFileSync(path.join(HERE, "ui", "app.html"), "utf8"), "text/html; charset=utf-8");
   const sprite = req.method === "GET" && /^\/skins\/([\w-]+)\/(tap|pat|snap)\.png$/.exec(req.url);
   if (sprite) {
     const file = path.join(SKINS, sprite[1], sprite[2] + ".png");
@@ -191,7 +194,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-const OPEN = process.argv.includes("--hands") ? URL_ + "hands" : URL_; // --hands：直接开手势预览页
+const OPEN = URL_ + (process.argv.includes("--hands") ? "#hands" : process.argv.includes("--setup") ? "#setup" : "");
 server.on("error", (e) => {
   if (e.code === "EADDRINUSE") { openBrowser(OPEN); process.exit(0); } // 已经开着一个
   throw e;
@@ -199,5 +202,6 @@ server.on("error", (e) => {
 server.listen(PORT, "127.0.0.1", () => {
   fs.mkdirSync(STATE_DIR, { recursive: true });
   if (!process.argv.includes("--no-open")) openBrowser(OPEN);
-  console.log(`shoulder-tap 设置页：${URL_}`);
+  idle();
+  console.log(`shoulder-tap：${URL_}`);
 });
