@@ -24,7 +24,8 @@
     <Resource Include="..\skill\shoulder-tap\ui\sprites\skins\glove\tap.png" Link="tap.png" />
     <Resource Include="..\skill\shoulder-tap\ui\sprites\skins\glove\pat.png" Link="pat.png" />
     <Resource Include="..\skill\shoulder-tap\ui\sprites\skins\glove\snap.png" Link="snap.png" />
-    <Resource Include="Fonts\fusion-pixel-12px-proportional-zh_hans.ttf" />
+    <!-- 像素字体两端共用（macOS 从同一份拷进 .app）。Link 保持 Fonts\ ：XAML 里的 pack URI 按它取。 -->
+    <Resource Include="..\skill\shoulder-tap\ui\fonts\fusion-pixel-12px-proportional-zh_hans.ttf" Link="Fonts\fusion-pixel-12px-proportional-zh_hans.ttf" />
     <EmbeddedResource Include="..\skill\shoulder-tap\ui\sprites\tap-glove.png" Link="tap-glove.png" />
   </ItemGroup>
 

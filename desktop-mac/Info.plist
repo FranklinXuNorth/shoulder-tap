@@ -9,4 +9,6 @@
   <key>LSUIElement</key><true/>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSHighResolutionCapable</key><true/>
+  <!-- Resources/Fonts/ 里的字体，App 启动时由系统注册，代码里直接按字体名取。 -->
+  <key>ATSApplicationFontsPath</key><string>Fonts</string>
 </dict></plist>

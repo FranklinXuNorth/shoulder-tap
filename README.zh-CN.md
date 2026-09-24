@@ -28,7 +28,11 @@ node install.mjs
 
 1. **接上编程工具** —— 点「接上」，把 shoulder-tap 接进 Claude Code / Codex。Claude Desktop 也能在这里接，只有工具（见下）。
    不想点按钮：展开「想自己动手」，有一段可以直接复制给你的 coding agent 的说明。
-2. **第一个习惯** —— 名字你自己定。**软习惯**是简单、随手就能做的（喝水这种），正因为简单所以不能跳过，到点就提醒到你做了为止；**硬习惯**受当天情况影响大（健身这种），可以说「今天不做」。
+   macOS 上显示 Claude Code **没找到**、但你确实装了：设置页由菜单栏那个 app 打开，看不到你 shell 的 PATH。展开「想自己动手」，把那条命令拿到终端里跑。
+   然后重开一次 Claude Code 会话：`/mcp` 里能看到 `shoulder-tap`，`/hooks` 里能看到四个钩子。
+2. **第一个习惯** —— 名字你自己定。
+   **软习惯**（喝水）简单，所以不能跳，提醒到你做了为止。
+   **硬习惯**（健身）看当天情况，可以说「今天不做」。
 3. **今天要做的事** —— 一行一件，按先后顺序。
 4. **数据放哪** —— 就放这台机器（默认，什么都不用配），或者你自己的 Notion（手机上也能看）。
 5. **手** —— 看三种手势的动作，选一套样式（手套或猫爪），在桌面上真拍一下试试。
@@ -41,10 +45,7 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 
 引导最后一步是「试一下」：几句可以直接贴进 Claude Code 的话，看它怎么反应。
 
-设置完之后，点托盘 / 菜单栏图标打开的是首页：两个按钮，**重新走一遍设置** 和 **选择皮肤**（预览三种手势、桌面上真拍一下）。下面是所有记录：最近两周的待办按天排（今天的能点完成 / 今天不做）、在盯的习惯（记一笔 / 今天不做）、习惯的历史。
-右上角可以切中英文。
-
-重开一次 Claude Code 会话，就接上了。`/mcp` 里能看到 `shoulder-tap`，`/hooks` 里能看到四个钩子。
+设置完之后，同一个图标打开的是首页：**重新走一遍设置**、**选择皮肤**，下面是你的记录 —— 最近两周的待办、在盯的习惯、习惯的历史。右上角可以切中英文。
 
 ## 三、用
 
@@ -135,6 +136,7 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
   `Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name shoulder-tap`
 - **macOS**：菜单栏常驻，登录自启。取消：
   `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.shoulder-tap.tap.plist`
+  手出来了但不动？系统的**减弱动态效果**（系统设置 → 辅助功能 → 显示）开着，这里会尊重它：手停在伸得最远的那一帧，不逐帧播。想照常看动画，在 `~/.claude/shoulder-tap/config.json` 里写 `"motion": "always"`。
 - **Linux**：还没有，接口约定在 [desktop-linux/README.md](desktop-linux/README.md)。
 
 三个平台都从 `~/.claude/skills/shoulder-tap/ui/sprites/skins/<样式>/` 读手的图，想画一套自己的看那里的 README。
