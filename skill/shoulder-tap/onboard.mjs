@@ -4,8 +4,8 @@
  *
  *   node ~/.claude/skills/shoulder-tap/onboard.mjs [--hands | --setup]
  *
- * 同一页两种样子（ui/app.html）：还没设置过 → 五步引导（编程工具 → 第一个习惯 → 今天的事 → 数据放哪 → 手）；
- * 设置过 → 首页：「重新走一遍设置」「选择皮肤」两个入口，下面是待办和习惯的所有记录。
+ * 同一页（ui/app.html），默认是首页：「重新走一遍设置」「选择皮肤」两个入口，下面是待办和习惯的所有记录。
+ * --setup 直接进引导（编程工具 → 第一个习惯 → 今天的事 → 数据放哪 → 手 → 试一下）：只有第一次启动和安装时这么开。
  * 端口被占着说明已经开着一个，直接把浏览器指过去。页面半小时没请求就自己退出。
  */
 import fs from "node:fs";
@@ -177,12 +177,14 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && req.url.split("?")[0] === "/")
     return send(200, fs.readFileSync(path.join(HERE, "ui", "app.html"), "utf8"), "text/html; charset=utf-8");
-  const sprite = req.method === "GET" && /^\/skins\/([\w-]+)\/(tap|pat|snap)\.png$/.exec(req.url);
+  const sprite = req.method === "GET" && /^\/skins\/([\w-]+)\/(tap|pat|snap)\.(png|webp)$/.exec(req.url);
   if (sprite) {
     // current = 正在用的那套：打开页面时的加载动画要在数据到之前就知道用哪只手
     const skin = sprite[1] === "current" ? readConfig().skin ?? "glove" : sprite[1];
-    const file = path.join(SKINS, skin, sprite[2] + ".png");
-    return fs.existsSync(file) ? send(200, fs.readFileSync(file), "image/png") : send(404, { error: "not found" });
+    const base = path.join(SKINS, skin, sprite[2]);
+    // 网页要 webp（make-webp.py 生成）；自己加的皮肤只有 png 也照样能看
+    const [file, type] = sprite[3] === "webp" && fs.existsSync(base + ".webp") ? [base + ".webp", "image/webp"] : [base + ".png", "image/png"];
+    return fs.existsSync(file) ? send(200, fs.readFileSync(file), type) : send(404, { error: "not found" });
   }
   const route = routes[`${req.method} ${req.url}`];
   if (!route) return send(404, { error: "not found" });

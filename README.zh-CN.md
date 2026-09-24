@@ -113,7 +113,7 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 
    跑一下那个可执行文件，它就常驻在托盘 / 菜单栏了。
 
-6. **设置页**：`node ~/.claude/skills/shoulder-tap/onboard.mjs`。
+6. **设置页**：`node ~/.claude/skills/shoulder-tap/onboard.mjs --setup`。
 
 ## 桌面端
 

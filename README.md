@@ -112,7 +112,7 @@ If you'd rather not let a script touch `~/.claude`, do each step yourself:
 
    Run the executable once and it stays in the tray / menu bar.
 
-6. **Settings page**: `node ~/.claude/skills/shoulder-tap/onboard.mjs`.
+6. **Settings page**: `node ~/.claude/skills/shoulder-tap/onboard.mjs --setup`.
 
 ## Desktop
 

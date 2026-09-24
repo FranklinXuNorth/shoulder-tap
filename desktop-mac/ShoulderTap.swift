@@ -241,7 +241,7 @@ final class Resident: NSObject, NSApplicationDelegate {
 
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(incoming(_:)), name: notificationName, object: nil)
 
-        if !onboarded() { openSettings() } // 第一次打开：先把设置页拉起来
+        if !onboarded() { openPage(setup: true) } // 第一次打开：直接进引导；之后点图标都是首页
         if first.hasMessage { handle(first) }
     }
 
@@ -252,7 +252,8 @@ final class Resident: NSObject, NSApplicationDelegate {
 
     /// 设置页是 skill 里的 onboard.mjs：本机起一个小服务，浏览器打开，设完自己退出。
     /// LaunchAgent 起来的进程 PATH 很短，node 可能不在上面，所以走登录 shell 找。
-    @objc private func openSettings() {
+    @objc private func openSettings() { openPage(setup: false) }
+    private func openPage(setup: Bool) {
         let script = home.appendingPathComponent(".claude/skills/shoulder-tap/onboard.mjs").path
         guard FileManager.default.fileExists(atPath: script) else {
             // skill 被删了或只装了桌面端：说出来，别只写日志。
@@ -260,7 +261,7 @@ final class Resident: NSObject, NSApplicationDelegate {
         }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        p.arguments = ["-lc", "node \"$0\"", script]
+        p.arguments = ["-lc", "node \"$0\" \"$@\"", script] + (setup ? ["--setup"] : [])
         p.standardOutput = nil; p.standardError = nil
         do { try p.run() } catch { log("open settings: \(error.localizedDescription)") }
     }
