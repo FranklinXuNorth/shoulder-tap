@@ -1,8 +1,12 @@
-![shoulder-tap: tap tap, pat pat, snap](docs/hands-banner.gif)
+<div align="center">
 
-**English** | [中文](README.zh-CN.md)
+<img src="docs/hands-banner.gif" alt="Shoulder Tap: tap tap, pat pat, snap" width="760">
 
-# shoulder-tap 👀
+<h1>Shoulder Tap</h1>
+
+<a href="README.md"><img alt="English" src="https://img.shields.io/badge/English-0e7c7b?style=for-the-badge"></a> <a href="README.zh-CN.md"><img alt="中文" src="https://img.shields.io/badge/%E4%B8%AD%E6%96%87-6e7681?style=for-the-badge"></a>
+
+</div>
 
 Tell the model what you're doing today. From then on, whenever you drift to something else, it taps you on the shoulder before it starts.
 
