@@ -190,7 +190,7 @@ public static class Program
         if (resident)
         {
             tray = BuildTray(taps.Window, app, () => Handle(new TapRequest { Text = "试拍" }));
-            if (!Onboarded()) OpenSettings(); // 第一次打开：先把引导拉起来
+            if (!Onboarded()) OpenSettings("--setup"); // 第一次打开：直接进引导；之后点图标都是首页
             instance!.Listen(req => taps.Window.Dispatcher.BeginInvoke(() => Handle(req)));
         }
 

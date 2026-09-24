@@ -142,8 +142,8 @@ else {
 
 // 5. 设置页。桌面端在跑的话它已经打开了（第一次启动会自己开）；没有桌面端就在这里开，开着直到你点完成。
 console.log(`
-装好了。设置页会在浏览器里打开（没开的话：node "${path.join(skillDst, "onboard.mjs")}"）：
+装好了。设置页会在浏览器里打开（没开的话：node "${path.join(skillDst, "onboard.mjs")}" --setup）：
 接上 Claude Code / Codex、定第一个习惯、写下今天要做的事、选数据放哪。
 `);
 const hasDesktop = fs.existsSync(path.join(appDir, "shoulder-tap-tap.exe")) || fs.existsSync(path.join(appDir, "ShoulderTap.app"));
-if (!hasDesktop) spawnSync(process.execPath, [path.join(skillDst, "onboard.mjs")], { stdio: "inherit" });
+if (!hasDesktop) spawnSync(process.execPath, [path.join(skillDst, "onboard.mjs"), "--setup"], { stdio: "inherit" });

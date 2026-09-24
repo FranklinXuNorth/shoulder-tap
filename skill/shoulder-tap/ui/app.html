@@ -145,11 +145,9 @@
   /* 打开时的加载：手摆好响指的姿势等着，数据到了打一下，然后渐入 */
   #boot { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: grid; place-items: center; transition: opacity .45s ease; }
   #boot.out { opacity: 0; pointer-events: none; }
-  #boot .snap { width: 192px; height: 160px; background: url(/skins/current/snap.png) 0 0 / 1728px 160px no-repeat; image-rendering: pixelated; animation: ready 1.2s ease-in-out infinite; }
+  #boot .snap { width: 192px; height: 160px; background: url(/skins/current/snap.webp) 0 0 / 1728px 160px no-repeat; image-rendering: pixelated; animation: ready 1.2s ease-in-out infinite; }
   #boot .snap.go { animation: none; background-position: -192px 0; transform: scale(1.06); transition: transform .12s ease-out; }
   @keyframes ready { 50% { transform: translateY(-4px); } }
-  /* 手是黑白的，深色底上放一块浅色台子，跟面板里的预览台一样 */
-  #boot .pad { width: 232px; height: 200px; border-radius: 18px; background: var(--stage); display: grid; place-items: center; }
   main { transition: opacity .5s ease, transform .5s ease; }
   body.booting main { opacity: 0; transform: translateY(8px); }
   @media (prefers-reduced-motion: reduce) { #boot, main, #boot .snap { transition: none; animation: none; } }
@@ -162,7 +160,7 @@
 </style>
 
 <body data-mode="wizard" class="booting">
-<div id="boot"><div class="pad"><div class="snap" id="bootSnap"></div></div></div>
+<div id="boot"><div class="snap" id="bootSnap"></div></div>
 <main>
   <header class="top">
     <div class="brand"><div class="logo" id="logo"></div>shoulder-tap</div>
@@ -176,7 +174,7 @@
   <!-- 首页：两个入口 + 所有记录 -->
   <div id="home">
     <div class="actions">
-      <button class="action" data-go="setup"><span class="ico">↻</span><span><b data-t="goSetup"></b><small data-t="goSetupWhy"></small></span></button>
+      <button class="action" data-go="setup"><span class="ico">↻</span><span><b id="goSetupLabel"></b><small data-t="goSetupWhy"></small></span></button>
       <button class="action" data-go="hands"><span class="ico"><div id="skinIco"></div></span><span><b data-t="goHands"></b><small data-t="goHandsWhy"></small></span></button>
     </div>
     <section class="card">
@@ -337,7 +335,7 @@
       n1: "密钥在 notion.so/profile/integrations 新建一个 integration 拿。", n2: "那个页面右上角 ⋯ → Connections → 加上它。", n3: "已经记在本地的习惯和今天的事会一起搬过去。",
       needBoth: "密钥和页面链接都要填。", saving: "保存中……", save: "保存",
       uninstall: "卸载（数据留着；加 --purge 一起删）：", backHome: "← 回到首页",
-      goSetup: "重新走一遍设置", goSetupWhy: "编程工具、习惯、今天的事、数据放哪", goHands: "选择皮肤", goHandsWhy: "预览三种手势，换一套手",
+      goSetup: "重新走一遍设置", goSetupFirst: "开始设置", goSetupWhy: "编程工具、习惯、今天的事、数据放哪", goHands: "选择皮肤", goHandsWhy: "预览三种手势，换一套手",
       tasksH: "待办", todayLabel: "今天", notDone: "没做完",
       tryH: "试一下", tryWhy: "都在你平时用的对话框里说，不用记命令。",
       try1: "重开一次 Claude Code（新会话才看得到 shoulder-tap）。",
@@ -351,7 +349,7 @@
         "Claude Code：", "", "```bash", m.command, "```", "",
         "Codex：加进 ~/.codex/config.toml（已有 [mcp_servers.shoulder-tap] 就替换）", "", "```toml", m.codexBlock, "```", "",
         "接完用 `claude mcp get shoulder-tap` 确认是 stdio、Connected，然后打开设置页让我填剩下的：", "",
-        "```bash", `node ${JSON.stringify(m.onboard)}`, "```", "", "最后提醒我重开一次会话。",
+        "```bash", `node ${JSON.stringify(m.onboard)} --setup`, "```", "", "最后提醒我重开一次会话。",
       ].join("\n"),
     },
     en: {
@@ -383,7 +381,7 @@
       n1: "Create an integration at notion.so/profile/integrations to get the token.", n2: "On that page: ⋯ → Connections → add it.", n3: "Habits and tasks already saved locally move over too.",
       needBoth: "Both token and page link are needed.", saving: "Saving…", save: "Save",
       uninstall: "Uninstall (keeps data; add --purge to delete it): ", backHome: "← Back",
-      goSetup: "Run setup again", goSetupWhy: "Coding tools, habits, today, where data lives", goHands: "Choose a skin", goHandsWhy: "Preview the three gestures, switch hands",
+      goSetup: "Run setup again", goSetupFirst: "Start setup", goSetupWhy: "Coding tools, habits, today, where data lives", goHands: "Choose a skin", goHandsWhy: "Preview the three gestures, switch hands",
       tasksH: "Tasks", todayLabel: "Today", notDone: "not done",
       tryH: "Try it", tryWhy: "Just talk in the chat you already use. No commands to remember.",
       try1: "Restart Claude Code (a new session picks up shoulder-tap).",
@@ -397,7 +395,7 @@
         "Claude Code:", "", "```bash", m.command, "```", "",
         "Codex: add to ~/.codex/config.toml (replace an existing [mcp_servers.shoulder-tap]):", "", "```toml", m.codexBlock, "```", "",
         "Then confirm with `claude mcp get shoulder-tap` (stdio, Connected) and open the settings page so I can fill in the rest:", "",
-        "```bash", `node ${JSON.stringify(m.onboard)}`, "```", "", "Finally remind me to restart the session.",
+        "```bash", `node ${JSON.stringify(m.onboard)} --setup`, "```", "", "Finally remind me to restart the session.",
       ].join("\n"),
     },
   };
@@ -421,7 +419,7 @@
   function route() {
     const h = location.hash.slice(1);
     const was = mode;
-    mode = !S?.onboarded || h === "setup" ? "wizard" : h === "hands" ? "hands" : "home";
+    mode = h === "setup" ? "wizard" : h === "hands" ? "hands" : "home";
     if (mode === "wizard" && was !== "wizard") step = 0;
     render();
   }
@@ -433,8 +431,9 @@
     $("back").disabled = step === 0;
     $("skip").classList.toggle("hidden", step === STEPS.length - 1);
     $("next").textContent = step === STEPS.length - 1 ? t("finish") : t("next");
-    // 返回首页：换皮肤时总有；引导里只有设置过的人才有（第一次没有首页可回）
-    $("backlink").classList.toggle("hidden", mode === "home" || (mode === "wizard" && !S?.onboarded));
+    $("backlink").classList.toggle("hidden", mode === "home");
+    // 还没走完设置：首页那个按钮叫「开始设置」
+    $("goSetupLabel").textContent = t(S?.onboarded === false ? "goSetupFirst" : "goSetup");
     document.title = mode === "wizard" ? t("title") : "shoulder-tap";
     if (visible.includes("hands")) playAll();
   }
@@ -458,7 +457,7 @@
   }
   function renderData() {
     renderClients(); renderToday(); renderTasks(); renderHabits(); renderHands();
-    $("logo").style.backgroundImage = $("skinIco").style.backgroundImage = `url(/skins/${S.skin}/tap.png)`;
+    $("logo").style.backgroundImage = $("skinIco").style.backgroundImage = `url(/skins/${S.skin}/tap.webp)`;
     $("uninstallCmd").textContent = `node "${S.mcp.onboard.replace(/onboard\.mjs$/, "uninstall.mjs")}"`;
   }
 
@@ -584,11 +583,11 @@
     $("gestures").innerHTML = GESTURES.map((g) => `
       <div class="gesture">
         <div class="head"><b>${g.key === "tap" ? "tap tap" : g.key === "pat" ? "pat pat" : "snap"}</b><span>${t(g.why)}</span><button class="small" data-try="${g.mode}" data-text="${g.text}">${t("tryDesk")}</button></div>
-        <div class="stage" data-stage="${g.key}"><span class="bubble">${esc(t(g.text))}</span><div class="sprite" style="background-image:url(/skins/${S.skin}/${g.key}.png);background-position:-1536px 0"></div></div>
+        <div class="stage" data-stage="${g.key}"><span class="bubble">${esc(t(g.text))}</span><div class="sprite" style="background-image:url(/skins/${S.skin}/${g.key}.webp);background-position:-1536px 0"></div></div>
       </div>`).join("");
     $("skins").innerHTML = S.skins.map((name) => `
       <button class="skin ${name === S.skin ? "on" : ""}" data-skin="${name}">
-        <div class="thumb"><div style="background-image:url(/skins/${name}/tap.png)"></div></div>
+        <div class="thumb"><div style="background-image:url(/skins/${name}/tap.webp)"></div></div>
         <div class="name">${esc(name)}${name === S.skin ? `<i>${t("inUse")}</i>` : ""}</div>
       </button>`).join("");
   }
@@ -668,7 +667,7 @@
 
   applyLang();
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  Promise.all([load().then(() => { route(); applyLang(); }).catch((e) => say("connect", e.message, true)), sleep(2000)])
+  Promise.all([load().then(() => { route(); applyLang(); }).catch((e) => say("connect", e.message, true)), sleep(1000)])
     .then(async () => {
       $("bootSnap").classList.add("go"); // 打响
       await sleep(260);

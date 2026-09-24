@@ -13,7 +13,7 @@ description: 接上 shoulder-tap（设置页、MCP、存储），以及在用户
 所有设置都在设置页里点：
 
 ```bash
-node ~/.claude/skills/shoulder-tap/onboard.mjs
+node ~/.claude/skills/shoulder-tap/onboard.mjs --setup
 ```
 
 它会在浏览器里打开一个只给本机看的页面，五步：接上 Claude Code / Codex 的 MCP → 第一个习惯 →
