@@ -1,0 +1,6 @@
+cat-paw/tap: 9 frames, 96x80, palette checked, exported from editable source
+cat-paw/pat: 9 frames, 96x80, palette checked, exported from editable source
+cat-paw/snap: 9 frames, 96x80, palette checked, exported from editable source
+glove/tap: 9 frames, 96x80, palette checked, exported from editable source
+glove/pat: 9 frames, 96x80, palette checked, exported from editable source
+glove/snap: 9 frames, 96x80, palette checked, exported from editable source

@@ -1,0 +1,4 @@
+Aseprite 1.3.18.6
+Six editable 96x80 animations, nine frames each.
+Cat: separate fur, outline, details, hidden before-repair reference.
+Glove: white fill and black ink layers; all nine frames pixel-identical to current PNG sheets.
