@@ -27,6 +27,6 @@ for lang, whens in WHEN.items():
         draw.rounded_rectangle((cx - half, top, cx + half, top + 2 * pad_y + 2 * line - 6), radius=14, fill=WHITE, outline=INK, width=2)
         draw.text((cx, top + pad_y), name, font=font, fill=INK, anchor="ma")
         draw.text((cx, top + pad_y + line), when, font=font, fill=MUTED, anchor="ma")
-    out = root / "docs" / ("banner.png" if lang == "zh" else "banner.en.png")
+    out = root / "docs" / ("hands-banner.png" if lang == "zh" else "hands-banner.en.png")
     banner.save(out, optimize=True)
     print(out, banner.size)

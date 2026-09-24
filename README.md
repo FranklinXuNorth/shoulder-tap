@@ -1,4 +1,4 @@
-![shoulder-tap: tap tap, pat pat, snap](docs/banner.en.png)
+![shoulder-tap: tap tap, pat pat, snap](docs/hands-banner.en.png)
 
 **English** | [中文](README.zh-CN.md)
 
