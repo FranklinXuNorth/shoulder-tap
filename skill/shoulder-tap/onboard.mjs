@@ -18,6 +18,7 @@ import { callText } from "./core/tools.mjs";
 import { STATE_DIR, loadEnv, readConfig, writeConfig, machineTz, openStore } from "./core/store.mjs";
 import * as notion from "./core/focus.mjs";
 import * as local from "./core/local.mjs";
+import { claudeDesktopState, addToClaudeDesktop } from "./core/claude-desktop.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 47823;
@@ -49,6 +50,7 @@ function mcpState() {
   return {
     claude: { installed: has("claude"), connected: got.status === 0 && got.stdout.includes("mcp.mjs"), remote: got.status === 0 && !got.stdout.includes("mcp.mjs") },
     codex: { installed: has("codex") || fs.existsSync(path.dirname(CODEX)), connected: codexText.includes("[mcp_servers.shoulder-tap]") },
+    desktop: claudeDesktopState(), // Claude Desktop：只有工具，没有钩子
     command: ["claude", ...claudeArgs].map(quote).join(" "),
     codexBlock: codexBlock.trim(),
     onboard: path.join(HERE, "onboard.mjs"),
@@ -67,6 +69,10 @@ function connect(client) {
     const text = fs.existsSync(CODEX) ? fs.readFileSync(CODEX, "utf8") : "";
     if (!text.includes("[mcp_servers.shoulder-tap]")) fs.writeFileSync(CODEX, text.trimEnd() + "\n" + codexBlock);
     return "Codex 接上了（写进了 ~/.codex/config.toml）。重开一次 Codex 生效。";
+  }
+  if (client === "desktop") {
+    addToClaudeDesktop(process.execPath, MCP);
+    return "Claude Desktop 接上了。完全退出它（托盘图标右键 Quit）再打开才生效。它没有钩子：不会自己拦你、拍你，你让它查清单、记习惯时才调工具。";
   }
   throw new Error("不认识的客户端");
 }
