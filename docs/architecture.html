@@ -105,6 +105,42 @@ flowchart LR
     </tbody>
   </table></div>
 
+  <h2>数据长什么样（Notion）</h2>
+  <p class="sub">一个库「Shoulder Tap」，靠 <code>Kind</code> 区分两种行。本地 <code>data.json</code> 是同一个模型。</p>
+  <div class="scroll"><table>
+    <thead><tr><th>字段</th><th>类型</th><th><code>task</code> 行</th><th><code>habit</code> 行</th></tr></thead>
+    <tbody>
+      <tr><td><code>Name</code></td><td>title</td><td>步骤本身</td><td>习惯名</td></tr>
+      <tr><td><code>Kind</code></td><td>select</td><td><code>task</code></td><td><code>habit</code></td></tr>
+      <tr><td><code>ID</code></td><td>rich_text</td><td><code>t-a3f91c</code></td><td><code>h-8b12d4</code></td></tr>
+      <tr><td><code>Order</code></td><td>number</td><td>第几条</td><td>—</td></tr>
+      <tr><td><code>Status</code></td><td>select</td><td>pending / done / dropped</td><td>pending = 当前激活；done = 做了；dropped = 跳过或停用</td></tr>
+      <tr><td><code>Day</code></td><td>date</td><td>哪一天（UTC，读时按时区换算）</td><td>这一次被激活的时刻（UTC）</td></tr>
+      <tr><td><code>TZ</code></td><td>rich_text</td><td>写这行时的时区</td><td>同左，<code>At</code> 按它算</td></tr>
+      <tr><td><code>EveryMinutes</code></td><td>number</td><td>—</td><td>隔多久一次（和 <code>At</code> 二选一）</td></tr>
+      <tr><td><code>At</code></td><td>rich_text</td><td>—</td><td>每天几点，<code>HH:MM</code></td></tr>
+      <tr><td><code>Last</code></td><td>date</td><td>—</td><td>这一次做完（或跳过）的时刻</td></tr>
+      <tr><td><code>Type</code></td><td>select</td><td>—</td><td><code>soft</code>（简单随手，不能跳过）/ <code>hard</code>（看情况，可以说今天不做）</td></tr>
+      <tr><td><code>Note</code></td><td>rich_text</td><td>执行细节</td><td>备注，跳过的原因也写这</td></tr>
+    </tbody>
+  </table></div>
+  <p class="sub">习惯<b>一次一行</b>：做了 → 这行 done，生成下一行 pending；跳过 → 这行 dropped，下一行从明天算；停用 → 这行 dropped，不再生成。
+    历史 = Kind = habit 且 Status ≠ pending。已有的库会被接管，只补缺的字段；老库里没有 <code>Status</code> 的习惯行当作激活中。</p>
+
+  <h2>可选：本机直连 Jev</h2>
+  <p class="sub"><code>.env</code> 里填 <code>JEV_API_KEY</code>（<code>JEV_BASE_URL</code> 默认 <code>https://api.typesafe.ai</code>），<code>watch.mjs</code> 会在你开口时直接从本机请求 Jev 做首轮「相不相关」比较；
+    不填就由对话模型自己判。2 秒超时，超了静默退回。<code>SHOULDER_TAP_LOCAL_JEV=0</code> 临时关掉。只发两行字，不碰其它数据。</p>
+
+  <h2>测试</h2>
+  <div class="scroll"><table>
+    <tbody>
+      <tr><td><code>node skill/shoulder-tap/core/tools.test.mjs</code></td><td>本地存储走一遍全部工具（临时目录）</td></tr>
+      <tr><td><code>node skill/shoulder-tap/core/protocol.test.mjs</code></td><td>习惯到点的算术</td></tr>
+      <tr><td><code>node skill/shoulder-tap/completion.test.mjs</code></td><td>结尾那只手的识别</td></tr>
+      <tr><td><code>dotnet build desktop-tests -c Release</code> 然后跑 <code>ShoulderTap.Tests.exe &lt;exe 路径&gt;</code></td><td>Windows 桌面端</td></tr>
+    </tbody>
+  </table></div>
+
   <h2>什么会离开这台机器</h2>
   <div class="scroll"><table>
     <thead><tr><th>什么</th><th>去哪</th><th>什么时候</th></tr></thead>
