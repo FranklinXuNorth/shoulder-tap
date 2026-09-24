@@ -15,9 +15,9 @@ assert.match(await call("add_focus", { tz, task: "急事", position: 1 }), /▸ 
 assert.match(await call("complete_focus", { tz, position: 1 }), /下一条是第 2 条：写作品集/);
 assert.match(await call("check_focus", { tz, activity: "刷视频" }), /用户现在要做的是：「刷视频」/);
 
-assert.match(await call("add_habit", { tz, name: "喝水", kind: "soft", every_minutes: 60 }), /软习惯，不许跳过/);
-assert.match(await call("add_habit", { tz, name: "健身", kind: "hard", at: "22:30" }), /硬习惯，可以说今天不做/);
-assert.match(await call("log_habit", { tz, habit: "喝水", skip: true, note: "懒" }), /是软习惯，不能跳过/);
+assert.match(await call("add_habit", { tz, name: "喝水", kind: "soft", every_minutes: 60 }), /软习惯，随手就能做，不许跳过/);
+assert.match(await call("add_habit", { tz, name: "健身", kind: "hard", at: "22:30" }), /硬习惯，看当天情况，可以说今天不做/);
+assert.match(await call("log_habit", { tz, habit: "喝水", skip: true, note: "懒" }), /是软习惯，随手就能做的事不能跳过/);
 assert.match(await call("log_habit", { tz, habit: "喝了水" }), /记下了：喝水/);
 assert.match(await call("log_habit", { tz, habit: "健身", skip: true, note: "腿疼" }), /健身 今天跳过/);
 assert.match(await call("setup", { notion_page: "x" }), /本地存储，不需要建库/);
