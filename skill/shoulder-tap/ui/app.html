@@ -24,7 +24,22 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 ui-sans-serif, system-ui, "Microsoft YaHei UI", "PingFang SC", sans-serif; }
-  main { max-width: 680px; margin: 0 auto; padding: 28px 16px 72px; }
+  /* 整页锁在一屏高：页面不滚，只有卡片里面的列表滚 */
+  html, body { height: 100%; overflow: hidden; }
+  main { max-width: 880px; margin: 0 auto; padding: 20px 16px 14px; height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+  main > * { flex: none; }
+  main > section.card:not(.hidden) { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; } /* 引导、选皮肤：卡片自己滚 */
+  #home { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .records { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.35fr 1fr; gap: 12px; }
+  .records .card { margin: 0; min-height: 0; display: flex; flex-direction: column; }
+  .records .card > * { flex: none; }
+  #taskDays { flex: 1 1 auto; min-height: 0; }
+  #habitList { flex: 0 1 auto; min-height: 60px; max-height: 45%; }
+  #historyList { flex: 1 1 auto; min-height: 40px; }
+  .foot { flex: none; margin: 10px 0 0; font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .foot code { font: 11.5px var(--mono); }
+  @media (max-width: 720px) { .records { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+  @media (max-height: 560px) { .actions .action small { display: none; } .actions .action { padding: 10px 14px; } }
   button { font: inherit; padding: 8px 16px; border-radius: 7px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); cursor: pointer; }
   button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
   button.ghost { border-color: transparent; background: transparent; color: var(--muted); }
@@ -44,7 +59,7 @@
 
   /* 首页：两个入口 */
   .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
-  @media (max-width: 520px) { .actions { grid-template-columns: 1fr; } }
+  @media (max-width: 520px) { .action small { display: none; } .action { padding: 10px 12px; gap: 10px; } }
   .action { display: flex; gap: 14px; align-items: center; text-align: left; padding: 16px 18px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); }
   .action:hover { border-color: var(--accent); }
   .action b { display: block; font-size: 15.5px; }
@@ -53,8 +68,6 @@
   .action .ico div { width: 48px; height: 40px; background-size: 432px 40px; background-repeat: no-repeat; image-rendering: pixelated; }
   /* 记录在卡片里面滚，页面本身不跟着变长；日期标签滚动时贴在顶上 */
   .scroll { overflow-y: auto; overscroll-behavior: contain; margin-right: -10px; padding-right: 10px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-  #taskDays { max-height: min(46vh, 420px); }
-  #historyList { max-height: min(28vh, 220px); }
   .day { font-size: 13px; color: var(--muted); font-weight: 600; margin: 0; padding: 14px 0 4px; display: flex; gap: 8px; position: sticky; top: 0; z-index: 1; background: var(--surface); }
   .day:first-child { padding-top: 2px; }
   .day span { font-weight: 400; color: var(--faint); }
@@ -130,23 +143,26 @@
   .gesture .head b { font-weight: 600; }
   .gesture .head span { color: var(--muted); font-size: 13.5px; }
   .gesture .head button { margin-left: auto; }
-  .stage { position: relative; height: 176px; background: var(--stage); border-top: 1px solid var(--stage-line); cursor: pointer; overflow: hidden; }
+  .stage { position: relative; height: clamp(84px, 14vh, 176px); display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 6px 0 6px 12px; background: var(--stage); border-top: 1px solid var(--stage-line); cursor: pointer; overflow: hidden; }
   .stage::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 3px; background: #181818; opacity: .12; } /* 屏幕右缘 */
-  .sprite { position: absolute; right: 0; top: 8px; width: 192px; height: 160px; background-repeat: no-repeat; background-size: 1728px 160px; image-rendering: pixelated; }
+  .sprite { flex: none; height: 100%; aspect-ratio: 96 / 80; background-repeat: no-repeat; background-size: 900% 100%; image-rendering: pixelated; }
   /* 跟桌面端那条字一样：黑框白底、切角的像素框，挂在手的左边 */
-  .bubble { position: absolute; right: 204px; top: 50%; transform: translateY(-50%); max-width: calc(100% - 220px);
+  .bubble { flex: 0 1 auto; min-width: 0;
     background: #fff; color: #181818; padding: 7px 12px; font: 14px/1.4 var(--mono);
     box-shadow: 0 -2px 0 #181818, 0 2px 0 #181818, -2px 0 0 #181818, 2px 0 0 #181818; }
-  @media (max-width: 480px) { .bubble { right: 150px; max-width: calc(100% - 160px); font-size: 12.5px; } .sprite { transform: scale(.75); transform-origin: right center; } }
+  @media (max-width: 480px) { .bubble { font-size: 12.5px; } }
+  /* 宽屏：手势在左、样式在右，一屏放得下；窄屏叠起来，卡片里面滚 */
+  .hands-grid { display: grid; grid-template-columns: 1fr 200px; gap: 18px; align-items: start; }
+  @media (max-width: 720px) { .hands-grid { grid-template-columns: 1fr; } .hands-grid h3 { margin-top: 8px !important; } }
   .skins { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
   .skin { border: 1px solid var(--line); border-radius: 9px; overflow: hidden; cursor: pointer; background: var(--surface); padding: 0; text-align: left; }
   .skin.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-  .skin .thumb { height: 92px; background: var(--stage); display: grid; place-items: center; }
+  .skin .thumb { height: clamp(56px, 9vh, 92px); background: var(--stage); display: grid; place-items: center; }
   .skin .thumb div { width: 96px; height: 80px; background-size: 864px 80px; background-repeat: no-repeat; image-rendering: pixelated; }
   .skin .name { padding: 8px 12px; font-size: 14px; display: flex; justify-content: space-between; }
   .skin .name i { font-style: normal; color: var(--accent); font-size: 13px; }
 
-  /* 打开时的加载：手摆好响指的姿势等着，页面真的就绪后 0.5 秒打一下，然后渐入 */
+  /* 打开时的加载：手摆好响指的姿势等着，页面就绪就打一下，停 0.25 秒后渐入 */
   #boot { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: grid; place-items: center; transition: opacity .45s ease; }
   #boot.out { opacity: 0; pointer-events: none; }
   #boot .snap { width: 192px; height: 160px; background: url(/skins/current/snap.webp) 0 0 / 1728px 160px no-repeat; image-rendering: pixelated; animation: ready 1.2s ease-in-out infinite; }
@@ -181,19 +197,21 @@
       <button class="action" data-go="setup"><span class="ico">↻</span><span><b id="goSetupLabel"></b><small data-t="goSetupWhy"></small></span></button>
       <button class="action" data-go="hands"><span class="ico"><div id="skinIco"></div></span><span><b data-t="goHands"></b><small data-t="goHandsWhy"></small></span></button>
     </div>
-    <section class="card">
-      <div class="row" style="justify-content:space-between"><h2 data-t="tasksH"></h2><span class="progress" id="progress"></span></div>
-      <div id="taskDays" class="scroll"></div>
-      <div class="msg" id="msg-tasks"></div>
-    </section>
-    <section class="card">
-      <h2 data-t="habitsH"></h2>
-      <ul class="items" id="habitList"></ul>
-      <h3 data-t="historyH"></h3>
-      <ul class="hist scroll" id="historyList"></ul>
-      <div class="msg" id="msg-habits"></div>
-    </section>
-    <p class="why" style="font-size:13px"><span data-t="uninstall"></span><code id="uninstallCmd" style="font:12px var(--mono);word-break:break-all"></code></p>
+    <div class="records">
+      <div class="card">
+        <div class="row" style="justify-content:space-between"><h2 data-t="tasksH"></h2><span class="progress" id="progress"></span></div>
+        <div id="taskDays" class="scroll"></div>
+        <div class="msg" id="msg-tasks"></div>
+      </div>
+      <div class="card">
+        <h2 data-t="habitsH"></h2>
+        <ul class="items scroll" id="habitList"></ul>
+        <h3 data-t="historyH"></h3>
+        <ul class="hist scroll" id="historyList"></ul>
+        <div class="msg" id="msg-habits"></div>
+      </div>
+    </div>
+    <p class="foot"><span data-t="uninstall"></span><code id="uninstallCmd"></code></p>
   </div>
 
   <div class="wizard-only">
@@ -239,10 +257,14 @@
   <section class="card" id="sec-hands">
     <h2 data-t="handsH"></h2>
     <p class="why" data-t="handsWhy"></p>
-    <div class="gestures" id="gestures"></div>
-    <h3 data-t="styleH"></h3>
-    <div class="skins" id="skins"></div>
-    <p class="why" style="margin:10px 0 0;font-size:13px" data-t="styleHint"></p>
+    <div class="hands-grid">
+      <div class="gestures" id="gestures"></div>
+      <div>
+        <h3 data-t="styleH" style="margin-top:0"></h3>
+        <div class="skins" id="skins"></div>
+        <p class="why" style="margin:10px 0 0;font-size:13px" data-t="styleHint"></p>
+      </div>
+    </div>
     <div class="msg" id="msg-hands"></div>
   </section>
 
@@ -579,7 +601,7 @@
     const t0 = performance.now();
     const tick = () => {
       const i = g.ends.findIndex((e) => performance.now() - t0 < e);
-      el.style.backgroundPosition = `-${(i < 0 ? 8 : i) * 192}px 0`;
+      el.style.backgroundPosition = `${(i < 0 ? 8 : i) * 12.5}% 0`; // 9 帧：第 i 帧在 i/8
       if (i >= 0) timers[key] = setTimeout(tick, 16);
     };
     tick();
@@ -589,7 +611,7 @@
     $("gestures").innerHTML = GESTURES.map((g) => `
       <div class="gesture">
         <div class="head"><b>${g.key === "tap" ? "tap tap" : g.key === "pat" ? "pat pat" : "snap"}</b><span>${t(g.why)}</span><button class="small" data-try="${g.mode}" data-text="${g.text}">${t("tryDesk")}</button></div>
-        <div class="stage" data-stage="${g.key}"><span class="bubble">${esc(t(g.text))}</span><div class="sprite" style="background-image:url(/skins/${S.skin}/${g.key}.webp);background-position:-1536px 0"></div></div>
+        <div class="stage" data-stage="${g.key}"><span class="bubble">${esc(t(g.text))}</span><div class="sprite" style="background-image:url(/skins/${S.skin}/${g.key}.webp);background-position:100% 0"></div></div>
       </div>`).join("");
     $("skins").innerHTML = S.skins.map((name) => `
       <button class="skin ${name === S.skin ? "on" : ""}" data-skin="${name}">
@@ -673,7 +695,7 @@
 
   applyLang();
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  // 真的加载好了才打响指：数据到了、页面画出来了、要用的手的图解码完了、字体好了。然后再停 0.5 秒。
+  // 真的加载好了就打响指，不额外等：数据到了、页面画出来了、要用的手的图解码完了、字体好了。
   const decoded = () => Promise.all(["tap", "pat", "snap"].map((g) => {
     const img = new Image(); img.src = `/skins/${S.skin}/${g}.webp`; return img.decode().catch(() => {});
   }));
@@ -683,10 +705,9 @@
   load().then(() => { route(); applyLang(); }).catch((e) => say("connect", e.message, true))
     .then(() => capped(Promise.all([S && decoded(), document.fonts.ready]), 2000))
     .then(() => capped(painted(), 200))
-    .then(() => sleep(500))
     .then(async () => {
       $("bootSnap").classList.add("go"); // 打响
-      await sleep(260);
+      await sleep(250); // 打完停一下再渐入
       document.body.classList.remove("booting");
       $("boot").classList.add("out");
       await sleep(500);

@@ -88,7 +88,7 @@ flowchart LR
     <tbody>
       <tr><td><code>mcp.mjs</code></td><td>skill 目录</td><td>本机 stdio MCP。<code>check_focus</code>、<code>set_focus</code>、<code>add_focus</code>、<code>complete_focus</code>、<code>add_habit</code>、<code>log_habit</code>、<code>stop_habit</code>、<code>habit_history</code>、<code>setup</code>。协议手写，没有依赖</td></tr>
       <tr><td><code>watch.mjs</code></td><td>skill 目录，挂在 Claude Code 的四个钩子上</td><td>你开口时把今天的清单塞进模型上下文（读缓存，不等网络）；模型说完一轮时看结尾有哪只手就拍哪下；模型弹问题时打响指</td></tr>
-      <tr><td><code>onboard.mjs</code> + <code>ui/app.html</code></td><td>skill 目录</td><td>托盘 / 菜单栏点一下打开的那一页。打开时先显示响指的手；数据、图、字体都就绪并画出来之后再停 0.5 秒，打一下响指，渐入。第一次是五步引导加一步「试一下」；之后是首页：「重新走一遍设置」「选择皮肤」两个入口，下面是最近两周的待办、在盯的习惯和习惯历史。只监听 127.0.0.1，只认同源请求，页面半小时没动静自己退出</td></tr>
+      <tr><td><code>onboard.mjs</code> + <code>ui/app.html</code></td><td>skill 目录</td><td>托盘 / 菜单栏点一下打开的那一页。打开时先显示响指的手；数据、图、字体都就绪并画出来就打一下响指，停 0.25 秒后渐入。第一次是五步引导加一步「试一下」；之后是首页：「重新走一遍设置」「选择皮肤」两个入口，下面是最近两周的待办、在盯的习惯和习惯历史。只监听 127.0.0.1，只认同源请求，页面半小时没动静自己退出</td></tr>
       <tr><td><code>core/store.mjs</code></td><td>skill 目录</td><td>选后端：<code>config.json</code> 里的 <code>storage</code>。<code>local.mjs</code> 和 <code>focus.mjs</code>（Notion）是同一套函数</td></tr>
       <tr><td><code>shoulder-tap-tap</code></td><td><code>~/.claude/shoulder-tap/app</code></td><td>屏幕右缘那只手：一轮做完打响指，模型问你话拍拍你，跑偏或习惯到点 taptap。Windows 托盘 / macOS 菜单栏常驻，开机自启</td></tr>
     </tbody>
