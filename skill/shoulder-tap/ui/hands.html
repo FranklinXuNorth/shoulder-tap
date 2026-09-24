@@ -17,13 +17,15 @@
   h1 { font-size: 26px; margin: 0; }
   .sub { color: var(--muted); margin: 6px 0 24px; }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .gestures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  @media (max-width: 480px) { .gestures { grid-template-columns: 1fr; } }
-  .g { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 10px 12px; text-align: center; cursor: pointer; }
+  .gestures { display: grid; gap: 10px; }
+  .g { display: grid; grid-template-columns: 192px 1fr auto; gap: 14px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; cursor: pointer; }
+  @media (max-width: 560px) { .g { grid-template-columns: 1fr; } }
   .g:hover { border-color: var(--accent); }
-  .frame { width: 192px; height: 160px; margin: 0 auto 8px; background-repeat: no-repeat; background-size: 1728px 160px; image-rendering: pixelated; }
+  .frame { width: 192px; height: 160px; background-repeat: no-repeat; background-size: 1728px 160px; image-rendering: pixelated; }
   .g b { display: block; }
   .g span { color: var(--muted); font-size: 13px; }
+  /* 跟桌面端那条字一样：黑框白底的像素框，手旁边一小条。 */
+  .caption { display: inline-block; margin-top: 8px; padding: 6px 10px; border: 2px solid #181818; box-shadow: 2px 2px 0 #181818; background: #fff; color: #181818; font: 13px/1.4 ui-monospace, "Fusion Pixel 12px Prop zh_hans", Consolas, monospace; max-width: 100%; }
   h2 { font-size: 15px; margin: 28px 0 8px; }
   .skins { display: grid; gap: 8px; }
   .opt { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: var(--surface); }
@@ -45,9 +47,9 @@
   <p class="sub" data-t="sub"></p>
 
   <div class="gestures">
-    <div class="g" data-g="tap"><div class="frame"></div><b>tap tap</b><span data-t="tapWhy"></span></div>
-    <div class="g" data-g="pat"><div class="frame"></div><b>pat pat</b><span data-t="patWhy"></span></div>
-    <div class="g" data-g="snap"><div class="frame"></div><b>snap</b><span data-t="snapWhy"></span></div>
+    <div class="g" data-g="tap"><div class="frame"></div><div><b>tap tap</b><span data-t="tapWhy"></span><br><span class="caption" data-t="tapText"></span></div><button data-try="tap" data-t="try"></button></div>
+    <div class="g" data-g="pat"><div class="frame"></div><div><b>pat pat</b><span data-t="patWhy"></span><br><span class="caption" data-t="patText"></span></div><button data-try="complete" data-t="try"></button></div>
+    <div class="g" data-g="snap"><div class="frame"></div><div><b>snap</b><span data-t="snapWhy"></span><br><span class="caption" data-t="snapText"></span></div><button data-try="snap" data-t="try"></button></div>
   </div>
 
   <h2 data-t="skinH"></h2>
@@ -59,11 +61,13 @@
 <script>
   const $ = (id) => document.getElementById(id);
   const T = {
-    zh: { title: "手", sub: "点一下看动作。选一套你想看到的样子。", done: "完成", lang: "English",
+    zh: { title: "手", sub: "点一行看动作，「桌面上试」是真的拍。选一套你想看到的样子。", done: "完成", lang: "English", try: "桌面上试",
       tapWhy: "跑偏了 / 习惯到点", patWhy: "模型在等你回答", snapWhy: "这轮做完了",
+      tapText: "喝水 —— 45 分钟没动了", patText: "这条算完成了吗？", snapText: "做完了：README 加了卸载那节", noDesktop: "这台机器没装桌面端。",
       skinH: "样式", skinHint: "想加一套：在 ui/sprites/skins/ 下建个文件夹，放 tap.png、pat.png、snap.png（各 864×80，9 帧）。", saved: "换好了，下次拍就是它。", fail: "没成功" },
-    en: { title: "Hands", sub: "Click to play. Pick the look you want.", done: "Done", lang: "中文",
+    en: { title: "Hands", sub: "Click a row to play; “Try on desktop” really taps. Pick the look you want.", done: "Done", lang: "中文", try: "Try on desktop",
       tapWhy: "drifted / habit due", patWhy: "model is waiting for you", snapWhy: "turn finished",
+      tapText: "Drink water — 45 min overdue", patText: "Is this one done?", snapText: "Done: README got an uninstall section", noDesktop: "No desktop app on this machine.",
       skinH: "Style", skinHint: "To add one: make a folder under ui/sprites/skins/ with tap.png, pat.png, snap.png (864×80, 9 frames each).", saved: "Switched. Next tap uses it.", fail: "Failed" },
   };
   let lang = localStorage.getItem("lang") || (navigator.language.startsWith("zh") ? "zh" : "en");
@@ -99,6 +103,12 @@
     });
   }
   document.querySelectorAll(".g").forEach((c) => c.onclick = () => play(c));
+  document.querySelectorAll("[data-try]").forEach((b) => b.onclick = async (e) => {
+    e.stopPropagation();
+    const mode = b.dataset.try, text = t({ tap: "tapText", complete: "patText", snap: "snapText" }[mode]);
+    try { const r = await api("POST", "/api/tap", { mode, text }); $("msg").textContent = r.tapped ? "" : t("noDesktop"); }
+    catch (err) { $("msg").textContent = err.message; }
+  });
 
   const api = async (method, path, body) => {
     const r = await fetch(path, { method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });

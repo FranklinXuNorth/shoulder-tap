@@ -106,6 +106,7 @@
       <label class="opt"><input type="radio" name="kind" value="soft" checked><div><b data-t="soft"></b><span data-t="softWhy"></span></div></label>
       <label class="opt"><input type="radio" name="kind" value="hard"><div><b data-t="hard"></b><span data-t="hardWhy"></span></div></label>
     </div>
+    <div class="row" style="margin-top:14px"><button id="tryTap" data-t="tryTap"></button><span class="hint" data-t="tryTapWhy" style="color:var(--muted);font-size:13px"></span></div>
     <div class="msg" id="msg1"></div>
   </section>
 
@@ -174,6 +175,7 @@
       ntoken: "Notion integration 密钥（ntn_ 开头）", npage: "一个 Notion 页面的链接",
       n1: "密钥在 notion.so/profile/integrations 新建一个 integration 拿。", n2: "那个页面右上角 ⋯ → Connections → 加上它。", n3: "前面填的习惯和今天的事会一起搬过去。",
       needBoth: "密钥和页面链接都要填。", saving: "设置中……",
+      tryTap: "在屏幕上试一下", tryTapWhy: "到点时它就这样拍你。", tapSample: (n) => `${n} —— 该做了`, noDesktop: "这台机器没装桌面端，拍肩只落在聊天里。",
       doneH: "好了", doneWhy: "打开 Claude Code 或 Codex 说一句话。跑偏时屏幕右边会有只手。这页可以关了。", hands: "看看那只手，换个样式 →",
       back: "上一步", skip: "跳过", next: "下一步", finish: "完成", fail: "没成功",
       agentMd: (m) => [
@@ -199,6 +201,7 @@
       ntoken: "Notion integration token (starts with ntn_)", npage: "Link to a Notion page",
       n1: "Create an integration at notion.so/profile/integrations to get the token.", n2: "On that page: ⋯ → Connections → add it.", n3: "Habits and tasks from earlier steps move over too.",
       needBoth: "Both token and page link are needed.", saving: "Saving…",
+      tryTap: "Try it on screen", tryTapWhy: "This is how it taps you when it's due.", tapSample: (n) => `${n} — time`, noDesktop: "No desktop app on this machine; taps land in the chat only.",
       doneH: "Done", doneWhy: "Say something in Claude Code or Codex. When you drift, a hand shows at the right edge. You can close this page.", hands: "Preview the hand, pick a style →",
       back: "Back", skip: "Skip", next: "Next", finish: "Finish", fail: "Failed",
       agentMd: (m) => [
@@ -283,6 +286,13 @@
   }
 
   document.querySelectorAll("input[name=storage]").forEach((r) => r.onchange = () => $("notionBox").classList.toggle("hidden", r.value !== "notion" || !r.checked));
+
+  // 习惯那一步只试 tap：到点提醒就是这只手。
+  $("tryTap").onclick = async () => {
+    const name = $("hname").value.trim() || $("hname").placeholder.split(/[,、]/)[0].trim();
+    try { const r = await api("POST", "/api/tap", { mode: "tap", text: t("tapSample")(name) }); if (!r.tapped) say(1, t("noDesktop"), true); }
+    catch (e) { say(1, e.message, true); }
+  };
 
   /** 每一步「下一步」要做的事。返回 false 就停在这一步。 */
   const save = [
