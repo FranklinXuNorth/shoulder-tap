@@ -25,6 +25,7 @@ const appDir = path.join(stateDir, "app");
 const log = (s) => console.log("  " + s);
 const rm = (p) => { if (fs.existsSync(p)) { fs.rmSync(p, { recursive: true, force: true }); log(`删了 ${p}`); } };
 const run = (cmd, args) => spawnSync(cmd, args, { stdio: "ignore", shell: process.platform === "win32" });
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 // 1. 桌面端
 if (process.platform === "win32") {
@@ -34,12 +35,25 @@ if (process.platform === "win32") {
   run("powershell", ["-NoProfile", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")]);
   log("开机自启 → 取消了");
 } else if (process.platform === "darwin") {
-  const bin = path.join(appDir, "ShoulderTap.app", "Contents", "MacOS", "shoulder-tap-tap");
-  if (fs.existsSync(bin)) { run(bin, ["--quit"]); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 800); }
   const plist = path.join(home, "Library", "LaunchAgents", "com.shoulder-tap.tap.plist");
-  run("launchctl", ["bootout", `gui/${process.getuid?.() ?? 501}`, plist]);
+  // 先摘 launchd 再请进程退：KeepAlive 被人改成 true 的话，--quit 之后 launchd 立刻把它拉回来。
+  // 按 label 摘而不是按 plist 路径：plist 已经被手工删掉、job 还在跑时，按路径摘不掉。
+  const booted = run("launchctl", ["bootout", `gui/${process.getuid?.() ?? 501}/com.shoulder-tap.tap`]).status === 0;
   rm(plist);
-  log("登录自启 → 取消了");
+  log(booted ? "登录自启 → 取消了" : "登录自启 → 本来就没注册");
+
+  const bin = path.join(appDir, "ShoulderTap.app", "Contents", "MacOS", "shoulder-tap-tap");
+  const alive = () => run("pgrep", ["-f", "shoulder-tap-tap"]).status === 0;
+  if (fs.existsSync(bin)) {
+    run(bin, ["--quit"]);
+    // 等它真的退，别只等一个固定时长：常驻那个占着 mac.lock，没确认就 rm 会把 binary 从它
+    // 脚下抽走 —— 进程照跑（unlink 了也还在），菜单栏图标留到注销为止。
+    for (let i = 0; i < 20 && alive(); i++) sleep(100);
+    if (alive()) { run("pkill", ["-f", "shoulder-tap-tap"]); sleep(300); }
+    log(alive() ? "桌面端 → 没退下来，注销一次或手动 pkill -f shoulder-tap-tap" : "桌面端 → 退了");
+  }
+  rm(path.join(stateDir, "mac.lock")); // 单实例锁，不是数据，--purge 与否都该走
+  rm(path.join(os.tmpdir(), "shoulder-tap-tap.log"));
 } else {
   const bin = path.join(appDir, "shoulder-tap-tap");
   if (fs.existsSync(bin)) run(bin, ["--quit"]);
@@ -47,15 +61,15 @@ if (process.platform === "win32") {
 rm(appDir);
 
 // 2. MCP
-run("claude", ["mcp", "remove", "-s", "user", "shoulder-tap"]);
+const mcpGone = run("claude", ["mcp", "remove", "-s", "user", "shoulder-tap"]).status === 0;
 const codex = path.join(home, ".codex", "config.toml");
 if (fs.existsSync(codex)) {
   const text = fs.readFileSync(codex, "utf8");
   const cleaned = text.replace(/\n*\[mcp_servers\.shoulder-tap\][\s\S]*?(?=\n\[|$)/, "\n").trimEnd() + "\n"; // 到下一个 [段] 为止
   if (cleaned !== text) { fs.writeFileSync(codex, cleaned); log(`Codex → 去掉了 [mcp_servers.shoulder-tap]`); }
 }
+log(mcpGone ? "MCP → 去掉了" : "MCP → 没去掉（claude 不在 PATH 上，或本来就没接）");
 for (const file of removeFromClaudeDesktop()) log(`Claude Desktop → 去掉了（${file}）`);
-log("MCP → 去掉了");
 
 // 3. 钩子
 const settingsPath = path.join(claude, "settings.json");
@@ -66,8 +80,9 @@ if (fs.existsSync(settingsPath)) {
     if (kept.length) settings.hooks[event] = kept; else delete settings.hooks[event];
   }
   if (settings.hooks && !Object.keys(settings.hooks).length) delete settings.hooks;
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
-  log("钩子 → 去掉了");
+  // 只在真改了才落盘：没装过钩子时白写一遍，会把别的会话同时在写的 settings.json 盖掉。
+  const next = JSON.stringify(settings, null, 2) + "\n";
+  if (next !== fs.readFileSync(settingsPath, "utf8")) { fs.writeFileSync(settingsPath, next); log("钩子 → 去掉了"); }
 }
 
 // 4. CLAUDE.md：从「## 专注」到下一个二级标题（或文件尾）
@@ -80,7 +95,7 @@ if (fs.existsSync(claudeMd)) {
 
 // 5. 数据（可选）和 skill
 if (purge) { rm(stateDir); rm(path.join(claude, "skills", "shoulder-tap", ".env")); }
-else log(`数据留着：${stateDir}（连同 .env 一起删：--purge）`);
+else if (fs.existsSync(stateDir)) log(`数据留着：${stateDir}（连同 .env 一起删：--purge）`);
 rm(path.join(claude, "skills", "shoulder-tap-uninstall"));
 rm(path.join(claude, "skills", "shoulder-tap"));
 
