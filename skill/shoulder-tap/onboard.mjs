@@ -5,7 +5,7 @@
  *   node ~/.claude/skills/shoulder-tap/onboard.mjs [--hands | --setup]
  *
  * 同一页两种样子（ui/app.html）：还没设置过 → 五步引导（编程工具 → 第一个习惯 → 今天的事 → 数据放哪 → 手）；
- * 设置过 → 面板（今天 · 习惯 · 手 · 设置），同样那几块都能在里面改。
+ * 设置过 → 首页：「重新走一遍设置」「选择皮肤」两个入口，下面是待办和习惯的所有记录。
  * 端口被占着说明已经开着一个，直接把浏览器指过去。页面半小时没请求就自己退出。
  */
 import fs from "node:fs";
@@ -116,6 +116,8 @@ async function state() {
     habits: await store.listHabits().catch(() => []),
     history: await store.habitHistory(30).catch(() => []),
     today: await store.listDay(win).catch(() => []),
+    // 最近两周的任务，按天分组给页面；时间都是 UTC，页面按本机时区显示
+    tasks: await store.taskHistory(new Date(Date.parse(win.startUtc) - 13 * 86400_000).toISOString()).catch(() => []),
     skin: readConfig().skin ?? "glove",
     skins: listSkins(),
     desktop: fs.existsSync(APP),
@@ -133,7 +135,7 @@ const routes = {
   },
   "POST /api/finish": () => { writeConfig({ onboarded: true }); return { message: "好了。" }; },
   "GET /api/ping": () => ({}), // 页面开着就隔一会儿来一下，服务知道还有人在看
-  // 面板里勾掉 / 放弃一条、记一笔习惯：都是你自己点的，跟你在对话里说一样
+  // 首页里勾掉 / 放弃一条、记一笔习惯：都是你自己点的，跟你在对话里说一样
   "POST /api/done": async ({ position, dropped }) => ({ message: await callText("complete_focus", { position, dropped: dropped === true }) }),
   "POST /api/log": async ({ habit, skip, note }) => ({ message: await callText("log_habit", { habit, skip: skip === true, note }) }),
   // 在屏幕上真拍一下：习惯那一步试 tap，手势页三种都能试。没装桌面端就说没装。
@@ -177,7 +179,9 @@ const server = http.createServer(async (req, res) => {
     return send(200, fs.readFileSync(path.join(HERE, "ui", "app.html"), "utf8"), "text/html; charset=utf-8");
   const sprite = req.method === "GET" && /^\/skins\/([\w-]+)\/(tap|pat|snap)\.png$/.exec(req.url);
   if (sprite) {
-    const file = path.join(SKINS, sprite[1], sprite[2] + ".png");
+    // current = 正在用的那套：打开页面时的加载动画要在数据到之前就知道用哪只手
+    const skin = sprite[1] === "current" ? readConfig().skin ?? "glove" : sprite[1];
+    const file = path.join(SKINS, skin, sprite[2] + ".png");
     return fs.existsSync(file) ? send(200, fs.readFileSync(file), "image/png") : send(404, { error: "not found" });
   }
   const route = routes[`${req.method} ${req.url}`];

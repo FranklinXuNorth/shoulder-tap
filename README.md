@@ -36,7 +36,9 @@ Come back any time: click the Windows tray / macOS menu bar icon, or:
 node ~/.claude/skills/shoulder-tap/onboard.mjs
 ```
 
-After setup, clicking the tray / menu bar icon opens the same page as a panel: **Today** (check off or rewrite the list), **Habits** (log one, see history), **Hand** (preview the three gestures, switch style, try a real tap), **Settings** (coding tools, where data lives, uninstall).
+The setup ends with a short "try it" step: messages you can paste into Claude Code to see it work.
+
+After setup, clicking the tray / menu bar icon opens a home screen with two buttons, **Run setup again** and **Choose a skin** (preview the three gestures, try a real tap). Below them are your records: tasks from the last two weeks by day (check off or skip today's), your habits (log or skip one), and habit history.
 There is a 中文 / English switch in the top right.
 
 Restart your Claude Code session and it's connected. `/mcp` shows `shoulder-tap`, `/hooks` shows four hooks.

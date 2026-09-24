@@ -254,7 +254,19 @@ function parseTask(page) {
         note: plain(p.Note?.rich_text),
         tz: plain(p.TZ?.rich_text),
         done: p.Status?.select?.name === STATUS.done,
+        status: p.Status?.select?.name ?? STATUS.pending,
+        day: p.Day?.date?.start,
     };
+}
+/** 设置页的记录：从 sinceUtc 起所有的任务，放弃的也算，新的一天在前。 */
+export async function taskHistory(token, sinceUtc) {
+    const ds = await findDataSource(token);
+    const res = await notion(token, "POST", `/data_sources/${ds}/query`, {
+        filter: { and: [{ property: "Kind", select: { equals: KIND.task } }, { property: "Day", date: { on_or_after: sinceUtc } }] },
+        sorts: [{ property: "Day", direction: "descending" }, { property: "Order", direction: "ascending" }],
+        page_size: 100,
+    });
+    return (res.results ?? []).map(parseTask);
 }
 export async function listDay(token, win) {
     const ds = await findDataSource(token);

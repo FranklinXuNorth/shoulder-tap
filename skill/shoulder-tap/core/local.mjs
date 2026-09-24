@@ -133,6 +133,13 @@ export async function stopHabit(_, name, note) {
 }
 
 /** 历史：做过的和跳过的，新的在前。 */
+/** 设置页的记录：从 sinceUtc 起所有的任务，放弃的也算，新的一天在前。 */
+export async function taskHistory(_, sinceUtc) {
+  return load().tasks.filter((t) => t.day >= sinceUtc)
+    .sort((a, b) => b.day.localeCompare(a.day) || a.order - b.order)
+    .map((t) => ({ ...asItem(t), status: t.status ?? "pending", day: t.day }));
+}
+
 export async function habitHistory(_, limit = 50) {
   return load().habits.filter((h) => status(h) !== "pending").map((h) => asHabit(h))
     .sort((a, b) => (b.finished ?? "").localeCompare(a.finished ?? "")).slice(0, limit);
