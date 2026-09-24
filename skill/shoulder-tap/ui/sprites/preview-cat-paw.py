@@ -16,10 +16,13 @@ for name in ("tap", "pat", "snap"):
         left, top, right, bottom = image.getbbox()
         assert left > 0 and top > 0 and right < 96 and bottom < 80
     # Each puff's top arc must appear on action frames only.
-    x, y = {"tap": (82, 21), "pat": (81, 23), "snap": (57, 5)}[name]
+    x, y = {"tap": (67, 12), "pat": (68, 17), "snap": (52, 5)}[name]
     active = {1, 3, 5, 7, 8} if name == "snap" else {2, 5, 7}
     for i, image in enumerate(frames[name]):
         assert (image.getpixel((x, y))[3] == 255) == (i in active), (name, i)
+        if i in active:
+            assert image.getpixel((x, y)) == (0, 0, 0, 255)
+            assert image.getpixel((x, y - 1)) == (255, 255, 255, 255), (name, i, "white backing")
     sheet.save(path.with_suffix(".webp"), lossless=True, exact=True, method=6)
     assert Image.open(path.with_suffix(".webp")).convert("RGBA").tobytes() == sheet.tobytes()
     print(f"{name}: frame timing, puff visibility, bounds, palette, WebP verified")
@@ -29,6 +32,16 @@ for row, (name, images) in enumerate(frames.items()):
     preview.alpha_composite(images[0], (0, row * 80))
     preview.alpha_composite(images[1 if name == "snap" else 2], (96, row * 80))
 preview.resize((768, 960), Image.Resampling.NEAREST).save(root / "cat-paw-actions-preview.png")
+
+# Side-by-side light/dark backgrounds make the white backing visible for review.
+contrast = Image.new("RGBA", (192, 240))
+for row, (name, images) in enumerate(frames.items()):
+    action = images[1 if name == "snap" else 2]
+    for col, color in enumerate(("#eeeeee", "#252830")):
+        tile = Image.new("RGBA", (96, 80), color)
+        tile.alpha_composite(action)
+        contrast.paste(tile, (col * 96, row * 80))
+contrast.resize((768, 960), Image.Resampling.NEAREST).save(root / "cat-paw-puffs-contrast.png")
 
 ends = (250, 340, 430, 580, 670, 760, 910, 1000, 1300)
 review = []

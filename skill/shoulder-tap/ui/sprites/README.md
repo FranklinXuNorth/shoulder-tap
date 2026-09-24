@@ -24,3 +24,9 @@ Artwork was initially generated with GPT and repaired with native Aseprite pixel
 
 Cat-only action accents are editable in the 'Action puffs - cat only' layer: three small irregular open-arc puffs on tap/pat contact frames 3, 6, 8 and snap open frames 2, 4, 6, 8, 9. Glove accents remain unchanged. After exporting Aseprite sources, run python preview-cat-paw.py to refresh the GIF/review images and cat WebP files. add-cat-paw-marks.lua regenerates only this effect layer; do not rerun it after manually editing the puffs.
 
+
+Cat puff strokes have a separate 'Puff white backing - 1px' layer beneath their black arcs: a one-pixel white illustration-style halo, with transparent centers retained. cat-paw-puffs-contrast.png reviews the effect on light/dark backgrounds.
+
+
+Puff placement must preserve screen-edge contact: every black puff pixel and its white backing stays strictly left of the paw's rightmost opaque pixel. add-cat-paw-marks.lua verifies this across all 27 frames.
+
