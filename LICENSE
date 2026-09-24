@@ -1,0 +1,45 @@
+Shoulder Tap is licensed in three parts.
+
+1. Source code: MIT License (full text below). This covers everything in this
+   repository except the items listed in 2 and 3.
+
+2. Artwork: Creative Commons Attribution-NonCommercial-NoDerivatives 4.0
+   International (CC BY-NC-ND 4.0), https://creativecommons.org/licenses/by-nc-nd/4.0/
+   This covers:
+     - the image and Aseprite files (*.png, *.webp, *.gif, *.aseprite) under
+       skill/shoulder-tap/ui/sprites/: hand and cat-paw sprites, sheets,
+       poses, previews and sources. The scripts in that folder are code (MIT).
+     - docs/hands-banner.gif
+   You may share this artwork unchanged, with credit, for non-commercial
+   purposes. You may not use it commercially or distribute modified versions.
+   The MIT License below does not apply to it.
+
+3. Name: "Shoulder Tap" and "shoulder-tap" are not licensed. Do not use them
+   to name, brand or promote a product or service derived from this code.
+
+The bundled font in desktop/Fonts/ keeps its own license, the SIL Open Font
+License 1.1 (see desktop/Fonts/OFL-fusion-pixel.txt).
+
+----------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) 2026 FranklinXuNorth
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

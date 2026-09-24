@@ -165,3 +165,7 @@ node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # 数据和密钥也�
 - 每一块是什么、数据长什么样：[docs/architecture.html](docs/architecture.html)
 - 一次拍肩怎么走、三档判断、习惯的规则：[docs/flow.html](docs/flow.html)
 - 跨设备（一台机器跑完、拍到你正盯着的另一台上）：[`cross-machine`](../../tree/cross-machine) 分支，还在测，这一版不带
+
+## 许可
+
+代码是 MIT。手和猫爪的美术（`skill/shoulder-tap/ui/sprites/` 里的图片和 Aseprite 文件，以及 `docs/hands-banner.gif`）是 CC BY-NC-ND 4.0：可以原样、非商用地分享，不能拿去卖，也不能改了再发。「Shoulder Tap」这个名字不在授权范围内，用这份代码做的产品要换自己的名字和美术。详见 [LICENSE](LICENSE)。
