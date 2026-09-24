@@ -24,7 +24,7 @@ description: 接上 shoulder-tap（第一次用要配 MCP、接 Notion、建库�
 1. **接 MCP**（不需要任何密钥）：
 
    ```bash
-   claude mcp add --transport http shoulder-tap https://shoulder-tap.vercel.app/mcp -s user
+   claude mcp add --transport http shoulder-tap https://shoulder-tap-relay.shoulder-tap.workers.dev/mcp -s user
    ```
 
    如果服务端设了门禁，加 `-H "X-Shoulder-Tap-Key: <门禁密钥>"`。

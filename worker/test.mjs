@@ -16,7 +16,7 @@ async function link() {
   assert.equal((await (await fetch(`${base}/device/poll?code=${issued.code}&secret=${issued.secret}`)).json()).pending, true);
   const login = await fetch(`${base}/auth/password`, {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password, code: issued.code }),
+    body: JSON.stringify({ email, password, confirm: password, code: issued.code }),
   });
   assert.equal(login.status, 200, await login.text());
   const polled = await (await fetch(`${base}/device/poll?code=${issued.code}&secret=${issued.secret}`)).json();
@@ -27,6 +27,13 @@ async function link() {
 
 const tokenA = await link();
 const tokenB = await link(); // 同一个邮箱再登一次：同一个账号，第二个设备令牌
+// 新邮箱不带确认、或两次不一致：不建号
+{
+  const issued = await (await fetch(`${base}/device/code`, { method: "POST" })).json();
+  const post = (body) => fetch(`${base}/auth/password`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, code: issued.code }) });
+  assert.equal((await post({ email: "new-" + email, password })).status, 409);
+  assert.equal((await post({ email: "new-" + email, password, confirm: "different!!" })).status, 409);
+}
 // 密码错要被拒
 {
   const issued = await (await fetch(`${base}/device/code`, { method: "POST" })).json();
@@ -89,5 +96,10 @@ win.ws.close(); mac.ws.close();
 await new Promise((r) => setTimeout(r, 300));
 r = await send(tokenA, "win-device-1", { host: "WIN", gesture: "tap", caption: "x", text: "x" });
 assert.deepEqual(r, { delivered: false, to: null });
+
+// MCP 也在这台 Worker 上：不带凭据能列工具、能 ping
+const rpc = (body) => fetch(`${base}/mcp`, { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify(body) }).then((r) => r.text());
+assert.match(await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" }), /"name":"check_focus"/);
+assert.match(await rpc({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "ping", arguments: {} } }), /活着/);
 
 console.log("worker e2e ok");

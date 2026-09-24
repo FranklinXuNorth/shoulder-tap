@@ -308,7 +308,7 @@
         <tr><td>3 ✓</td><td>Windows 常驻进程：WebSocket 客户端、断线重连、盯屏幕变化、上报活跃</td><td><code>desktop/Relay.cs</code>，每秒轮询 <code>GetLastInputInfo</code>，只取屏幕，不取内容</td></tr>
         <tr><td>4</td><td>Mac 端改成菜单栏常驻 App（<code>LSUIElement</code> 的 <code>.app</code>，加 LaunchAgent 开机自启）</td><td>现在每拍一下就起一个短命进程，挂不住 WebSocket。<code>install.mjs</code> 在本机编译，所以不需要签名和公证。活跃屏幕只看鼠标点击和前台窗口位置，不读全局键盘，这样就不用申请辅助功能权限。两条道改成在进程内排队，照 Windows 的 <code>Lane</code> 来做</td></tr>
         <tr><td>5 ✓</td><td><code>install.mjs</code>：设备码登录，把令牌写进 <code>.env</code>；Windows 注册开机自启并立刻拉起常驻进程</td><td>Worker 地址要用户填一次；<code>--login</code> 重新登。不常驻的话 Claude Code 没开时收不到别的机器发来的拍肩</td></tr>
-        <tr><td>6</td><td>把 MCP 从 Vercel 迁到 Worker 的 <code>/mcp</code></td><td>过渡期两边都在线，README 里的 <code>claude mcp add</code> 地址换成新的</td></tr>
+        <tr><td>6 ✓</td><td>把 MCP 从 Vercel 迁到 Worker 的 <code>/mcp</code></td><td>过渡期两边都在线，README 里的 <code>claude mcp add</code> 地址换成新的</td></tr>
         <tr><td>7</td><td>历史查看：托盘菜单或菜单栏里加「最近的拍肩」</td><td>拉取密文，在本机解密后显示</td></tr>
       </tbody>
     </table></div>

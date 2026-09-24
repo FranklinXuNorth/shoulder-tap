@@ -24,10 +24,12 @@ MCP 配置里的 Bearer token 就是**你自己的 Notion integration secret**�
 - [docs/architecture.html](docs/architecture.html) —— 数据流：哪一跳交出了什么
 - [docs/pipeline.html](docs/pipeline.html) —— 数据处理：字段归谁管、ID 什么时候签、手改会怎样
 - [docs/rendering.html](docs/rendering.html) —— 渲染流程：那一下「拍肩」怎么落到聊天里
-- [docs/cross-machine.html](docs/cross-machine.html) —— 跨机器（提案）：手拍在你眼睛所在的那台机器上
+- [docs/flow.html](docs/flow.html) —— 本地 + 跨机器的流程图（mermaid），以及 2026-09-24 这次更新加了什么
+- [docs/cross-machine.html](docs/cross-machine.html) —— 跨机器的 PRD：需求、取舍、账号、行为数据
 - [docs/ASSETS.md](docs/ASSETS.md) —— 素材需求
 - [desktop/README.md](desktop/README.md) —— 桌面端：那一下「拍肩」怎么落到屏幕上（Windows）
-- [desktop-mac/ShoulderTap.swift](desktop-mac/ShoulderTap.swift) —— macOS 桌面端：同样两只手、两条道，单文件，每拍一下是一个短命进程
+- [desktop-mac/ShoulderTap.swift](desktop-mac/ShoulderTap.swift) —— macOS 桌面端：菜单栏常驻 App，单文件，同样三只手、两条道，同样接中转
+- [desktop-linux/README.md](desktop-linux/README.md) —— Linux 桌面端的接口约定（还没有实现，给写它的人）
 
 ## 安装
 
@@ -51,7 +53,7 @@ node install.mjs
 1. [建一个 Notion integration](https://www.notion.so/profile/integrations)，拿 `ntn_` 开头的密钥。
    写进 `~/.claude/skills/shoulder-tap/.env` 的 `NOTION_TOKEN=`，再接上 Claude Code：
    ```bash
-   claude mcp add --transport http shoulder-tap https://shoulder-tap.vercel.app/mcp \
+   claude mcp add --transport http shoulder-tap https://shoulder-tap-relay.shoulder-tap.workers.dev/mcp \
      -s user -H "Authorization: Bearer ntn_你的密钥"
    ```
 2. 挑一个 Notion 页面，⋯ → **Connections** → 把这个 integration 加进去。（漏这步必报 `object_not_found`。）
@@ -81,7 +83,10 @@ Windows 上 `install.mjs` 会把 exe 注册成开机自启（HKCU 的 Run 键，
 之后它会在第一次钩子触发时自己起来，只是 Claude Code 没开的时候接不到别的机器发来的拍肩。
 托盘里点「退出」只退这一次，下次开机照常。
 
-macOS 版目前不常驻：每拍一下起一个短命进程，播完退出，没有东西需要放到后台。
+macOS 上 `install.mjs` 把它包成 `ShoulderTap.app`（只有菜单栏图标，不进 Dock），注册成 LaunchAgent 登录自启并立刻拉起。
+本机编译，不需要签名，也不会被 Gatekeeper 拦。取消自启：`launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.shoulder-tap.tap.plist`。
+
+Linux 还没有桌面端，接口约定在 [desktop-linux/README.md](desktop-linux/README.md)。
 
 不想跑脚本的话，四步手动做：拷 skill、配钩子（UserPromptSubmit / PostToolUse / Stop，以及 matcher 为 `AskUserQuestion` 的 PreToolUse，都跑 `node "$HOME/.claude/skills/shoulder-tap/watch.mjs"`）、
 粘 `skill/CLAUDE.md.snippet`、编桌面端：
@@ -95,6 +100,32 @@ cp skill/shoulder-tap/ui/sprites/{tap-glove,completion-hand}-sheet.png ~/.claude
 swiftc -O desktop-mac/ShoulderTap.swift -o ~/.claude/shoulder-tap/app/shoulder-tap-tap
 ```
 
+## 一次拍肩怎么走
+
+先看本机是不是你在用的那台，是就直接拍；不是才上云送到那台。完整版（含时序图）在 [docs/flow.html](docs/flow.html)。
+
+```mermaid
+flowchart LR
+  subgraph A["机器 A（agent 在这跑）"]
+    CC["Claude Code"] -->|"Stop / PreToolUse(AskUserQuestion) …"| W["watch.mjs"]
+    W --> L{"active.json：<br/>活跃的是本机？"}
+    L -->|"是"| D["shoulder-tap-tap"] --> S["屏幕：手 + 字条"]
+    L -->|"不是"| E["relay.mjs<br/>HKDF(token) → AES-GCM"]
+    W -->|"check_focus …"| MCP["/mcp"]
+  end
+  subgraph CF["Cloudflare Worker"]
+    MCP -.->|"你的 token"| N[("你的 Notion")]
+    CH[("Channel DO<br/>谁活跃 · 密文历史")]
+  end
+  E -.->|"POST /ch/send"| CH
+  CH -.->|"delivered: false → 本机拍"| D
+  subgraph B["机器 B（你盯着的那台）"]
+    DB["shoulder-tap-tap"] -->|"解密 · [A] 字条"| SB["屏幕"]
+  end
+  DB -.->|"WebSocket · active：刚被碰过"| CH
+  CH -.->|"tap：密文"| DB
+```
+
 ## 跨机器
 
 开着好几台电脑的时候，agent 在 Mac 上跑完了，而你正盯着 Windows —— 手应该拍在你眼睛所在的那台上。
@@ -104,18 +135,10 @@ swiftc -O desktop-mac/ShoulderTap.swift -o ~/.claude/shoulder-tap/app/shoulder-t
 
 ### 设置
 
-**1. 部署中转（只做一次）**
+**1. 中转在哪**
 
-需要一个 Cloudflare 账号（免费的就行）。
-
-```bash
-cd worker && npm install
-npx wrangler login      # 浏览器里授权
-npx wrangler deploy     # 第一次会让你起一个 workers.dev 子域名；结束时打印地址
-```
-
-打印出来的地址形如 `https://shoulder-tap-relay.<你的子域>.workers.dev`，下面每台机器都要填它。
-`npx wrangler deploy` 在 `worker/` 目录里跑，在别处跑会被当成静态站点报错。
+跟 MCP 是同一台 Worker：用官方那台就是 `https://shoulder-tap-relay.shoulder-tap.workers.dev`；
+自己部署看下面「自己部署」（`npx wrangler deploy` 要在 `worker/` 目录里跑，在别处会被当成静态站点报错）。
 
 **2. 可选：Google 登录**
 
@@ -164,9 +187,8 @@ node install.mjs
 ### 现在能做到的
 
 - Windows：能收能发。
-- macOS：能发（钩子是同一份 `watch.mjs`），**收不到** —— Mac 桌面端还是每拍一下起一个短命进程，
-  挂不住 WebSocket。改成菜单栏常驻 App 是下一步，方案在 [docs/cross-machine.html](docs/cross-machine.html)。
-- Linux：能发（同一份 `watch.mjs`），收不到，也没有桌面端 —— 覆盖层要分 X11 / Wayland 两套写，还没做。
+- macOS：菜单栏常驻 App，能收能发。**代码是在没有 Mac 的机器上写的，还没在真机上编过**——第一次跑 `node install.mjs` 报错就把错误贴回来。
+- Linux：能发（同一份 `watch.mjs`），收不到，也没有桌面端。接口约定在 [desktop-linux/README.md](desktop-linux/README.md)，做好放到 `~/.claude/shoulder-tap/app/shoulder-tap-tap` 就会被用上。
 - 中转不通（没配、没登录、超时）时一切照旧：拍在本机。
 
 ## 工具
@@ -202,18 +224,27 @@ node install.mjs
 
 ## 自己部署
 
-Vercel 导入本仓库即可，不需要数据库。可选环境变量：
+整个后端是一个 Cloudflare Worker（[worker/](worker/)）：`/mcp` 是清单和习惯那套工具，`/ch` 是跨机器中转，
+`/link` 是登录页。不需要数据库以外的任何东西，Durable Object 自带 SQLite。
+
+```bash
+cd worker && npm install
+npx wrangler login
+npx wrangler deploy     # 打印出 https://shoulder-tap-relay.<你的子域>.workers.dev
+```
+
+MCP 客户端配 `<那个地址>/mcp`，`.env` 的 `SHOULDER_TAP_URL` 也指它；跨机器的 `SHOULDER_TAP_RELAY` 填不带 `/mcp` 的地址。
+可选的密钥用 `npx wrangler secret put <名字>` 塞进去：
 
 - `SHOULDER_TAP_KEY` —— 门禁，挡路人蹭额度。客户端对应带 `X-Shoulder-Tap-Key` 头。不过用回 403
   而不是 401：MCP 客户端把 401 读成「请走 OAuth」，然后整个服务器会显示连不上。
 - `JEV_API_KEY` —— 配了才有 `classify_focus`。代价是两行文字会离开这台机器。
 - `DAY_STARTS_AT_HOUR` —— 一天从几点开始，默认 4：熬到凌晨的人还在昨天。
-
-记得在 Settings → Deployment Protection 关掉 Vercel Authentication，否则 MCP 客户端会被重定向到登录页。
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` —— Google 登录，见上面「跨机器」。
 
 ## 本机直连 Jev（可选）
 
-`watch.mjs` 在 UserPromptSubmit 时可以直接从你机器上请求 Jev 做首轮「相不相关」的比较，不经过 Vercel。
+`watch.mjs` 在 UserPromptSubmit 时可以直接从你机器上请求 Jev 做首轮「相不相关」的比较，不经过服务端。
 在 `~/.claude/skills/shoulder-tap/.env` 里填 `JEV_API_KEY`（`JEV_BASE_URL` 默认 `https://api.typesafe.ai`）就开了；
 不填就由对话模型自己判。请求 2 秒超时，超了或出错都静默退回模型判断。
 `SHOULDER_TAP_LOCAL_JEV=0` 可以临时关掉。这条路只发两行文字，不碰 MCP，也不碰 Notion。

@@ -20,6 +20,7 @@
  * 见不到的：字条内容、任务、习惯 —— 那些在密文里，密钥从 Notion token 派生，从不上云。
  */
 import { DurableObject } from "cloudflare:workers";
+import { mcpHandler } from "./lib/mcp";
 
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8" } });
@@ -45,6 +46,9 @@ export default {
     const accounts = env.ACCOUNTS.get(env.ACCOUNTS.idFromName("accounts"));
 
     if (path === "/") return html(PAGE_HOME);
+
+    // MCP：清单和习惯那套工具。Bearer 是调用方自己的 Notion secret，这里不存，只转。
+    if (path === "/mcp") return mcpHandler(request);
 
     // ---------- 登录 ----------
     if (path === "/link") return html(linkPage(url.searchParams.get("code") || "", Boolean(env.GOOGLE_CLIENT_ID)));

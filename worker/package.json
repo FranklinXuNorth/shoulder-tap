@@ -5,9 +5,14 @@
   "scripts": {
     "dev": "wrangler dev --port 8787",
     "deploy": "wrangler deploy",
-    "test": "node test.mjs"
+    "test": "node src/lib/protocol.test.mjs && node ../skill/shoulder-tap/relay.test.mjs && node test.mjs"
   },
   "devDependencies": {
     "wrangler": "^4"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "mcp-handler": "^2.2.0",
+    "zod": "^4.6.5"
   }
 }

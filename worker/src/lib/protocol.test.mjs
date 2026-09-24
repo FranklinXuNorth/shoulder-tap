@@ -1,13 +1,14 @@
-// node lib/protocol.test.mjs —— 到期判断的最小自检。没有测试框架：先用 tsc 编成 CJS 再断言。
-import { execFileSync } from "node:child_process";
+// node src/lib/protocol.test.mjs —— 到期判断的最小自检。没有测试框架：用 wrangler 自带的 esbuild 打成 CJS 再断言。
+import { buildSync } from "esbuild";
 import { createRequire } from "node:module";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const out = path.join(os.tmpdir(), "shoulder-tap-protocol-test");
-execFileSync("node", ["node_modules/typescript/lib/tsc.js", "lib/protocol.ts", "lib/ascii.ts", "--outDir", out, "--module", "commonjs", "--target", "es2022", "--skipLibCheck"], { stdio: "inherit" });
-const { overdueMinutes, whatIsDue } = createRequire(import.meta.url)(path.join(out, "protocol.js"));
+const out = path.join(os.tmpdir(), "shoulder-tap-protocol-test.cjs");
+buildSync({ entryPoints: [path.join(path.dirname(fileURLToPath(import.meta.url)), "protocol.ts")], bundle: true, format: "cjs", platform: "node", outfile: out, logLevel: "error" });
+const { overdueMinutes, whatIsDue } = createRequire(import.meta.url)(out);
 
 const tz = "America/New_York";
 const T = (s) => Date.parse(s);

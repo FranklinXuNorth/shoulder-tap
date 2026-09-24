@@ -3,6 +3,8 @@
   "name": "shoulder-tap-relay",
   "main": "src/index.js",
   "compatibility_date": "2025-06-01",
+  // lib/ 里读 process.env（DAY_STARTS_AT_HOUR、JEV_API_KEY、SHOULDER_TAP_KEY）；这个 flag 让它从 vars/secrets 里填。
+  "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
     "bindings": [
       { "name": "ACCOUNTS", "class_name": "Accounts" },

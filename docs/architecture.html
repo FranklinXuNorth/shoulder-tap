@@ -98,7 +98,7 @@
   <header>
     <h1>shoulder-tap 数据流</h1>
     <p class="sub">
-      模型直接读写<b>你自己的 Notion</b>。Vercel 上那台服务只拿得到 ID 和分钟数——
+      模型直接读写<b>你自己的 Notion</b>。Cloudflare 上那台服务只拿得到 ID 和分钟数——
       它不知道你今天要做什么，也不知道你想盯哪个习惯。这页把每一跳、以及每一跳都交出了什么，逐条画出来。
     </p>
   </header>
@@ -137,7 +137,7 @@
       </div>
 
       <div class="lane mid">
-        <div class="lane-head"><span class="lane-name">Vercel</span><span class="lane-tag">无状态函数</span></div>
+        <div class="lane-head"><span class="lane-name">Cloudflare</span><span class="lane-tag">无状态函数</span></div>
         <div class="node"><b>focus_protocol</b><span>一套判断规程，零输入</span></div>
         <div class="node"><b>due_check</b><span>纯算术，只收 id / 分钟 / 时间戳</span></div>
         <div class="node"><b>lib/protocol.ts</b><span>产品其实就是这个文件</span></div>
@@ -166,7 +166,7 @@
       <li>
         <div>
           <div class="step-title">取规程</div>
-          <div class="step-where">local → vercel · focus_protocol · 请求体是空的</div>
+          <div class="step-where">local → cloudflare · focus_protocol · 请求体是空的</div>
           <div class="step-body">不带凭据，也没有任何输入。回来的是「该拿什么比什么、三档各自怎么办」。</div>
         </div>
       </li>
@@ -188,7 +188,7 @@
       <li>
         <div>
           <div class="step-title">查到点的习惯</div>
-          <div class="step-where">local → vercel · due_check · 名字在本地被剥掉</div>
+          <div class="step-where">local → cloudflare · due_check · 名字在本地被剥掉</div>
 <pre class="wire">送出去： [{"id":"h-8b12d4","every_minutes":45,"last":"…"}]
 回来的： {"kind":"due","ids":["h-8b12d4"]}
          h-8b12d4 —— 超了 451 分钟</pre>
@@ -262,7 +262,7 @@
     <div class="note stop">
       <b>第二、三条路都会让内容出你的机器。</b>
       第三条是早期版本留下的，配了 Notion 密钥才能用，不配就只是报个错；
-      第二条只送两行短句，但它确实经过这台 Vercel 再到 TypeSafe。
+      第二条只送两行短句，但它确实经过这台 Cloudflare 再到 TypeSafe。
       想要「一个字都不出去」，就只用第一条 —— 那也是默认。
     </div>
   </section>
@@ -272,7 +272,7 @@
     <p class="sec-title">走默认路径时，逐项过一遍</p>
     <div class="scroll">
       <table>
-        <thead><tr><th>东西</th><th>存在哪</th><th>Vercel 看得到吗</th><th>落盘吗</th></tr></thead>
+        <thead><tr><th>东西</th><th>存在哪</th><th>Cloudflare 看得到吗</th><th>落盘吗</th></tr></thead>
         <tbody>
           <tr><td>Notion 密钥</td><td>你电脑上的 MCP 配置</td><td class="no">看不到</td><td class="no">从不经过</td></tr>
           <tr><td>今天的任务文字</td><td>你的 Notion</td><td class="no">看不到</td><td class="no">从不经过</td></tr>
@@ -307,6 +307,6 @@
   </section>
 
   <footer>
-    shoulder-tap · Next.js App Router + mcp-handler v2 · Notion API 2025-09-03 · 部署在 Vercel Hobby
+    shoulder-tap · Cloudflare Worker + mcp-handler v2 · Notion API 2025-09-03
   </footer>
 </div>

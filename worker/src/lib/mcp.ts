@@ -1,7 +1,7 @@
 import type { AuthInfo } from "@modelcontextprotocol/server";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
-import { NotionError, pageIdFrom } from "@/lib/notion";
+import { NotionError, pageIdFrom } from "./notion";
 import {
   DB_TITLE,
   addHabit,
@@ -20,10 +20,10 @@ import {
   offsetOf,
   requireTz,
   today,
-} from "@/lib/focus";
-import { renderCheck, renderPlan } from "@/lib/render";
-import { protocolText, tapEvent, whatIsDue } from "@/lib/protocol";
-import { JEV_ON, WHAT_TO_DO, judge } from "@/lib/jev";
+} from "./focus";
+import { renderCheck, renderPlan } from "./render";
+import { protocolText, tapEvent, whatIsDue } from "./protocol";
+import { JEV_ON, WHAT_TO_DO, judge } from "./jev";
 
 /**
  * Bearer token 就是调用方自己的 Notion integration secret。

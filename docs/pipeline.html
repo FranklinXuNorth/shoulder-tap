@@ -100,8 +100,8 @@
 
   <section class="sec">
     <div class="answer">
-      <div class="q">Q：Vercel 和 Notion 的 ID 怎么对齐？用户改了会不会出问题？</div>
-      <div class="a">不用对齐 —— Vercel 上没有任何副本可言。</div>
+      <div class="q">Q：Cloudflare 和 Notion 的 ID 怎么对齐？用户改了会不会出问题？</div>
+      <div class="a">不用对齐 —— Cloudflare 上没有任何副本可言。</div>
       <p>
         那台服务器不存 ID、不存映射、不存上次时间。<code>due_check</code> 是个纯函数：
         你给它哪些 ID，它就在哪些 ID 里挑出到点的还给你。它记不住上一次你给过什么，
@@ -120,18 +120,18 @@
         <tbody>
           <tr><td class="f">Name</td><td>模型（照你的原话）</td><td>模型</td><td class="ok">随便改</td></tr>
           <tr><td class="f">Kind</td><td>模型，建行时定</td><td>模型筛选用</td><td class="bad">别改</td></tr>
-          <tr><td class="f">ID</td><td>模型，建行时签一次</td><td>模型 ↔ Vercel</td><td class="bad">别改、别留空</td></tr>
+          <tr><td class="f">ID</td><td>模型，建行时签一次</td><td>模型 ↔ Cloudflare</td><td class="bad">别改、别留空</td></tr>
           <tr><td class="f">Order</td><td>模型</td><td>模型排序用</td><td class="meh">改数字可以，拖拽无效</td></tr>
           <tr><td class="f">Status</td><td>模型，且只在你说完成之后</td><td>模型</td><td class="meh">只能用那三个值</td></tr>
           <tr><td class="f">Day</td><td>模型，建行时写今天</td><td>模型筛选用</td><td class="ok">改了就挪到那天</td></tr>
-          <tr><td class="f">EveryMinutes</td><td>模型，加习惯时</td><td>Vercel（只看数字）</td><td class="ok">随便改</td></tr>
-          <tr><td class="f">Last</td><td>模型，你说做了之后</td><td>Vercel（只看时间戳）</td><td class="ok">随便改</td></tr>
+          <tr><td class="f">EveryMinutes</td><td>模型，加习惯时</td><td>Cloudflare（只看数字）</td><td class="ok">随便改</td></tr>
+          <tr><td class="f">Last</td><td>模型，你说做了之后</td><td>Cloudflare（只看时间戳）</td><td class="ok">随便改</td></tr>
           <tr><td class="f">Note</td><td>模型</td><td>模型</td><td class="ok">随便改</td></tr>
         </tbody>
       </table>
     </div>
     <div class="note">
-      <b>Vercel 那一列只出现过两次</b>，而且都只看数字：间隔几分钟、上次是什么时候。
+      <b>Cloudflare 那一列只出现过两次</b>，而且都只看数字：间隔几分钟、上次是什么时候。
       它连这两个数字属于哪条习惯都不知道 —— 它只知道一个叫 <code>h-8b12d4</code> 的东西该做了。
     </div>
   </section>
@@ -172,7 +172,7 @@ Order=1  Status=pending  Day=2026-09-22</pre>
       <li>
         <div>
           <div class="step-title">习惯：名字在本地剥掉再送出去</div>
-          <div class="step-where">local → vercel</div>
+          <div class="step-where">local → cloudflare</div>
 <pre class="wire">送出： [{"id":"h-8b12d4","every_minutes":45,"last":"2026-09-22T01:10:00Z"}]
 回来： {"kind":"due","ids":["h-8b12d4"]}</pre>
           <div class="step-body">名字留在本地。回来的 ID 在本地贴回名字。</div>
@@ -221,7 +221,7 @@ Order=1  Status=pending  Day=2026-09-22</pre>
     <p class="sec-title">逐种情况，说实话</p>
     <p class="lead">
       这一节回答你真正问的那个问题。结论是：大部分改动完全安全，只有三种会真的出问题，
-      而且都不在 Vercel 那一侧。
+      而且都不在 Cloudflare 那一侧。
     </p>
     <div class="scroll">
       <table>
@@ -232,7 +232,7 @@ Order=1  Status=pending  Day=2026-09-22</pre>
           <tr><td>改 Last（手动记一笔）</td><td class="ok">安全。这本来就是给你改的</td></tr>
           <tr><td>改 Note</td><td class="ok">安全</td></tr>
           <tr><td>改 Day（挪到明天）</td><td class="ok">安全。今天就读不到它了，本来也是这个意思</td></tr>
-          <tr><td>删掉一行</td><td class="ok">安全。Vercel 没有副本要清理</td></tr>
+          <tr><td>删掉一行</td><td class="ok">安全。Cloudflare 没有副本要清理</td></tr>
           <tr><td>改 Order 的数字</td><td class="ok">安全。顺序就是按这个数排的</td></tr>
           <tr><td><b>拖拽排序</b></td><td class="meh">没用。Notion 的拖拽不改 Order 数字，模型看不见</td></tr>
           <tr><td><b>Status 填了别的值</b></td><td class="bad">出问题。只认 pending / done / dropped 三个小写值</td></tr>
@@ -292,7 +292,7 @@ Order=1  Status=pending  Day=2026-09-22</pre>
       <li><span class="mark">3</span><span>同一天的 task，<code>Order</code> 互不相同</span></li>
       <li><span class="mark">4</span><span><code>Status</code> 只有 <code>pending</code> / <code>done</code> / <code>dropped</code>，全小写</span></li>
       <li><span class="mark">5</span><span>habit 行的 <code>EveryMinutes</code> &gt; 0，否则它永远不会提醒</span></li>
-      <li><span class="mark">6</span><span>Vercel 上没有任何状态 —— 这条不用查，它根本没地方存</span></li>
+      <li><span class="mark">6</span><span>Cloudflare 上没有任何状态 —— 这条不用查，它根本没地方存</span></li>
     </ul>
   </section>
 

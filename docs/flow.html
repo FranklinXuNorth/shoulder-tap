@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shoulder-tap 本地与跨机器流程</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #eef1f2; --surface: #ffffff; --surface-2: #f6f8f8;
+    --ink: #14191a; --muted: #5d6b6d; --line: #d3dbdc; --line-strong: #aebabc;
+    --accent: #0e7c7b; --accent-soft: #d9ecec;
+    --signal: #c1471d; --signal-soft: #f9e4dc;
+    --warn: #8a6a12; --warn-soft: #f5ecd2;
+    --radius: 10px;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1213; --surface: #161c1d; --surface-2: #1b2223;
+      --ink: #e6ecec; --muted: #94a3a4; --line: #2a3435; --line-strong: #3d4a4b;
+      --accent: #4bb5b2; --accent-soft: #123231;
+      --signal: #e98055; --signal-soft: #35201a;
+      --warn: #d4ae5a; --warn-soft: #2d2618;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1213; --surface: #161c1d; --surface-2: #1b2223;
+    --ink: #e6ecec; --muted: #94a3a4; --line: #2a3435; --line-strong: #3d4a4b;
+    --accent: #4bb5b2; --accent-soft: #123231;
+    --signal: #e98055; --signal-soft: #35201a;
+    --warn: #d4ae5a; --warn-soft: #2d2618;
+  }
+  body { background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans", "Microsoft YaHei UI", ui-sans-serif, system-ui, sans-serif; font-size: 15px; line-height: 1.65; margin: 0; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 48px 16px 72px; }
+  h1 { font-size: clamp(26px, 5vw, 36px); font-weight: 600; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+  .sub { color: var(--muted); margin: 10px 0 0; max-width: 62ch; }
+  h2 { font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin: 0 0 4px; }
+  .sec { margin-top: 56px; }
+  .sec-title { font-size: 21px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .sec > p.lead { margin: 0 0 20px; color: var(--muted); max-width: 62ch; }
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  a { color: var(--accent); }
+  .diagram { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; overflow-x: auto; }
+  .diagram svg { max-width: 100%; height: auto; }
+  .note { margin-top: 18px; border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 14px; border-radius: 0 7px 7px 0; font-size: 14px; }
+  .note.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  th, td { text-align: left; padding: 10px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  ul.changes { padding-left: 20px; margin: 0; }
+  ul.changes li { margin: 6px 0; }
+  ul.changes li span.what { color: var(--muted); }
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>本地与跨机器：一次拍肩怎么走</h1>
+    <p class="sub">
+      2026-09-24 这次更新之后的全貌。三只手（拍拍、taptap、响指）都走同一条路：
+      先看本机是不是你在用的那台，是就直接拍；不是才经 Cloudflare 送到那台。
+      行为契约看 <a href="behavior.html">behavior</a>，跨机器的取舍看 <a href="cross-machine.html">cross-machine</a>。
+    </p>
+  </header>
+
+  <section class="sec">
+    <h2>01 — 流程图</h2>
+    <p class="sec-title">从模型说完一句话，到屏幕上那只手</p>
+    <p class="lead">实线是本机上的调用，虚线跨过网络。菱形是每一处「往哪走」的判断。</p>
+    <div class="diagram">
+<pre class="mermaid">
+flowchart TB
+  subgraph A["机器 A（Claude Code 在这里跑）"]
+    direction TB
+    CC["Claude Code"] -->|"UserPromptSubmit / PostToolUse / Stop / PreToolUse(AskUserQuestion)"| W["watch.mjs（钩子）"]
+    W -->|"check_focus（读缓存，后台刷新）"| MCP["/mcp · 同一台 Worker"]
+    MCP -.->|"用你的 token 读写"| N[("你的 Notion 库")]
+    W --> G{"结尾哪只手？<br/>拍拍 / taptap / 响指"}
+    G --> L{"active.json 说<br/>活跃的是本机？"}
+    L -->|"是"| D["shoulder-tap-tap（常驻）"]
+    D --> S["屏幕：手 + 字条"]
+    D -.->|"record：手势 + 密文"| CH
+    L -->|"不是 / 不知道"| E["relay.mjs：HKDF(token) 派生密钥<br/>AES-GCM 封字条"]
+    E -.->|"POST /ch/send<br/>Bearer 设备令牌"| CH
+    CH -.->|"delivered: false"| D
+  end
+
+  subgraph CF["Cloudflare Worker"]
+    direction TB
+    ACC[("Accounts DO<br/>账号 · 设备码 · 设备令牌")]
+    CH[("Channel DO（每账号一个）<br/>谁活跃 · 密文历史")]
+    ACC -->|"令牌 → 账号"| CH
+  end
+
+  subgraph B["机器 B（你正盯着的那台）"]
+    direction TB
+    DB["shoulder-tap-tap（常驻）"] -.->|"WebSocket · active：刚被碰过 / 换了块屏"| CH
+    CH -.->|"tap：密文"| DB
+    DB -->|"解密 · [A 的名字] 字条"| SB["屏幕：手 + 字条"]
+    DB -->|"写 active.json"| AF["active.json"]
+  end
+
+  I["install.mjs --login"] -.->|"设备码"| ACC
+  BR["浏览器：邮箱密码 / Google"] -.->|"绑定设备码"| ACC
+
+  classDef net stroke-dasharray: 4 3;
+</pre>
+    </div>
+    <div class="note">
+      机器 A 和机器 B 是同一份代码，只是谁发起、谁被盯着的角色不同。本机就是活跃的那台时（最常见），
+      整条路都不出机器：钩子 → 常驻进程 → 屏幕，150 毫秒上下；常驻进程随后把这一下补记进频道历史。
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>02 — 时序</h2>
+    <p class="sec-title">跨机器那一下，按时间排</p>
+    <div class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant CC as Claude Code（Mac）
+  participant W as watch.mjs（Mac）
+  participant CH as Channel DO
+  participant D as shoulder-tap-tap（Windows）
+  participant U as 你
+
+  U->>D: 敲键盘
+  D->>CH: active {screens}
+  CH-->>D: active {device: Windows}
+  Note over D: active.json = true
+
+  CC->>W: Stop（结尾有拍拍）
+  W->>W: active.json？Mac 不是活跃的
+  W->>W: seal(HKDF(token), {host, gesture, caption})
+  W->>CH: POST /ch/send {device, gesture, blob}
+  CH->>CH: 目标 = 最近被碰过且在线的 = Windows；写历史
+  CH-->>D: tap {blob}
+  CH-->>W: {delivered: true}
+  Note over W: 不在 Mac 上拍
+  D->>D: unseal → "[MacBook] 改完了"
+  D->>U: 屏幕右缘拍拍 + 字条
+</pre>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>03 — 这次更新</h2>
+    <p class="sec-title">2026-09-24 加了什么</p>
+    <div class="scroll"><table>
+      <thead><tr><th>东西</th><th>在哪</th><th>做什么</th></tr></thead>
+      <tbody>
+        <tr><td>响指</td><td><code>skill/shoulder-tap/ui/sprites/snap-glove-*</code>，<code>draw-snap.py</code></td><td>第三只手：模型弹 <code>AskUserQuestion</code> 时，PreToolUse 钩子打个响指，问题贴在手旁边。两张图 4fps 来回切</td></tr>
+        <tr><td>两条道上移</td><td><code>desktop/TapWindow.xaml</code>，<code>desktop-mac/ShoulderTap.swift</code></td><td>taptap / 响指 30%，拍拍 52%</td></tr>
+        <tr><td>中转</td><td><code>worker/</code></td><td>Cloudflare Worker + 两种 Durable Object：账号 / 设备码 / 设备令牌；每账号一个频道（WebSocket、活跃判定、密文历史）。<code>node test.mjs</code> 对着 <code>wrangler dev</code> 走端到端</td></tr>
+        <tr><td>账号</td><td><code>worker/src/index.js</code>，<code>install.mjs</code></td><td>邮箱密码（PBKDF2，注册要确认密码）或 Google；终端用设备码登录，令牌写进 <code>.env</code></td></tr>
+        <tr><td>发送端</td><td><code>skill/shoulder-tap/relay.mjs</code>，<code>watch.mjs</code></td><td>本机不是活跃的那台才走中转；HKDF + AES-GCM，服务端只见密文；失败退回本机拍</td></tr>
+        <tr><td>Windows 接收端</td><td><code>desktop/Relay.cs</code></td><td>WebSocket、解密、上报活跃、写 <code>active.json</code>、补记本机拍的那下；开机自启</td></tr>
+        <tr><td>macOS 接收端</td><td><code>desktop-mac/ShoulderTap.swift</code></td><td>改成菜单栏常驻 App（<code>LSUIElement</code>），LaunchAgent 自启，同样的中转逻辑。<b>还没在真机上编过</b></td></tr>
+        <tr><td>Linux</td><td><code>desktop-linux/README.md</code></td><td>接口约定，给写它的人。发送已能用，接收待做</td></tr>
+        <tr><td>行为数据</td><td><code>Channel DO</code></td><td>平台、屏幕数、手势、时间戳；<code>SHOULDER_TAP_TELEMETRY=0</code> 关掉</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note warn">
+      Mac 常驻端是在没有 <code>swiftc</code> 的机器上写的：结构照 Windows 版和旧的单文件版，密钥派生和封装照 <code>relay.mjs</code> 的向量。
+      第一次在 Mac 上跑 <code>node install.mjs</code> 时如果编译报错，把错误贴回来。
+    </div>
+  </section>
+
+  <footer>shoulder-tap · 本机优先 · 不是本机才上云 · 服务端只见密文</footer>
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light"
+    || document.documentElement.dataset.theme === "dark";
+  mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", securityLevel: "loose",
+    themeVariables: { fontFamily: '"IBM Plex Sans", "Microsoft YaHei UI", system-ui, sans-serif' } });
+</script>
+</html>

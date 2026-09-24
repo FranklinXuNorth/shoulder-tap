@@ -6,7 +6,8 @@
  *   1. skill  → ~/.claude/skills/shoulder-tap（已有的 .env 不动）
  *   2. 钩子   → ~/.claude/settings.json 里的 UserPromptSubmit / PostToolUse / Stop / PreToolUse(AskUserQuestion)
  *   3. CLAUDE.md → 把 skill/CLAUDE.md.snippet 粘进 ~/.claude/CLAUDE.md（已有「## 专注」就跳过）
- *   4. 桌面端 → Windows 用 .NET SDK、macOS 用 swiftc 编译到 ~/.claude/shoulder-tap/app；没有也不影响文本拍肩
+ *   4. 桌面端 → Windows 用 .NET SDK 编到 ~/.claude/shoulder-tap/app 并注册开机自启；
+ *              macOS 用 swiftc 包成 ShoulderTap.app 并注册 LaunchAgent；Linux 只指一下接口文档。没有也不影响文本拍肩
  *   5. 跨机器 → .env 里有 SHOULDER_TAP_RELAY 但还没登录，就打印一个链接让你在浏览器里登录，
  *              登录完把设备令牌写进 .env。node install.mjs --login 可以重新登。
  *
@@ -68,13 +69,55 @@ if (process.platform === "darwin") {
   if (spawnSync("swiftc", ["--version"], { stdio: "ignore" }).status !== 0)
     log("没找到 swiftc：先跑 xcode-select --install，再跑一次这个脚本");
   else {
-    fs.mkdirSync(appDir, { recursive: true });
+    // 包成一个只有菜单栏图标的 .app：LSUIElement 不进 Dock；sprite 放 Resources。
+    const bundle = path.join(appDir, "ShoulderTap.app");
+    const macos = path.join(bundle, "Contents", "MacOS");
+    const res = path.join(bundle, "Contents", "Resources");
+    fs.mkdirSync(macos, { recursive: true });
+    fs.mkdirSync(res, { recursive: true });
     for (const sheet of ["tap-glove-sheet.png", "completion-hand-sheet.png", "snap-glove-sheet.png"])
-      fs.copyFileSync(path.join(skillSrc, "ui", "sprites", sheet), path.join(appDir, sheet));
-    const bin = path.join(appDir, "shoulder-tap-tap");
+      fs.copyFileSync(path.join(skillSrc, "ui", "sprites", sheet), path.join(res, sheet));
+    fs.writeFileSync(path.join(bundle, "Contents", "Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleIdentifier</key><string>com.shoulder-tap.tap</string>
+  <key>CFBundleName</key><string>shoulder-tap</string>
+  <key>CFBundleExecutable</key><string>shoulder-tap-tap</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>0.2</string>
+  <key>LSUIElement</key><true/>
+  <key>LSMinimumSystemVersion</key><string>12.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+</dict></plist>
+`);
+    const bin = path.join(macos, "shoulder-tap-tap");
+    spawnSync(bin, ["--quit"], { stdio: "ignore" }); // 常驻的那个在跑就先请它退出
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 800);
     execFileSync("swiftc", ["-O", path.join(root, "desktop-mac", "ShoulderTap.swift"), "-o", bin], { stdio: "inherit" });
-    log(`桌面端 → ${bin}`);
+    log(`桌面端 → ${bundle}`);
+    // 登录时自启：LaunchAgent，不需要管理员。--daemon 起来就是常驻不拍。
+    const agents = path.join(os.homedir(), "Library", "LaunchAgents");
+    const plist = path.join(agents, "com.shoulder-tap.tap.plist");
+    fs.mkdirSync(agents, { recursive: true });
+    fs.writeFileSync(plist, `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.shoulder-tap.tap</string>
+  <key>ProgramArguments</key><array><string>${bin}</string><string>--daemon</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><false/>
+</dict></plist>
+`);
+    const uid = process.getuid?.() ?? 501;
+    spawnSync("launchctl", ["bootout", `gui/${uid}`, plist], { stdio: "ignore" });
+    const boot = spawnSync("launchctl", ["bootstrap", `gui/${uid}`, plist], { stdio: "ignore" });
+    log(boot.status === 0
+      ? `登录自启 → ${plist}（取消：launchctl bootout gui/${uid} ${plist}）`
+      : "登录自启没注册上，手动 launchctl bootstrap 一下，或者在系统设置 → 登录项里加上 ShoulderTap.app");
+    spawnSync(bin, [], { stdio: "ignore" }); // 现在就拉起来常驻
   }
+} else if (process.platform === "linux") {
+  log(`Linux 还没有桌面端：接口约定在 ${path.join(root, "desktop-linux", "README.md")}；做好放到 ${path.join(appDir, "shoulder-tap-tap")} 就会被用上。文本拍肩和跨机器发送照常工作`);
 } else if (process.platform !== "win32") log("桌面端只有 Windows 和 macOS 版，这台机器跳过；文本拍肩照常工作");
 else if (spawnSync("dotnet", ["--version"], { stdio: "ignore" }).status !== 0)
   log(`没找到 dotnet：装 .NET 10 SDK 后再跑一次，或把 Release 里的 exe 解压到 ${appDir}`);
@@ -139,7 +182,7 @@ console.log(`
   1. 建一个 Notion integration，拿 ntn_ 开头的密钥，
      写进 ${env} 的 NOTION_TOKEN=，
      再把 Claude Code 接上：
-       claude mcp add --transport http shoulder-tap https://shoulder-tap.vercel.app/mcp -s user -H "Authorization: Bearer ntn_你的密钥"
+       claude mcp add --transport http shoulder-tap https://shoulder-tap-relay.shoulder-tap.workers.dev/mcp -s user -H "Authorization: Bearer ntn_你的密钥"
   2. 挑一个 Notion 页面，⋯ → Connections 加上这个 integration，然后在 Claude Code 里说
      「接上 shoulder-tap」，把页面链接给它，它会在那底下建库。
 `);
