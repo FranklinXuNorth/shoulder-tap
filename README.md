@@ -1,3 +1,5 @@
+![shoulder-tap: tap tap, pat pat, snap](docs/banner.en.png)
+
 **English** | [中文](README.zh-CN.md)
 
 # shoulder-tap 👀
