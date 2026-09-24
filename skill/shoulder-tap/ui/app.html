@@ -51,8 +51,12 @@
   .action small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
   .action .ico { flex: none; width: 48px; height: 40px; border-radius: 8px; background: var(--stage); display: grid; place-items: center; font-size: 20px; color: #181818; }
   .action .ico div { width: 48px; height: 40px; background-size: 432px 40px; background-repeat: no-repeat; image-rendering: pixelated; }
-  .day { font-size: 13px; color: var(--muted); font-weight: 600; margin: 18px 0 2px; display: flex; gap: 8px; }
-  .day:first-child { margin-top: 4px; }
+  /* 记录在卡片里面滚，页面本身不跟着变长；日期标签滚动时贴在顶上 */
+  .scroll { overflow-y: auto; overscroll-behavior: contain; margin-right: -10px; padding-right: 10px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  #taskDays { max-height: min(46vh, 420px); }
+  #historyList { max-height: min(28vh, 220px); }
+  .day { font-size: 13px; color: var(--muted); font-weight: 600; margin: 0; padding: 14px 0 4px; display: flex; gap: 8px; position: sticky; top: 0; z-index: 1; background: var(--surface); }
+  .day:first-child { padding-top: 2px; }
   .day span { font-weight: 400; color: var(--faint); }
   .items li.dropped .t { color: var(--faint); text-decoration: line-through; }
   .items li.open .n { color: var(--faint); }
@@ -179,14 +183,14 @@
     </div>
     <section class="card">
       <div class="row" style="justify-content:space-between"><h2 data-t="tasksH"></h2><span class="progress" id="progress"></span></div>
-      <div id="taskDays"></div>
+      <div id="taskDays" class="scroll"></div>
       <div class="msg" id="msg-tasks"></div>
     </section>
     <section class="card">
       <h2 data-t="habitsH"></h2>
       <ul class="items" id="habitList"></ul>
       <h3 data-t="historyH"></h3>
-      <ul class="hist" id="historyList"></ul>
+      <ul class="hist scroll" id="historyList"></ul>
       <div class="msg" id="msg-habits"></div>
     </section>
     <p class="why" style="font-size:13px"><span data-t="uninstall"></span><code id="uninstallCmd" style="font:12px var(--mono);word-break:break-all"></code></p>
