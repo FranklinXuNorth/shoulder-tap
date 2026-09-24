@@ -38,12 +38,24 @@
   .top { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
   .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.01em; }
   .logo { width: 29px; height: 24px; background-size: 259px 24px; background-repeat: no-repeat; image-rendering: pixelated; }
-  .tabs { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 3px; margin-left: auto; }
-  .tabs button { border: 0; padding: 5px 12px; font-size: 14px; color: var(--muted); background: transparent; }
-  .tabs button.on { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
-  #lang { margin-left: 4px; font-size: 13px; }
-  body[data-mode=wizard] #lang { margin-left: auto; }
-  @media (max-width: 560px) { .top { flex-wrap: wrap; } .tabs { order: 3; width: 100%; margin-left: 0; } .tabs button { flex: 1; } #lang { margin-left: auto; } }
+  #lang { margin-left: auto; font-size: 13px; }
+  .backlink { display: inline-block; margin: 0 0 14px; color: var(--muted); text-decoration: none; font-size: 14px; }
+  .backlink:hover { color: var(--ink); }
+
+  /* 首页：两个入口 */
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  @media (max-width: 520px) { .actions { grid-template-columns: 1fr; } }
+  .action { display: flex; gap: 14px; align-items: center; text-align: left; padding: 16px 18px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); }
+  .action:hover { border-color: var(--accent); }
+  .action b { display: block; font-size: 15.5px; }
+  .action small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .action .ico { flex: none; width: 48px; height: 40px; border-radius: 8px; background: var(--stage); display: grid; place-items: center; font-size: 20px; color: #181818; }
+  .action .ico div { width: 48px; height: 40px; background-size: 432px 40px; background-repeat: no-repeat; image-rendering: pixelated; }
+  .day { font-size: 13px; color: var(--muted); font-weight: 600; margin: 18px 0 2px; display: flex; gap: 8px; }
+  .day:first-child { margin-top: 4px; }
+  .day span { font-weight: 400; color: var(--faint); }
+  .items li.dropped .t { color: var(--faint); text-decoration: line-through; }
+  .items li.open .n { color: var(--faint); }
 
   /* 引导 */
   h1 { font-size: 26px; margin: 0; letter-spacing: -0.01em; }
@@ -83,10 +95,11 @@
   .promise span { color: var(--muted); font-size: 13.5px; }
   .msg { margin-top: 10px; font-size: 14px; white-space: pre-wrap; min-height: 1.4em; color: var(--muted); }
   .msg.err { color: var(--signal); }
+  .msg:empty { display: none; }
   .hidden { display: none !important; }
   ul.hint { padding-left: 18px; margin: 8px 0 0; color: var(--muted); font-size: 14px; }
   .empty { color: var(--faint); font-size: 14px; padding: 6px 0; }
-  body[data-mode=wizard] .panel-only, body[data-mode=panel] .wizard-only { display: none !important; }
+  body:not([data-mode=wizard]) .wizard-only, body:not([data-mode=home]) #home { display: none !important; }
 
   /* 清单和习惯的行 */
   .items { list-style: none; margin: 0; padding: 0; }
@@ -128,22 +141,58 @@
   .skin .thumb div { width: 96px; height: 80px; background-size: 864px 80px; background-repeat: no-repeat; image-rendering: pixelated; }
   .skin .name { padding: 8px 12px; font-size: 14px; display: flex; justify-content: space-between; }
   .skin .name i { font-style: normal; color: var(--accent); font-size: 13px; }
+
+  /* 打开时的加载：手摆好响指的姿势等着，数据到了打一下，然后渐入 */
+  #boot { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: grid; place-items: center; transition: opacity .45s ease; }
+  #boot.out { opacity: 0; pointer-events: none; }
+  #boot .snap { width: 192px; height: 160px; background: url(/skins/current/snap.png) 0 0 / 1728px 160px no-repeat; image-rendering: pixelated; animation: ready 1.2s ease-in-out infinite; }
+  #boot .snap.go { animation: none; background-position: -192px 0; transform: scale(1.06); transition: transform .12s ease-out; }
+  @keyframes ready { 50% { transform: translateY(-4px); } }
+  /* 手是黑白的，深色底上放一块浅色台子，跟面板里的预览台一样 */
+  #boot .pad { width: 232px; height: 200px; border-radius: 18px; background: var(--stage); display: grid; place-items: center; }
+  main { transition: opacity .5s ease, transform .5s ease; }
+  body.booting main { opacity: 0; transform: translateY(8px); }
+  @media (prefers-reduced-motion: reduce) { #boot, main, #boot .snap { transition: none; animation: none; } }
+
+  .tries { display: grid; gap: 10px; margin: 6px 0 0; padding: 0; list-style: none; counter-reset: n; }
+  .tries li { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: start; }
+  .tries li::before { counter-increment: n; content: counter(n); width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12.5px; font-weight: 700; display: grid; place-items: center; margin-top: 2px; }
+  .tries .say { display: block; margin-top: 4px; padding: 7px 11px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); font-size: 14px; }
+  .tries .then { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
 </style>
 
-<body data-mode="wizard">
+<body data-mode="wizard" class="booting">
+<div id="boot"><div class="pad"><div class="snap" id="bootSnap"></div></div></div>
 <main>
   <header class="top">
     <div class="brand"><div class="logo" id="logo"></div>shoulder-tap</div>
-    <nav class="tabs panel-only" id="tabs">
-      <button data-tab="today" data-t="tabToday"></button>
-      <button data-tab="habits" data-t="tabHabits"></button>
-      <button data-tab="hands" data-t="tabHands"></button>
-      <button data-tab="settings" data-t="tabSettings"></button>
-    </nav>
     <button id="lang" class="ghost small" data-t="lang"></button>
   </header>
 
   <div class="promise hidden" id="gone" style="border-color:var(--signal);background:var(--signal-soft)"><b data-t="gone"></b><span data-t="goneWhy"></span></div>
+
+  <a href="#home" class="backlink" id="backlink" data-t="backHome"></a>
+
+  <!-- 首页：两个入口 + 所有记录 -->
+  <div id="home">
+    <div class="actions">
+      <button class="action" data-go="setup"><span class="ico">↻</span><span><b data-t="goSetup"></b><small data-t="goSetupWhy"></small></span></button>
+      <button class="action" data-go="hands"><span class="ico"><div id="skinIco"></div></span><span><b data-t="goHands"></b><small data-t="goHandsWhy"></small></span></button>
+    </div>
+    <section class="card">
+      <div class="row" style="justify-content:space-between"><h2 data-t="tasksH"></h2><span class="progress" id="progress"></span></div>
+      <div id="taskDays"></div>
+      <div class="msg" id="msg-tasks"></div>
+    </section>
+    <section class="card">
+      <h2 data-t="habitsH"></h2>
+      <ul class="items" id="habitList"></ul>
+      <h3 data-t="historyH"></h3>
+      <ul class="hist" id="historyList"></ul>
+      <div class="msg" id="msg-habits"></div>
+    </section>
+    <p class="why" style="font-size:13px"><span data-t="uninstall"></span><code id="uninstallCmd" style="font:12px var(--mono);word-break:break-all"></code></p>
+  </div>
 
   <div class="wizard-only">
     <h1 data-t="title"></h1>
@@ -153,31 +202,18 @@
 
   <!-- 今天 -->
   <section class="card" id="sec-today">
-    <div class="row" style="justify-content:space-between">
-      <h2 data-t="todayH"></h2><span class="progress panel-only" id="progress"></span>
-    </div>
-    <p class="why wizard-only" data-t="todayWhy"></p>
+    <h2 data-t="todayH"></h2>
+    <p class="why" data-t="todayWhy"></p>
     <ul class="items" id="todayList"></ul>
-    <h3 class="panel-only" data-t="todayRewrite"></h3>
     <textarea id="tasks" data-p="todayPh"></textarea>
-    <p class="why wizard-only" id="todayNote" style="margin:8px 0 0"></p>
-    <div class="row panel-only" style="margin-top:10px"><button class="primary" data-save="today" data-t="saveList"></button></div>
+    <p class="why" id="todayNote" style="margin:8px 0 0"></p>
     <div class="msg" id="msg-today"></div>
   </section>
 
   <!-- 习惯 -->
   <section class="card" id="sec-habit">
-    <div class="panel-only">
-      <h2 data-t="habitsH"></h2>
-      <ul class="items" id="habitList"></ul>
-      <h3 data-t="historyH"></h3>
-      <ul class="hist" id="historyList"></ul>
-      <h3 data-t="addHabitH"></h3>
-    </div>
-    <div class="wizard-only">
-      <h2 data-t="habitH"></h2>
-      <p class="why" data-t="habitWhy"></p>
-    </div>
+    <h2 data-t="habitH"></h2>
+    <p class="why" data-t="habitWhy"></p>
     <label for="hname" data-t="habitName"></label>
     <input type="text" id="hname" data-p="habitPh">
     <label data-t="habitWhen"></label>
@@ -191,7 +227,6 @@
       <label class="opt"><input type="radio" name="kind" value="hard"><div><b data-t="hard"></b><span data-t="hardWhy"></span></div></label>
     </div>
     <div class="row" style="margin-top:14px">
-      <button class="primary panel-only" data-save="habit" data-t="addHabit"></button>
       <button id="tryTap" data-t="tryTap"></button>
       <span class="why" style="margin:0" data-t="tryTapWhy"></span>
     </div>
@@ -242,16 +277,20 @@
       <input type="text" id="npage" placeholder="https://www.notion.so/…">
       <ul class="hint"><li data-t="n1"></li><li data-t="n2"></li><li data-t="n3"></li></ul>
     </div>
-    <div class="row panel-only" style="margin-top:14px"><button class="primary" data-save="storage" data-t="save"></button></div>
     <div class="msg" id="msg-storage"></div>
   </section>
 
-  <!-- 更多（只在面板里） -->
-  <section class="card panel-only" id="sec-more">
-    <h2 data-t="moreH"></h2>
-    <p class="why" style="margin-bottom:8px"><a href="#setup" data-t="rerun"></a></p>
-    <label data-t="uninstall"></label>
-    <pre id="uninstallCmd"></pre>
+  <!-- 引导最后一步：怎么试 -->
+  <section class="card" id="sec-try">
+    <h2 data-t="tryH"></h2>
+    <p class="why" data-t="tryWhy"></p>
+    <ol class="tries">
+      <li><div><b data-t="try1"></b></div><div></div></li>
+      <li><div><b data-t="try2"></b><span class="say" data-t="try2Say"></span><span class="then" data-t="try2Then"></span></div><button class="small" data-copy="try2Say" data-t="copy"></button></li>
+      <li><div><b data-t="try3"></b><span class="say" data-t="try3Say"></span><span class="then" data-t="try3Then"></span></div><button class="small" data-copy="try3Say" data-t="copy"></button></li>
+      <li><div><b data-t="try4"></b><span class="say" data-t="try4Say"></span><span class="then" data-t="try4Then"></span></div><button class="small" data-copy="try4Say" data-t="copy"></button></li>
+    </ol>
+    <div class="msg" id="msg-try"></div>
   </section>
 
   <div class="nav wizard-only" id="nav">
@@ -297,7 +336,14 @@
       ntoken: "Notion integration 密钥（ntn_ 开头）", npage: "一个 Notion 页面的链接",
       n1: "密钥在 notion.so/profile/integrations 新建一个 integration 拿。", n2: "那个页面右上角 ⋯ → Connections → 加上它。", n3: "已经记在本地的习惯和今天的事会一起搬过去。",
       needBoth: "密钥和页面链接都要填。", saving: "保存中……", save: "保存",
-      moreH: "其它", rerun: "从头走一遍引导 →", uninstall: "卸载（数据留着；加 --purge 一起删）",
+      uninstall: "卸载（数据留着；加 --purge 一起删）：", backHome: "← 回到首页",
+      goSetup: "重新走一遍设置", goSetupWhy: "编程工具、习惯、今天的事、数据放哪", goHands: "选择皮肤", goHandsWhy: "预览三种手势，换一套手",
+      tasksH: "待办", todayLabel: "今天", notDone: "没做完",
+      tryH: "试一下", tryWhy: "都在你平时用的对话框里说，不用记命令。",
+      try1: "重开一次 Claude Code（新会话才看得到 shoulder-tap）。",
+      try2: "告诉它今天要做什么：", try2Say: "今天要做：写周报，回邮件", try2Then: "它会记下来，按顺序盯着第一件。",
+      try3: "再说一件不相干的事：", try3Say: "帮我查一下明天的天气", try3Then: "它照样回答，但很短；结尾有只手，屏幕右边也会拍你一下。",
+      try4: "做完一个习惯就说一声：", try4Say: "喝完水了", try4Then: "它记一笔，下次到点再提。",
       back: "上一步", skip: "跳过", next: "下一步", finish: "完成", fail: "没成功", welcome: "设置好了。以后点托盘图标就回到这里。",
       gone: "这个页面断开了。", goneWhy: "页面关着一阵后后台会自己停。点一下托盘 / 菜单栏图标，就会开一个新的。",
       agentMd: (m) => [
@@ -336,7 +382,14 @@
       ntoken: "Notion integration token (starts with ntn_)", npage: "Link to a Notion page",
       n1: "Create an integration at notion.so/profile/integrations to get the token.", n2: "On that page: ⋯ → Connections → add it.", n3: "Habits and tasks already saved locally move over too.",
       needBoth: "Both token and page link are needed.", saving: "Saving…", save: "Save",
-      moreH: "More", rerun: "Run the setup again →", uninstall: "Uninstall (keeps data; add --purge to delete it)",
+      uninstall: "Uninstall (keeps data; add --purge to delete it): ", backHome: "← Back",
+      goSetup: "Run setup again", goSetupWhy: "Coding tools, habits, today, where data lives", goHands: "Choose a skin", goHandsWhy: "Preview the three gestures, switch hands",
+      tasksH: "Tasks", todayLabel: "Today", notDone: "not done",
+      tryH: "Try it", tryWhy: "Just talk in the chat you already use. No commands to remember.",
+      try1: "Restart Claude Code (a new session picks up shoulder-tap).",
+      try2: "Tell it what you're doing today:", try2Say: "Today: write the weekly report, reply to email", try2Then: "It saves the list and watches the first item.",
+      try3: "Then ask for something unrelated:", try3Say: "What's the weather tomorrow?", try3Then: "It still answers, briefly. A hand ends the reply and taps your screen's right edge.",
+      try4: "When you do a habit, say so:", try4Say: "Just drank water", try4Then: "It logs it and reminds you again when it's due.",
       back: "Back", skip: "Skip", next: "Next", finish: "Finish", fail: "Failed", welcome: "All set. Click the tray icon to come back here.",
       gone: "This page lost its connection.", goneWhy: "The background service stops a while after the page goes idle. Click the tray / menu bar icon to open a fresh one.",
       agentMd: (m) => [
@@ -361,38 +414,39 @@
   };
   const say = (id, text, err = false) => { const m = $("msg-" + id); m.textContent = text; m.className = "msg" + (err ? " err" : ""); };
 
-  // 引导按这个顺序一页一块；面板按 tab 分组，同一块两边共用。
-  const STEPS = ["connect", "habit", "today", "storage", "hands"];
-  const TABS = { today: ["today"], habits: ["habit"], hands: ["hands"], settings: ["connect", "storage", "more"] };
-  let S = null, step = 0, mode = "wizard", tab = "today";
+  // 三种样子：首页（两个入口 + 所有记录）、引导（一步一块，最后一块教你怎么试）、换皮肤（只有「手」那一块）。
+  const STEPS = ["connect", "habit", "today", "storage", "hands", "try"];
+  let S = null, step = 0, mode = "home";
 
   function route() {
     const h = location.hash.slice(1);
-    mode = !S?.onboarded || h === "setup" ? "wizard" : "panel";
-    if (TABS[h]) tab = h;
-    if (mode === "wizard" && h === "setup") step = 0;
+    const was = mode;
+    mode = !S?.onboarded || h === "setup" ? "wizard" : h === "hands" ? "hands" : "home";
+    if (mode === "wizard" && was !== "wizard") step = 0;
     render();
   }
   function render() {
     document.body.dataset.mode = mode;
-    const visible = mode === "wizard" ? [STEPS[step]] : TABS[tab];
+    const visible = mode === "wizard" ? [STEPS[step]] : mode === "hands" ? ["hands"] : [];
     document.querySelectorAll("main > section").forEach((s) => s.classList.toggle("hidden", !visible.includes(s.id.slice(4))));
-    document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
     [...$("bar").children].forEach((li, i) => li.classList.toggle("on", i <= step));
     $("back").disabled = step === 0;
+    $("skip").classList.toggle("hidden", step === STEPS.length - 1);
     $("next").textContent = step === STEPS.length - 1 ? t("finish") : t("next");
+    // 返回首页：换皮肤时总有；引导里只有设置过的人才有（第一次没有首页可回）
+    $("backlink").classList.toggle("hidden", mode === "home" || (mode === "wizard" && !S?.onboarded));
+    document.title = mode === "wizard" ? t("title") : "shoulder-tap";
     if (visible.includes("hands")) playAll();
   }
   function applyLang() {
     document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
     document.querySelectorAll("[data-t]").forEach((el) => { const v = t(el.dataset.t); if (typeof v === "string") el.textContent = v; });
     document.querySelectorAll("[data-p]").forEach((el) => el.placeholder = t(el.dataset.p));
-    document.title = mode === "wizard" ? t("title") : "shoulder-tap";
     if (S) renderData();
     render();
   }
   $("lang").onclick = () => { lang = lang === "zh" ? "en" : "zh"; try { localStorage.setItem("lang", lang); } catch {} applyLang(); };
-  $("tabs").onclick = (e) => { const b = e.target.closest("button"); if (b) location.hash = b.dataset.tab; };
+  document.querySelectorAll("[data-go]").forEach((b) => b.onclick = () => location.hash = b.dataset.go);
   window.onhashchange = route;
 
   // ---------- 数据 ----------
@@ -403,27 +457,52 @@
     renderData();
   }
   function renderData() {
-    renderClients(); renderToday(); renderHabits(); renderHands();
-    $("logo").style.backgroundImage = `url(/skins/${S.skin}/tap.png)`;
+    renderClients(); renderToday(); renderTasks(); renderHabits(); renderHands();
+    $("logo").style.backgroundImage = $("skinIco").style.backgroundImage = `url(/skins/${S.skin}/tap.png)`;
     $("uninstallCmd").textContent = `node "${S.mcp.onboard.replace(/onboard\.mjs$/, "uninstall.mjs")}"`;
   }
 
   function renderToday() {
-    const items = S.today, cur = items.find((i) => !i.done);
-    $("progress").textContent = items.length ? t("progress")(items.filter((i) => i.done).length, items.length) : "";
-    $("todayList").innerHTML = items.length ? items.map((i) => `
-      <li class="${i.done ? "done" : ""} ${i === cur ? "cur" : ""}">
-        <span class="n">${i.done ? "✓" : i.order}</span>
-        <div><span class="t">${esc(i.task)}</span>${i === cur ? `<span class="badge now">${t("now")}</span>` : ""}${i.note ? `<span class="note">${esc(i.note)}</span>` : ""}</div>
-        <div class="acts panel-only">${i.done ? "" : `<button class="small" data-done="${i.order}">${t("doneBtn")}</button><button class="small ghost" data-drop="${i.order}">${t("dropBtn")}</button>`}</div>
-      </li>`).join("") : `<li class="empty" style="display:block">${t("todayEmpty")}</li>`;
+    const items = S.today;
+    $("todayList").innerHTML = items.map((i) => `
+      <li class="${i.done ? "done" : ""}"><span class="n">${i.done ? "✓" : i.order}</span><div><span class="t">${esc(i.task)}</span></div><div></div></li>`).join("");
     $("todayNote").textContent = items.length ? t("todayReplace") : "";
   }
-  $("todayList").onclick = async (e) => {
+
+  /** 首页的待办记录：最近两周，按天分组，今天在最上面。只有今天没做完的能点完成 / 今天不做。 */
+  function renderTasks() {
+    const locale = lang === "zh" ? "zh-CN" : "en-US";
+    const key = (iso) => new Date(iso).toLocaleDateString("sv"); // YYYY-MM-DD，本机时区
+    const todayKey = key(new Date(Date.now() - 4 * 3600_000).toISOString()); // 凌晨 4 点换日，跟存储那边一样
+    const days = new Map([[todayKey, []]]);
+    for (const x of S.tasks) {
+      const k = key(x.day);
+      if (!days.has(k)) days.set(k, []);
+      days.get(k).push(x);
+    }
+    const today = days.get(todayKey).filter((x) => x.status !== "dropped");
+    $("progress").textContent = today.length ? t("progress")(today.filter((x) => x.done).length, today.length) : "";
+    const cur = today.find((x) => !x.done);
+    $("taskDays").innerHTML = [...days.keys()].sort().reverse().map((k) => {
+      const isToday = k === todayKey, list = days.get(k);
+      const label = isToday ? t("todayLabel") : new Date(k + "T12:00").toLocaleDateString(locale, { month: "numeric", day: "numeric", weekday: "short" });
+      const rows = list.map((x) => {
+        const dropped = x.status === "dropped", open = !x.done && !dropped;
+        return `
+        <li class="${dropped ? "dropped" : x.done ? "done" : isToday ? "" : "open"} ${x === cur ? "cur" : ""}">
+          <span class="n">${x.done ? "✓" : dropped ? "–" : x.order}</span>
+          <div><span class="t">${esc(x.task)}</span>${x === cur ? `<span class="badge now">${t("now")}</span>` : ""}${!isToday && open ? `<span class="badge">${t("notDone")}</span>` : ""}${x.note ? `<span class="note">${esc(x.note)}</span>` : ""}</div>
+          <div class="acts">${isToday && open ? `<button class="small" data-done="${x.order}">${t("doneBtn")}</button><button class="small ghost" data-drop="${x.order}">${t("dropBtn")}</button>` : ""}</div>
+        </li>`;
+      }).join("");
+      return `<div class="day">${label}${isToday ? ` <span>${k}</span>` : ""}</div><ul class="items">${rows || `<li class="empty" style="display:block">${t("todayEmpty")}</li>`}</ul>`;
+    }).join("");
+  }
+  $("taskDays").onclick = async (e) => {
     const b = e.target.closest("button"); if (!b) return;
     const position = Number(b.dataset.done || b.dataset.drop);
     try { await api("POST", "/api/done", { position, dropped: Boolean(b.dataset.drop) }); await load(); }
-    catch (err) { say("today", err.message, true); }
+    catch (err) { say("tasks", err.message, true); }
   };
 
   function renderHabits() {
@@ -443,8 +522,8 @@
     const skip = Boolean(b.dataset.skip);
     const note = skip ? prompt(t("skipWhy")) : undefined;
     if (skip && note === null) return;
-    try { say("habit", (await api("POST", "/api/log", { habit: b.dataset.log || b.dataset.skip, skip, note })).message); await load(); }
-    catch (err) { say("habit", err.message, true); }
+    try { say("habits", (await api("POST", "/api/log", { habit: b.dataset.log || b.dataset.skip, skip, note })).message); await load(); }
+    catch (err) { say("habits", err.message, true); }
   };
 
   function renderClients() {
@@ -560,19 +639,16 @@
       return true;
     },
   };
-  document.querySelectorAll("[data-save]").forEach((b) => b.onclick = async () => {
-    const id = b.dataset.save;
-    b.disabled = true;
-    try { await save[id](); await load(); } catch (e) { say(id, e.message, true); } finally { b.disabled = false; }
-  });
-
   async function finish() {
     await api("POST", "/api/finish");
     S.onboarded = true;
-    location.hash = "today";
+    location.hash = "home";
     route();
-    say("today", t("welcome"));
+    scrollTo(0, 0);
   }
+  document.querySelectorAll("[data-copy]").forEach((b) => b.onclick = async () => {
+    try { await navigator.clipboard.writeText(t(b.dataset.copy)); say("try", t("copied")); } catch { say("try", t("copyFail"), true); }
+  });
   $("next").onclick = async () => {
     const id = STEPS[step];
     $("next").disabled = true;
@@ -591,7 +667,16 @@
   setInterval(() => fetch("/api/ping").then(() => $("gone").classList.add("hidden")).catch(() => $("gone").classList.remove("hidden")), 60_000);
 
   applyLang();
-  load().then(() => { route(); applyLang(); }).catch((e) => say("connect", e.message, true));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  Promise.all([load().then(() => { route(); applyLang(); }).catch((e) => say("connect", e.message, true)), sleep(2000)])
+    .then(async () => {
+      $("bootSnap").classList.add("go"); // 打响
+      await sleep(260);
+      document.body.classList.remove("booting");
+      $("boot").classList.add("out");
+      await sleep(500);
+      $("boot").remove();
+    });
 </script>
 </body>
 </html>
