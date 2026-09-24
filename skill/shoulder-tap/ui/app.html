@@ -58,6 +58,11 @@
   .backlink:hover { color: var(--ink); }
 
   /* 首页：两个入口 */
+  .agent-hint { flex: none; margin: 0 0 12px; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agent-hint b { font-weight: 600; color: var(--ink); }
+  .agent-hint q { quotes: "「" "」"; margin-right: 8px; color: var(--ink); }
+  html[lang=en] .agent-hint q { quotes: "“" "”"; }
+  @media (max-width: 720px) { .agent-hint { white-space: normal; } }
   .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
   @media (max-width: 520px) { .action small { display: none; } .action { padding: 10px 12px; gap: 10px; } }
   .action { display: flex; gap: 14px; align-items: center; text-align: left; padding: 16px 18px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); }
@@ -197,6 +202,8 @@
       <button class="action" data-go="setup"><span class="ico">↻</span><span><b id="goSetupLabel"></b><small data-t="goSetupWhy"></small></span></button>
       <button class="action" data-go="hands"><span class="ico"><div id="skinIco"></div></span><span><b data-t="goHands"></b><small data-t="goHandsWhy"></small></span></button>
     </div>
+    <!-- 这一页能点的，在 coding agent 里说一句也行：它们调的是同一套工具 -->
+    <p class="agent-hint"><b data-t="agentHintH"></b> <span id="agentHint"></span></p>
     <div class="records">
       <div class="card">
         <div class="row" style="justify-content:space-between"><h2 data-t="tasksH"></h2><span class="progress" id="progress"></span></div>
@@ -363,6 +370,7 @@
       uninstall: "卸载（数据留着；加 --purge 一起删）：", backHome: "← 回到首页",
       goSetup: "重新走一遍设置", goSetupFirst: "开始设置", goSetupWhy: "编程工具、习惯、今天的事、数据放哪", goHands: "选择皮肤", goHandsWhy: "预览三种手势，换一套手",
       tasksH: "待办", todayLabel: "今天", notDone: "没做完",
+      agentHintH: "也可以直接跟 Claude Code / Codex 说：", agentSays: ["加一条：回邮件", "第 2 条今天不做了", "喝完水了", "每天 22:30 提醒我健身"],
       tryH: "试一下", tryWhy: "都在你平时用的对话框里说，不用记命令。",
       try1: "重开一次 Claude Code（新会话才看得到 shoulder-tap）。",
       try2: "告诉它今天要做什么：", try2Say: "今天要做：写周报，回邮件", try2Then: "它会记下来，按顺序盯着第一件。",
@@ -409,6 +417,7 @@
       uninstall: "Uninstall (keeps data; add --purge to delete it): ", backHome: "← Back",
       goSetup: "Run setup again", goSetupFirst: "Start setup", goSetupWhy: "Coding tools, habits, today, where data lives", goHands: "Choose a skin", goHandsWhy: "Preview the three gestures, switch hands",
       tasksH: "Tasks", todayLabel: "Today", notDone: "not done",
+      agentHintH: "Or just tell Claude Code / Codex:", agentSays: ["add: reply to email", "skip #2 today", "just drank water", "remind me to work out at 22:30"],
       tryH: "Try it", tryWhy: "Just talk in the chat you already use. No commands to remember.",
       try1: "Restart Claude Code (a new session picks up shoulder-tap).",
       try2: "Tell it what you're doing today:", try2Say: "Today: write the weekly report, reply to email", try2Then: "It saves the list and watches the first item.",
@@ -483,6 +492,7 @@
   }
   function renderData() {
     renderClients(); renderToday(); renderTasks(); renderHabits(); renderHands();
+    $("agentHint").innerHTML = t("agentSays").map((x) => `<q>${esc(x)}</q>`).join("");
     $("logo").style.backgroundImage = $("skinIco").style.backgroundImage = `url(/skins/${S.skin}/tap.webp)`;
     $("uninstallCmd").textContent = `node "${S.mcp.onboard.replace(/onboard\.mjs$/, "uninstall.mjs")}"`;
   }
