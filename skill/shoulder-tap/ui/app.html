@@ -143,6 +143,8 @@
     <button id="lang" class="ghost small" data-t="lang"></button>
   </header>
 
+  <div class="promise hidden" id="gone" style="border-color:var(--signal);background:var(--signal-soft)"><b data-t="gone"></b><span data-t="goneWhy"></span></div>
+
   <div class="wizard-only">
     <h1 data-t="title"></h1>
     <p class="sub" data-t="sub"></p>
@@ -297,6 +299,7 @@
       needBoth: "密钥和页面链接都要填。", saving: "保存中……", save: "保存",
       moreH: "其它", rerun: "从头走一遍引导 →", uninstall: "卸载（数据留着；加 --purge 一起删）",
       back: "上一步", skip: "跳过", next: "下一步", finish: "完成", fail: "没成功", welcome: "设置好了。以后点托盘图标就回到这里。",
+      gone: "这个页面断开了。", goneWhy: "页面关着一阵后后台会自己停。点一下托盘 / 菜单栏图标，就会开一个新的。",
       agentMd: (m) => [
         "# 帮我接上 shoulder-tap 的 MCP（本机 stdio，不经过服务器）", "",
         "Claude Code：", "", "```bash", m.command, "```", "",
@@ -335,6 +338,7 @@
       needBoth: "Both token and page link are needed.", saving: "Saving…", save: "Save",
       moreH: "More", rerun: "Run the setup again →", uninstall: "Uninstall (keeps data; add --purge to delete it)",
       back: "Back", skip: "Skip", next: "Next", finish: "Finish", fail: "Failed", welcome: "All set. Click the tray icon to come back here.",
+      gone: "This page lost its connection.", goneWhy: "The background service stops a while after the page goes idle. Click the tray / menu bar icon to open a fresh one.",
       agentMd: (m) => [
         "# Connect the shoulder-tap MCP for me (local stdio, no server)", "",
         "Claude Code:", "", "```bash", m.command, "```", "",
@@ -347,8 +351,10 @@
   let lang = (() => { try { return localStorage.getItem("lang"); } catch { return null; } })() || (navigator.language.startsWith("zh") ? "zh" : "en");
   const t = (k) => T[lang][k];
 
+  // 服务在页面关掉一阵后会自己退出；这个旧标签页再点就连不上了。说清楚怎么回来，别只报一个网络错误。
+  const gone = () => { $("gone").classList.remove("hidden"); throw new Error(t("gone")); };
   const api = async (method, path, body) => {
-    const r = await fetch(path, { method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const r = await fetch(path, { method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined }).catch(gone);
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || t("fail"));
     return j;
@@ -582,7 +588,7 @@
   $("back").onclick = () => { if (step > 0) { step--; render(); } };
 
   // 页面开着就让服务知道；关掉三分钟后它自己退出。
-  setInterval(() => fetch("/api/ping").catch(() => {}), 60_000);
+  setInterval(() => fetch("/api/ping").then(() => $("gone").classList.add("hidden")).catch(() => $("gone").classList.remove("hidden")), 60_000);
 
   applyLang();
   load().then(() => { route(); applyLang(); }).catch((e) => say("connect", e.message, true));
