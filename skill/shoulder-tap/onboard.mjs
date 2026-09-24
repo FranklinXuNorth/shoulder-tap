@@ -49,6 +49,7 @@ function mcpState() {
     codex: { installed: has("codex") || fs.existsSync(path.dirname(CODEX)), connected: codexText.includes("[mcp_servers.shoulder-tap]") },
     command: ["claude", ...claudeArgs].map(quote).join(" "),
     codexBlock: codexBlock.trim(),
+    onboard: path.join(HERE, "onboard.mjs"),
   };
 }
 
