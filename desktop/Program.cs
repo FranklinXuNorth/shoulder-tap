@@ -133,8 +133,8 @@ public static class Program
         var resident = instance is not null;
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-        var taps = new Lane(lower: false);   // taptap：提醒，挂在屏幕 40% 高
-        var pats = new Lane(lower: true);    // 拍拍：做完了，挂在 62% 高
+        var taps = new Lane(lower: false);   // taptap：提醒，挂在屏幕 30% 高
+        var pats = new Lane(lower: true);    // 拍拍：做完了，挂在 52% 高
         var today = new TodayWindow();
         Forms.NotifyIcon? tray = null;
         var bindings = new Dictionary<string, (IntPtr Handle, uint Pid)>();
@@ -146,7 +146,7 @@ public static class Program
             {
                 Remember(tray, req.Text);
                 lane.Playing = true;
-                lane.Window.Tap(caption: req.Caption);
+                lane.Window.Tap(snap: req.Mode == "snap", caption: req.Caption);
                 return;
             }
             var anchor = new IntPtr(req.WindowHandle);

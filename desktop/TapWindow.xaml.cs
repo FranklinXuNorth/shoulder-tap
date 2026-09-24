@@ -76,28 +76,33 @@ public partial class TapWindow : Window
     private readonly Stopwatch _clock = new();
     private readonly BitmapSource[] _tapSprites;
     private readonly BitmapSource[] _completionSprites;
+    private readonly BitmapSource[] _snapSprites;
     private BitmapSource[] _sprites;
     private static readonly int[] FrameEnds = [250, 340, 430, 580, 670, 760, 910, 1000, 1300];
+    /// <summary>响指只有两张图（准备 / 打响）来回切，4fps。</summary>
+    private static readonly int[] SnapEnds = [250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250];
+    private int[] _ends = FrameEnds;
     private IntPtr _handle;
 
     /// <summary>手收回去了。一次性模式靠它决定什么时候可以退出。</summary>
     public event Action? Dismissed;
 
-    /// <param name="lower">true = 挂在 62% 高（拍拍那条道），false = 40%（taptap）。两扇窗同时开也不重叠。</param>
+    /// <param name="lower">true = 挂在 52% 高（拍拍那条道），false = 30%（taptap）。两扇窗同时开也不重叠。</param>
     public TapWindow(bool lower = false)
     {
         InitializeComponent();
         if (lower)
         {
             var rows = ((System.Windows.Controls.Grid)Content).RowDefinitions;
-            rows[0].Height = new GridLength(31, GridUnitType.Star);
-            rows[2].Height = new GridLength(19, GridUnitType.Star);
+            rows[0].Height = new GridLength(13, GridUnitType.Star);
+            rows[2].Height = new GridLength(12, GridUnitType.Star);
         }
         _tapSprites = LoadFrames("tap-glove-sheet.png");
         _completionSprites = LoadFrames("completion-hand-sheet.png");
+        _snapSprites = LoadFrames("snap-glove-sheet.png");
         _sprites = _tapSprites;
         _frames.Tick += (_, _) => {
-            var index = Array.FindIndex(FrameEnds, end => _clock.ElapsedMilliseconds < end);
+            var index = Array.FindIndex(_ends, end => _clock.ElapsedMilliseconds < end);
             PixelHand.Source = _sprites[index < 0 ? 8 : index];
             if (index < 0) _frames.Stop();
         };
@@ -134,13 +139,15 @@ public partial class TapWindow : Window
     /// 拍一下。已经在拍就从头来。
     /// <paramref name="caption"/> 非空时，手旁边多一小条字。敲完停两秒，两个一起淡出。
     /// </summary>
-    public void Tap(IntPtr anchor = default, bool complete = false, string caption = "")
+    /// <param name="snap">响指：模型弹了个问题在等你。走 taptap 那条道，换一张 sprite。</param>
+    public void Tap(IntPtr anchor = default, bool complete = false, string caption = "", bool snap = false)
     {
         _hide.Stop();
         _frames.Stop();
         PixelHand.BeginAnimation(OpacityProperty, null);
         CaptionBox.BeginAnimation(OpacityProperty, null);
-        _sprites = complete ? _completionSprites : _tapSprites;
+        _sprites = complete ? _completionSprites : snap ? _snapSprites : _tapSprites;
+        _ends = snap ? SnapEnds : FrameEnds;
         PixelHand.Source = _sprites[0];
         PixelHand.Opacity = 1;
         PixelHand.Visibility = Visibility.Visible;
@@ -174,7 +181,7 @@ public partial class TapWindow : Window
 
         _hide.Interval = animated ? Played : Still;
         _hide.Start();
-        Program.Log($"tap complete={complete} animated={animated} caption=\"{CaptionText.Text}\" visible={IsVisible} hand={PixelHand.Opacity}");
+        Program.Log($"tap complete={complete} snap={snap} animated={animated} caption=\"{CaptionText.Text}\" visible={IsVisible} hand={PixelHand.Opacity}");
     }
 
     /// <summary>

@@ -2,9 +2,9 @@
 //
 //     swiftc -O desktop-mac/ShoulderTap.swift -o ~/.claude/shoulder-tap/app/shoulder-tap-tap
 //
-// 跟 Windows 版同一套参数（--mode tap|complete，--caption），但不常驻：
+// 跟 Windows 版同一套参数（--mode tap|complete|snap，--caption），但不常驻：
 // 每拍一下就是一个短命进程，播完 3.75 秒自己退出。taptap 和拍拍同时来就是两个进程，
-// 各挂各的高度（40% / 62%），天然两条道，不需要单实例和队列。
+// 各挂各的高度（30% / 52%），天然两条道，不需要单实例和队列。
 // 两张 sprite sheet 放在可执行文件旁边。
 
 import AppKit
@@ -19,18 +19,21 @@ func arg(_ name: String) -> String? {
 let mode = arg("mode") ?? "tap"
 let caption = (arg("caption") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 // bind / today / quit 在 Mac 上没有意义：没有常驻进程可绑、可退。
-if args.contains("--quit") || (mode != "tap" && mode != "complete") { exit(0) }
+if args.contains("--quit") || !["tap", "complete", "snap"].contains(mode) { exit(0) }
 
 // ---------- 帧 ----------
 
 let here = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
-let sheetURL = here.appendingPathComponent(mode == "complete" ? "completion-hand-sheet.png" : "tap-glove-sheet.png")
+let sheetName = ["complete": "completion-hand-sheet.png", "snap": "snap-glove-sheet.png"][mode] ?? "tap-glove-sheet.png"
+let sheetURL = here.appendingPathComponent(sheetName)
 guard let source = CGImageSourceCreateWithURL(sheetURL as CFURL, nil),
       let sheet = CGImageSourceCreateImageAtIndex(source, 0, nil) else { exit(0) }
 let frames = (0..<9).compactMap { sheet.cropping(to: CGRect(x: $0 * 96, y: 0, width: 96, height: 80)) }
 guard frames.count == 9 else { exit(0) }
 /// 九帧各自的结束时刻（毫秒），和 Windows 版、Aseprite 原稿一致：三次触碰，1.3 秒放完。
-let frameEnds = [250, 340, 430, 580, 670, 760, 910, 1000, 1300]
+let frameEnds = mode == "snap"
+    ? [250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250] // 响指：两张图来回切，4fps
+    : [250, 340, 430, 580, 670, 760, 910, 1000, 1300]
 
 // ---------- 摆在哪块屏 ----------
 
@@ -60,7 +63,7 @@ let gap: CGFloat = 12
 let width = hand.width + gap + captionMax
 
 let work = activeScreen().visibleFrame
-let fromTop: CGFloat = mode == "complete" ? 0.62 : 0.40 // 两条道，同时出现也不重叠
+let fromTop: CGFloat = mode == "complete" ? 0.52 : 0.30 // 两条道，同时出现也不重叠
 let centerY = work.maxY - work.height * fromTop
 let frame = NSRect(x: work.maxX - width, y: centerY - hand.height / 2, width: width, height: hand.height)
 
@@ -116,7 +119,7 @@ if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
         CATransaction.setDisableActions(true)
         handLayer.contents = frames[frameEnds.firstIndex(where: { ms < $0 }) ?? 8]
         CATransaction.commit()
-        if ms >= 1300 { timer.invalidate() }
+        if ms >= frameEnds[8] { timer.invalidate() }
     }
 }
 DispatchQueue.main.asyncAfter(deadline: .now() + 3.3) {
