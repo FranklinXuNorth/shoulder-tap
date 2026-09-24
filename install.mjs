@@ -82,6 +82,13 @@ if (process.platform === "darwin") {
     fs.mkdirSync(res, { recursive: true });
     for (const sheet of ["tap.png", "pat.png", "snap.png"]) // 内置 glove；别的皮肤从 skill 目录按文件读
       fs.copyFileSync(path.join(skillSrc, "ui", "sprites", "skins", "glove", sheet), path.join(res, sheet));
+    // 像素字体：跟 Windows 用同一份。放进 Resources/Fonts，Info.plist 的 ATSApplicationFontsPath 让系统在启动时注册。
+    // 拷不过去也只是退回系统字体，不能拦住安装。
+    const fonts = path.join(res, "Fonts");
+    fs.mkdirSync(fonts, { recursive: true });
+    for (const font of ["fusion-pixel-12px-proportional-zh_hans.ttf", "OFL-fusion-pixel.txt"])
+      try { fs.copyFileSync(path.join(skillSrc, "ui", "fonts", font), path.join(fonts, font)); }
+      catch (e) { log(`字体没拷过去（${e.message?.split("\n")[0]}）：字会退回系统字体`); }
     fs.copyFileSync(path.join(root, "desktop-mac", "Info.plist"), path.join(bundle, "Contents", "Info.plist")); // 手动装也用同一份
     const bin = path.join(macos, "shoulder-tap-tap");
     if (fs.existsSync(bin)) {

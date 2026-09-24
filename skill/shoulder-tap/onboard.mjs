@@ -35,8 +35,38 @@ function openBrowser(url) {
   spawn(cmd, args, { detached: true, stdio: "ignore", windowsHide: true }).unref();
 }
 
-const has = (bin) => spawnSync(process.platform === "win32" ? "where" : "which", [bin], { stdio: "ignore" }).status === 0;
-const sh = (cmd, args) => spawnSync(cmd, args, { encoding: "utf8", shell: process.platform === "win32", windowsHide: true });
+// 菜单栏那个 app 是 launchd 起的，它的 PATH 里没有你 shell 的那几段：装在 ~/.local/bin（官方安装器）、
+// nvm、volta 里的 claude，用 which 一律找不到，页面就会说「没找到」。所以 which 找不到时再问一次登录
+// shell，最后翻几个常见位置。找到就一路用绝对路径调，别再指望 PATH。
+const FALLBACK_DIRS = [
+  path.join(os.homedir(), ".local", "bin"),
+  path.join(os.homedir(), ".claude", "local"),
+  path.join(os.homedir(), ".bun", "bin"),
+  path.join(os.homedir(), ".volta", "bin"),
+  path.join(os.homedir(), ".npm-global", "bin"),
+  "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin",
+];
+const found = new Map();
+function resolveBin(bin) {
+  if (found.has(bin)) return found.get(bin);
+  const pick = () => {
+    const which = spawnSync(process.platform === "win32" ? "where" : "which", [bin], { encoding: "utf8" });
+    if (which.status === 0) return which.stdout.split("\n")[0].trim();
+    if (process.platform !== "win32") {
+      // -lic：PATH 常常是在 .zshrc / .bashrc 里加的，那只有交互式 shell 才读。两秒不回就算了。
+      const r = spawnSync(process.env.SHELL || "/bin/zsh", ["-lic", `command -v ${bin}`], { encoding: "utf8", timeout: 2000 });
+      const hit = (r.stdout || "").split("\n").map((s) => s.trim()).filter(Boolean).pop();
+      if (hit && path.isAbsolute(hit) && fs.existsSync(hit)) return hit;
+    }
+    const exe = process.platform === "win32" ? bin + ".exe" : bin;
+    return FALLBACK_DIRS.map((d) => path.join(d, exe)).find((f) => fs.existsSync(f)) || null;
+  };
+  const hit = pick();
+  found.set(bin, hit);
+  return hit;
+}
+const has = (bin) => Boolean(resolveBin(bin));
+const sh = (cmd, args) => spawnSync(resolveBin(cmd) || cmd, args, { encoding: "utf8", shell: process.platform === "win32", windowsHide: true });
 
 // 路径里有空格也不怕：两边都用绝对路径，node 也用当前这个。
 const claudeArgs = ["mcp", "add", "-s", "user", "shoulder-tap", "--", process.execPath, MCP];
@@ -49,7 +79,7 @@ function mcpState() {
   const got = has("claude") ? sh("claude", ["mcp", "get", "shoulder-tap"]) : { status: 1, stdout: "" };
   return {
     claude: { installed: has("claude"), connected: got.status === 0 && got.stdout.includes("mcp.mjs"), remote: got.status === 0 && !got.stdout.includes("mcp.mjs") },
-    codex: { installed: has("codex") || fs.existsSync(path.dirname(CODEX)), connected: codexText.includes("[mcp_servers.shoulder-tap]") },
+    codex: { installed: has("codex") || fs.existsSync(CODEX), connected: codexText.includes("[mcp_servers.shoulder-tap]") },
     desktop: claudeDesktopState(), // Claude Desktop：只有工具，没有钩子
     command: ["claude", ...claudeArgs].map(quote).join(" "),
     codexBlock: codexBlock.trim(),
@@ -61,7 +91,7 @@ function connect(client) {
   if (client === "claude") {
     sh("claude", ["mcp", "remove", "-s", "user", "shoulder-tap"]); // 以前接过远程版的，先换掉
     const r = sh("claude", claudeArgs);
-    if (r.status !== 0) throw new Error((r.stderr || r.stdout || "claude mcp add 失败").trim());
+    if (r.status !== 0) throw new Error(`${resolveBin("claude") ?? "claude"} ${(r.stderr || r.stdout || "mcp add 失败").trim()}`);
     return "Claude Code 接上了。已经开着的会话要重开一次才看得到新工具。";
   }
   if (client === "codex") {
@@ -125,6 +155,7 @@ async function state() {
     // 最近两周的任务，按天分组给页面；时间都是 UTC，页面按本机时区显示
     tasks: await store.taskHistory(new Date(Date.parse(win.startUtc) - 13 * 86400_000).toISOString()).catch(() => []),
     skin: readConfig().skin ?? "glove",
+    motion: readConfig().motion ?? "system", // "always" = 无视系统的「减弱动态效果」，照常逐帧播
     skins: listSkins(),
     desktop: fs.existsSync(APP),
   };
@@ -154,7 +185,13 @@ const routes = {
     return { tapped: true };
   },
   // 手的样式：ui/sprites/skins/<名字>/{tap,pat,snap}.png。桌面端每次拍之前重读 config.json 的 skin。
-  "POST /api/hands": ({ skin }) => {
+  "POST /api/hands": ({ skin, motion }) => {
+    // 系统开着「减弱动态效果」时手会停住不动（看着像坏了）；motion: "always" 是给想看动画的人的开关。
+    if (motion !== undefined) {
+      if (!["system", "always"].includes(motion)) throw new Error(`motion 只能是 system 或 always：${motion}`);
+      writeConfig({ motion });
+      if (skin === undefined) return { message: motion };
+    }
     if (!listSkins().includes(skin)) throw new Error(`没有这套皮肤：${skin}`);
     writeConfig({ skin });
     return { message: skin };
@@ -181,8 +218,13 @@ const server = http.createServer(async (req, res) => {
   if (origin && origin !== URL_.slice(0, -1)) return send(403, { error: "forbidden" });
   idle();
 
-  if (req.method === "GET" && req.url.split("?")[0] === "/")
-    return send(200, fs.readFileSync(path.join(HERE, "ui", "app.html"), "utf8"), "text/html; charset=utf-8");
+  if (req.method === "GET" && req.url.split("?")[0] === "/") {
+    // 加载动画在 /api/state 回来之前就要跑，所以 motion 直接写进 html 标签，页面不用等。
+    // 系统开着「减弱动态效果」时页面本来会整段跳过；config.json 里 motion: "always" 就照常播。
+    const page = fs.readFileSync(path.join(HERE, "ui", "app.html"), "utf8")
+      .replace("<html ", `<html data-motion="${readConfig().motion ?? "system"}" `);
+    return send(200, page, "text/html; charset=utf-8");
+  }
   const sprite = req.method === "GET" && /^\/skins\/([\w-]+)\/(tap|pat|snap)\.(png|webp)$/.exec(req.url);
   if (sprite) {
     // current = 正在用的那套：打开页面时的加载动画要在数据到之前就知道用哪只手

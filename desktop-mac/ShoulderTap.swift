@@ -65,39 +65,70 @@ let resourceDir: URL = {
     return URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
 }()
 
+// MARK: - 字 和 配色
+
+/// 说明那一条的字：Resources/Fonts 里的像素字体（Info.plist 的 ATSApplicationFontsPath 已让系统注册），
+/// 跟 Windows 端同一份 ttf，中英文都在里面。取不到就退回系统字体 —— 字体的事不该让拍肩消失。
+let captionFont: NSFont = NSFont(name: "Fusion Pixel 12px Prop zh_hans", size: 16) ?? .systemFont(ofSize: 14)
+
+/// 深色跟随系统，两个颜色跟 Windows 端 ApplySystemTheme 用同一组 hex。
+func captionColors() -> (ink: NSColor, paper: NSColor) {
+    let dark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+    return dark ? (NSColor(white: 0xFA / 255.0, alpha: 1), NSColor(white: 0x17 / 255.0, alpha: 1))
+                : (NSColor(white: 0x18 / 255.0, alpha: 1), NSColor(white: 1, alpha: 1))
+}
+
+/// config.json 里一个字符串字段的值。每次读盘：设置页随时会改，常驻进程不重启也要跟上。
+func cfgValue(_ key: String) -> String? {
+    let cfg = (try? String(contentsOf: home.appendingPathComponent(".claude/shoulder-tap/config.json"), encoding: .utf8)) ?? ""
+    guard let r = cfg.range(of: "\"\(key)\": \""), let end = cfg[r.upperBound...].firstIndex(of: "\"") else { return nil }
+    return String(cfg[r.upperBound..<end])
+}
+
+/// config.json 里的 motion：设成 "always" 就无视系统的「减弱动态效果」照常逐帧播。
+/// 默认尊重系统设置，但这只手就是全部内容，停着不动会像坏了 —— 所以那种时候停在伸得最远的那一帧。
+func motionAlways() -> Bool { cfgValue("motion") == "always" }
+
 /// config.json 里的 skin（默认 glove）。皮肤在 skill 目录的 sprites/skins/<名字>/，文件不在就退回 .app 里内置的 glove。
 func skinDir() -> URL {
-    let cfg = (try? String(contentsOf: home.appendingPathComponent(".claude/shoulder-tap/config.json"), encoding: .utf8)) ?? ""
-    var skin = "glove"
-    if let r = cfg.range(of: "\"skin\": \""), let end = cfg[r.upperBound...].firstIndex(of: "\"") { skin = String(cfg[r.upperBound..<end]) }
-    let dir = home.appendingPathComponent(".claude/skills/shoulder-tap/ui/sprites/skins/\(skin)")
+    let dir = home.appendingPathComponent(".claude/skills/shoulder-tap/ui/sprites/skins/\(cfgValue("skin") ?? "glove")")
     return FileManager.default.fileExists(atPath: dir.appendingPathComponent("tap.png").path) ? dir : resourceDir
 }
 
-func loadFrames(_ name: String) -> [CGImage] {
-    let url = skinDir().appendingPathComponent(name)
-    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-          let sheet = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return [] }
-    // 画布右边留的透明列裁掉：伸得最远的那一帧要真的碰到屏幕边，别离着一截。
-    let width = 96 - rightGap(sheet)
-    let frames = (0..<9).compactMap { sheet.cropping(to: CGRect(x: $0 * 96, y: 0, width: width, height: 80)) }
-    return frames.count == 9 ? frames : []
+/// 九帧，加上「伸得最远的那一帧」是第几帧 —— 不播动画时停在它上面。
+struct Sheet {
+    let frames: [CGImage]
+    let peak: Int
+    static let empty = Sheet(frames: [], peak: 0)
 }
 
-/// 九帧里离右边最近的那一帧，右边还空着几列透明像素。整张都空就当 0。
-func rightGap(_ sheet: CGImage) -> Int {
+func loadSheet(_ name: String) -> Sheet {
+    let url = skinDir().appendingPathComponent(name)
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+          let sheet = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return .empty }
+    let gaps = frameGaps(sheet)
+    // 画布右边留的透明列裁掉：伸得最远的那一帧要真的碰到屏幕边，别离着一截。
+    let drawn = gaps.enumerated().filter { $0.element < 96 }
+    let width = 96 - (drawn.map(\.element).min() ?? 0)
+    let frames = (0..<9).compactMap { sheet.cropping(to: CGRect(x: $0 * 96, y: 0, width: width, height: 80)) }
+    guard frames.count == 9 else { return .empty }
+    return Sheet(frames: frames, peak: drawn.min(by: { $0.element < $1.element })?.offset ?? 0)
+}
+
+/// 每一帧右边还空着几列透明像素。整帧都空就是 96。
+func frameGaps(_ sheet: CGImage) -> [Int] {
     let w = sheet.width, h = sheet.height
     var px = [UInt8](repeating: 0, count: w * h * 4)
     guard let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
-                              space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return 0 }
+                              space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    else { return Array(repeating: 0, count: 9) }
     ctx.draw(sheet, in: CGRect(x: 0, y: 0, width: w, height: h))
-    var gap = 96
-    for f in 0..<9 {
-        scan: for x in stride(from: 95, through: max(0, 96 - gap), by: -1) {
-            for y in 0..<h where px[(y * w + f * 96 + x) * 4 + 3] > 0 { gap = min(gap, 95 - x); break scan }
+    return (0..<9).map { f in
+        for x in stride(from: 95, through: 0, by: -1) {
+            for y in 0..<h where px[(y * w + f * 96 + x) * 4 + 3] > 0 { return 95 - x }
         }
+        return 96
     }
-    return gap == 96 ? 0 : gap
 }
 
 func sheetName(for mode: String) -> String {
@@ -144,17 +175,18 @@ final class Lane {
     private func next() {
         guard !playing, !queue.isEmpty else { return }
         let req = queue.removeFirst()
-        let frames = loadFrames(sheetName(for: req.mode))
-        guard !frames.isEmpty else { log("no frames for \(req.mode)"); next(); return }
+        let sheet = loadSheet(sheetName(for: req.mode))
+        guard !sheet.frames.isEmpty else { log("no frames for \(req.mode)"); next(); return }
         playing = true
-        play(frames: frames, ends: frameEnds(for: req.mode), caption: req.caption) { [weak self] in
+        play(sheet: sheet, ends: frameEnds(for: req.mode), caption: req.caption) { [weak self] in
             self?.playing = false
             self?.onDone?()
             self?.next()
         }
     }
 
-    private func play(frames: [CGImage], ends: [Int], caption: String, done: @escaping () -> Void) {
+    private func play(sheet: Sheet, ends: [Int], caption: String, done: @escaping () -> Void) {
+        let frames = sheet.frames
         let hand = NSSize(width: CGFloat(frames[0].width * 3), height: 240) // 裁过的宽 ×3，高 80×3，最近邻
         let captionMax: CGFloat = 440
         let gap: CGFloat = 12
@@ -186,9 +218,10 @@ final class Lane {
 
         // 手左边那一小条字：拍拍放这轮的总结，taptap 放提醒，响指放问题。最多三行，超了省略号。
         if !caption.isEmpty {
+            let (ink, paper) = captionColors()
             let label = NSTextField(wrappingLabelWithString: caption)
-            label.font = .systemFont(ofSize: 14)
-            label.textColor = .black
+            label.font = captionFont
+            label.textColor = ink
             label.maximumNumberOfLines = 3
             label.lineBreakMode = .byTruncatingTail
             let inner = captionMax - 24
@@ -197,8 +230,8 @@ final class Lane {
             let w = min(fit.width, inner), h = min(fit.height, 66)
             let box = NSView(frame: NSRect(x: width - hand.width - gap - (w + 24), y: (hand.height - (h + 15)) / 2, width: w + 24, height: h + 15))
             box.wantsLayer = true
-            box.layer?.backgroundColor = NSColor.white.cgColor
-            box.layer?.borderColor = NSColor.black.cgColor
+            box.layer?.backgroundColor = paper.cgColor
+            box.layer?.borderColor = ink.cgColor
             box.layer?.borderWidth = 2
             box.layer?.cornerRadius = 6
             label.frame = NSRect(x: 12, y: 7, width: w, height: h)
@@ -211,7 +244,7 @@ final class Lane {
         // 时间轴：帧动画，停到 3.3 秒，0.24 秒淡出，收。
         let start = Date()
         let last = ends[8]
-        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+        if motionAlways() || !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             let t = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { timer in
                 let ms = Int(Date().timeIntervalSince(start) * 1000)
                 CATransaction.begin()
@@ -221,6 +254,8 @@ final class Lane {
                 if ms >= last { timer.invalidate() }
             }
             timers.append(t)
+        } else {
+            handLayer.contents = frames[sheet.peak] // 不动，但至少是手势张开的样子，不是起手第一帧
         }
         let hold = max(3.3, Double(last) / 1000 + 2.0)
         DispatchQueue.main.asyncAfter(deadline: .now() + hold) { [weak self] in
@@ -304,7 +339,7 @@ final class Resident: NSObject, NSApplicationDelegate {
 
     /// 菜单栏图标：taptap 那张 sheet 的第一帧，缩到 18pt，当模板图用。
     private func trayImage() -> NSImage? {
-        guard let frame = loadFrames("tap.png").first else { return NSImage(systemSymbolName: "hand.point.up.left", accessibilityDescription: "shoulder-tap") }
+        guard let frame = loadSheet("tap.png").frames.first else { return NSImage(systemSymbolName: "hand.point.up.left", accessibilityDescription: "shoulder-tap") }
         let image = NSImage(cgImage: frame, size: NSSize(width: 22, height: 18))
         image.isTemplate = true
         return image
@@ -351,6 +386,7 @@ if args.contains("--daemon") {
     guard tryLock() != nil else { exit(0) } // 有人抢先了
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory) // 不进 Dock，不抢焦点
+    log("caption font = \(captionFont.fontName)") // 装没装上像素字体，一眼能看出来
     let resident = Resident(first: request)
     app.delegate = resident
     app.run()
