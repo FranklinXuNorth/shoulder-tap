@@ -80,6 +80,9 @@
       <pre id="cmd"></pre>
       <label>Codex：加进 ~/.codex/config.toml</label>
       <pre id="codex"></pre>
+      <label>或者把这段整个发给你的 coding agent，让它帮你接：</label>
+      <pre id="manual"></pre>
+      <div class="row" style="margin-top:8px"><button id="copyManual">复制这段</button></div>
     </details>
     <div class="msg" id="msg0"></div>
   </section>
@@ -170,6 +173,17 @@
     const m = S.mcp;
     $("cmd").textContent = m.command;
     $("codex").textContent = m.codexBlock;
+    const manual = [
+      "# 帮我接上 shoulder-tap 的 MCP（本机 stdio，不经过任何服务器）",
+      "", "Claude Code：在终端跑", "", "```bash", m.command, "```", "",
+      "Codex：把这段加进 ~/.codex/config.toml（已有 [mcp_servers.shoulder-tap] 就替换）", "", "```toml", m.codexBlock, "```", "",
+      "接完用 `claude mcp get shoulder-tap` 确认是 stdio 且 Connected，然后告诉我重开一次会话。",
+    ].join("\n");
+    $("manual").textContent = manual;
+    $("copyManual").onclick = async () => {
+      try { await navigator.clipboard.writeText(manual); say(0, "复制好了，贴给你的 coding agent 就行。"); }
+      catch { say(0, "浏览器不让复制，手动选中上面那段吧。", true); }
+    };
     $("clients").innerHTML = "";
     for (const [key, label] of [["claude", "Claude Code"], ["codex", "Codex"]]) {
       const c = m[key];
