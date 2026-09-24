@@ -27,7 +27,11 @@ The installer opens a settings page in your browser (reachable only from this ma
 
 1. **Connect your coding tool** — click "Connect" to hook shoulder-tap into Claude Code / Codex. Claude Desktop can be connected here too, tools only (see below).
    Don't want to click? Expand "do it yourself" for a block you can paste straight to your coding agent.
-2. **First habit** — any name you like. A **soft habit** is simple and quick (drink water), so it can't be skipped: it keeps reminding until you say you did it. A **hard habit** depends on how the day goes (workout), so you can say "not today".
+   Says Claude Code **Not found** on macOS when you know it is installed? The settings page comes from the menu bar app, which doesn't see your shell PATH. Expand "do it yourself" and run that command in a terminal.
+   Then restart your Claude Code session: `/mcp` shows `shoulder-tap`, `/hooks` shows four hooks.
+2. **First habit** — any name you like.
+   A **soft habit** (drink water) is quick, so it can't be skipped: it reminds you until you say you did it.
+   A **hard habit** (workout) depends on the day, so you can say "not today".
 3. **Today's tasks** — one per line, in order.
 4. **Where data lives** — this machine (default, nothing to configure), or your own Notion (visible on your phone too).
 5. **The hand** — play the three gestures, pick a style (glove or cat paw), try a real tap on your desktop.
@@ -40,10 +44,7 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 
 The setup ends with a short "try it" step: messages you can paste into Claude Code to see it work.
 
-After setup, clicking the tray / menu bar icon opens a home screen with two buttons, **Run setup again** and **Choose a skin** (preview the three gestures, try a real tap). Below them are your records: tasks from the last two weeks by day (check off or skip today's), your habits (log or skip one), and habit history.
-There is a 中文 / English switch in the top right.
-
-Restart your Claude Code session and it's connected. `/mcp` shows `shoulder-tap`, `/hooks` shows four hooks.
+After setup, the same icon opens a home screen: **Run setup again**, **Choose a skin**, and below them your records — the last two weeks of tasks, your habits, and habit history. 中文 / English switch in the top right.
 
 ## 3. Use it
 
@@ -134,6 +135,7 @@ The hand at the right edge of your screen: **snap** (turn finished), **pat pat**
   `Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name shoulder-tap`
 - **macOS**: lives in the menu bar, starts at login. To stop:
   `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.shoulder-tap.tap.plist`
+  Hand shows up but never moves? macOS **Reduce motion** (System Settings → Accessibility → Display) is on, and it is respected: the hand holds its most extended frame instead of animating. To animate anyway, put `"motion": "always"` in `~/.claude/shoulder-tap/config.json`.
 - **Linux**: not yet. The contract is in [desktop-linux/README.md](desktop-linux/README.md).
 
 All three platforms read the hand sprites from `~/.claude/skills/shoulder-tap/ui/sprites/skins/<style>/`. To draw your own, see the README there.

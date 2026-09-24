@@ -175,7 +175,8 @@
   @keyframes ready { 50% { transform: translateY(-4px); } }
   main { transition: opacity .5s ease, transform .5s ease; }
   body.booting main { opacity: 0; transform: translateY(8px); }
-  @media (prefers-reduced-motion: reduce) { #boot, main, #boot .snap { transition: none; animation: none; } }
+  /* 尊重系统的「减弱动态效果」，但 config.json 里 motion: "always" 能盖掉（服务端写在 <html data-motion> 上） */
+  @media (prefers-reduced-motion: reduce) { :root:not([data-motion="always"]) :is(#boot, main, #boot .snap) { transition: none; animation: none; } }
 
   .tries { display: grid; gap: 10px; margin: 6px 0 0; padding: 0; list-style: none; counter-reset: n; }
   .tries li { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: start; }
