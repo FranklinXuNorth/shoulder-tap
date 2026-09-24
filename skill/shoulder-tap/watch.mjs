@@ -11,8 +11,8 @@
  *   Stop              模型说完一轮   → 结尾有哪只 ASCII 手就拍哪下：拍拍 = 做完了，taptap = 提醒
  *   PreToolUse        模型要问你话   → AskUserQuestion 弹出来之前打个响指，问题贴在手旁边
  *
- * 跨机器：每一下拍肩先经中转（relay.mjs）送到「你眼睛所在的那台」，送到了本机就不拍；
- * 没配、没登录、没人在线、超时，都退回本机拍。
+ * 跨机器：常驻进程把「我是不是最近被碰过的那台」写在 active.json 里。是本机就直接拍，不绕云端；
+ * 不是才经中转（relay.mjs）送到那台；没配、没登录、没人在线、超时，都退回本机拍。
  *
  * 为什么读缓存：网络那一趟是 400ms，而它**卡在你按回车到模型开口之间**。
  * 今天的清单一天才变几次，用几分钟前的副本判断「这件事相不相关」，结论一模一样。
@@ -102,6 +102,19 @@ function writeState(patch) {
     fs.mkdirSync(STATE_DIR, { recursive: true });
     fs.writeFileSync(STATE, JSON.stringify({ ...readState(), ...patch }, null, 2), "utf8");
   } catch {}
+}
+
+/**
+ * 常驻进程按中转的广播写的：现在活跃的是不是本机。十分钟没更新就当不知道，走中转让它判。
+ * 没这个文件（没开跨机器、常驻进程没起来）也走中转 —— relaySend 没配会立刻返回 false，最后还是本机拍。
+ */
+function locallyActive() {
+  try {
+    const { active, at = 0 } = JSON.parse(fs.readFileSync(path.join(STATE_DIR, "active.json"), "utf8"));
+    return active === true && Date.now() - at < 10 * 60_000;
+  } catch {
+    return false;
+  }
 }
 
 /** 这台机器在频道里的名字：第一次生成，之后不变。随机值，跟机器名无关。 */
@@ -288,7 +301,8 @@ async function main() {
       const mode = gesture === "tap" ? "tap" : "complete";
       const text = mode === "tap" ? reminder : "";
       const caption = mode === "tap" ? reminder : doneLine(payload.last_assistant_message);
-      if (await relaySend(env, deviceId(), mode, { caption, text })) continue; // 送到了，那台会自己拍
+      // 本机就是你在用的那台：直接拍。否则经中转送过去；送到了那台会自己拍。
+      if (!locallyActive() && (await relaySend(env, deviceId(), mode, { caption, text }))) continue;
       tapDesktop(env, text, payload, mode, caption);
     }
     return;
@@ -299,7 +313,7 @@ async function main() {
   if (event === "PreToolUse") {
     if (payload.tool_name === "AskUserQuestion") {
       const question = questionLine(payload.tool_input);
-      if (!(await relaySend(env, deviceId(), "snap", { caption: question, text: question })))
+      if (locallyActive() || !(await relaySend(env, deviceId(), "snap", { caption: question, text: question })))
         tapDesktop(env, question, payload, "snap", question);
     }
     return;

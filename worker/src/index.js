@@ -262,6 +262,17 @@ export class Channel extends DurableObject {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
     const { device, telemetry } = ws.deserializeAttachment();
+    if (msg.type === "record") {
+      // 本机直接拍的那一下，常驻进程补记进历史；没经过路由，送达的就是它自己。
+      const blob = typeof msg.blob === "string" ? msg.blob.slice(0, 16_384) : "";
+      if (!blob) return;
+      const row = this.sql.exec("SELECT platform FROM devices WHERE device = ?", device).toArray()[0];
+      this.sql.exec(
+        "INSERT INTO history (ts, device, platform, gesture, delivered_to, blob) VALUES (?,?,?,?,?,?)",
+        Date.now(), device, telemetry ? row?.platform ?? null : null, telemetry ? String(msg.gesture || "") : null, device, blob,
+      );
+      return;
+    }
     if (msg.type !== "active") return;
     // 时间用服务端收到的那一刻，几台机器的时钟对不上也没关系。
     const now = Date.now();

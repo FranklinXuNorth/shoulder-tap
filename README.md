@@ -57,6 +57,32 @@ node install.mjs
 2. 挑一个 Notion 页面，⋯ → **Connections** → 把这个 integration 加进去。（漏这步必报 `object_not_found`。）
    然后在 Claude Code 里说「接上 shoulder-tap」，把页面链接给它——它会在那底下建好库。
 
+### 装完之后 Claude Code 那边是什么样
+
+`install.mjs` 替你做了三件事，都在 `~/.claude` 下，想看或想改可以直接开文件：
+
+| 文件 | 它放了什么 | 作用 |
+| --- | --- | --- |
+| `settings.json` → `hooks` | 四个钩子：`UserPromptSubmit`、`PostToolUse`、`Stop`、`PreToolUse`（只匹配 `AskUserQuestion`），都跑 `watch.mjs` | 哨兵：你每次开口、每次工具调用后、模型每说完一轮、模型要问你话时，替模型看一眼清单、拍一下桌面 |
+| `CLAUDE.md` → 「## 专注」 | [skill/CLAUDE.md.snippet](skill/CLAUDE.md.snippet) 的内容 | 告诉模型怎么用 `check_focus`、跑偏时怎么提醒、每轮结尾打哪只手 |
+| `skills/shoulder-tap/` | skill 本体、`.env`、`watch.mjs` | 密钥和配置都在 `.env`，不进仓库 |
+
+MCP 那一步（`claude mcp add ...`）要你自己的 Notion 密钥，脚本不代劳，装完会把命令打出来。
+跑完之后在 Claude Code 里 `/mcp` 能看到 `shoulder-tap` 就是接上了；`/hooks` 能看到那四个钩子。
+换机器、更新版本，重跑 `node install.mjs` 即可，已有的 `.env` 不会被覆盖。
+
+### 桌面端在后台怎么跑
+
+Windows 上 `install.mjs` 会把 exe 注册成开机自启（HKCU 的 Run 键，不需要管理员），并立刻拉起来。
+它是一个只有托盘图标的常驻进程：左键点图标看今天的清单，右键菜单能试拍、退出。
+不带参数启动就是常驻不拍，所以自启不会一开机就拍你一下。
+
+不想自启（PowerShell）：`Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name shoulder-tap`，
+之后它会在第一次钩子触发时自己起来，只是 Claude Code 没开的时候接不到别的机器发来的拍肩。
+托盘里点「退出」只退这一次，下次开机照常。
+
+macOS 版目前不常驻：每拍一下起一个短命进程，播完退出，没有东西需要放到后台。
+
 不想跑脚本的话，四步手动做：拷 skill、配钩子（UserPromptSubmit / PostToolUse / Stop，以及 matcher 为 `AskUserQuestion` 的 PreToolUse，都跑 `node "$HOME/.claude/skills/shoulder-tap/watch.mjs"`）、
 粘 `skill/CLAUDE.md.snippet`、编桌面端：
 
@@ -122,6 +148,9 @@ node install.mjs
 
 ### 它怎么知道你在哪台
 
+先看本机：常驻进程把「现在活跃的是不是我」写在 `~/.claude/shoulder-tap/active.json` 里。
+钩子一看是本机，就直接拍，不绕云端（150 毫秒上下）；不是本机才经中转送过去；中转没送到，退回本机拍。
+
 每台机器的常驻进程每秒看一眼本机有没有键鼠输入。刚有输入、而且（它不是当前活跃的那台，或者前台窗口换了块屏）
 就上报一次；中转把「现在是谁」广播给所有机器。不上报坐标、窗口标题，也不上报你在敲什么。
 通过远程桌面操作另一台时，那台会把自己算成活跃的，手拍在它的画面里，你透过远程窗口照样看得到。
@@ -137,6 +166,7 @@ node install.mjs
 - Windows：能收能发。
 - macOS：能发（钩子是同一份 `watch.mjs`），**收不到** —— Mac 桌面端还是每拍一下起一个短命进程，
   挂不住 WebSocket。改成菜单栏常驻 App 是下一步，方案在 [docs/cross-machine.html](docs/cross-machine.html)。
+- Linux：能发（同一份 `watch.mjs`），收不到，也没有桌面端 —— 覆盖层要分 X11 / Wayland 两套写，还没做。
 - 中转不通（没配、没登录、超时）时一切照旧：拍在本机。
 
 ## 工具

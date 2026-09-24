@@ -86,6 +86,17 @@ else {
   }
   execFileSync("dotnet", ["publish", path.join(root, "desktop"), "-c", "Release", "-o", appDir, "--nologo", "-v", "q"], { stdio: "inherit" });
   log(`桌面端 → ${exe}`);
+  // 开机自启：HKCU 的 Run 键，不要管理员。不带参数启动就是常驻不拍。
+  // 不常驻的话，Claude Code 没开时别的机器发来的拍肩就没人接。
+  // 走 PowerShell 而不是 reg.exe：从 Node 传给 reg.exe 的参数在这台机器上怎么都过不了它的解析。
+  const runKey = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+  const script = `Set-ItemProperty -Path '${runKey}' -Name 'shoulder-tap' -Value '"${exe.replace(/'/g, "''")}"'`;
+  // -EncodedCommand：命令走 base64，反斜杠和引号都不经过任何一层 shell 解析。
+  const run = spawnSync("powershell", ["-NoProfile", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], { stdio: "ignore" });
+  log(run.status === 0
+    ? "开机自启 → 已注册（取消：Remove-ItemProperty -Path '" + runKey + "' -Name shoulder-tap）"
+    : "开机自启没注册上，手动把 exe 的快捷方式放进 shell:startup 也行");
+  spawnSync(exe, [], { stdio: "ignore" }); // 现在就拉起来常驻
 }
 
 // 5. 跨机器：登录换设备令牌

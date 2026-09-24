@@ -138,6 +138,7 @@ public static class Program
         var today = new TodayWindow();
         Forms.NotifyIcon? tray = null;
         var bindings = new Dictionary<string, (IntPtr Handle, uint Pid)>();
+        Relay? relay = null;
         void Next(Lane lane)
         {
             if (lane.Playing || lane.Queue.Count == 0) return;
@@ -176,6 +177,7 @@ public static class Program
                 return;
             }
             if (req.Mode != "complete" && !req.HasMessage) return;
+            if (!req.FromRelay) relay?.Record(req); // 本机直接拍的，也进频道的历史
             var lane = req.Mode == "complete" ? pats : taps;
             lane.Queue.Enqueue(req);
             Next(lane);
@@ -188,7 +190,6 @@ public static class Program
             if (!resident) self.Window.Dismissed += () => self.Window.Dispatcher.BeginInvoke(() => app.Shutdown());
         }
 
-        Relay? relay = null;
         if (resident)
         {
             tray = BuildTray(taps.Window, today, app, () => Handle(new TapRequest { Text = "试拍" }));

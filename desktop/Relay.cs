@@ -29,6 +29,9 @@ public sealed class Relay : IDisposable
         Path.Combine(StateDir, ".env"),
     };
 
+    /// <summary>给 watch.mjs 看的：现在活跃的是不是本机。是，钩子就直接在本机拍，不绕云端。</summary>
+    private static readonly string ActiveFile = Path.Combine(StateDir, "active.json");
+
     /// <summary>键鼠停了超过这么久，就不算「刚被碰过」。</summary>
     private const int RecentInputMs = 1500;
 
@@ -82,12 +85,48 @@ public sealed class Relay : IDisposable
         _watch.Stop();
         _stop.Cancel();
         try { _ws?.Abort(); } catch { }
+        WriteActive(false);
+    }
+
+    private void WriteActive(bool active)
+    {
+        _active = active;
+        try
+        {
+            Directory.CreateDirectory(StateDir);
+            File.WriteAllText(ActiveFile, JsonSerializer.Serialize(new { active, at = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }));
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 本机直接拍的那一下也记进频道的历史，跟经中转的一样：手势明文（统计用），字条密文。
+    /// 连接不在就算了，历史不值得排队。
+    /// </summary>
+    public void Record(TapRequest req)
+    {
+        var ws = _ws;
+        if (ws is null || ws.State != WebSocketState.Open) return;
+        var blob = Seal(_key, JsonSerializer.Serialize(new { host = Environment.MachineName, gesture = req.Mode, caption = req.Caption, text = req.Text }));
+        var line = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { type = "record", gesture = req.Mode, blob }));
+        _ = ws.SendAsync(line, WebSocketMessageType.Text, true, _stop.Token).ContinueWith(t => { if (t.IsFaulted) Program.Log("relay record " + t.Exception?.GetBaseException().Message); });
     }
 
     // ---------- 密钥与封装：跟 relay.mjs 对齐 ----------
 
     public static byte[] KeyOf(string notionToken) =>
         HKDF.DeriveKey(HashAlgorithmName.SHA256, Encoding.UTF8.GetBytes(notionToken), 32, Array.Empty<byte>(), Encoding.UTF8.GetBytes("shoulder-tap/key"));
+
+    public static string Seal(byte[] key, string plain)
+    {
+        var iv = RandomNumberGenerator.GetBytes(12);
+        var body = Encoding.UTF8.GetBytes(plain);
+        var cipher = new byte[body.Length];
+        var tag = new byte[16];
+        using var aes = new AesGcm(key, 16);
+        aes.Encrypt(iv, body, cipher, tag);
+        return Convert.ToBase64String(iv.Concat(cipher).Concat(tag).ToArray());
+    }
 
     public static string Unseal(byte[] key, string blob)
     {
@@ -128,7 +167,7 @@ public sealed class Relay : IDisposable
             catch (OperationCanceledException) { break; }
             catch (Exception e) { Program.Log("relay " + e.Message); }
             _ws = null;
-            _active = false;
+            WriteActive(false);
             try { await Task.Delay(delay, _stop.Token); } catch { break; }
             delay = Math.Min(delay * 2, 30_000); // 断了就退避重连，最多半分钟一次
         }
@@ -156,7 +195,7 @@ public sealed class Relay : IDisposable
         if (type == "active")
         {
             // 服务端说了算：不是我，下次被碰到就得重新报。
-            _active = msg?["device"]?.GetValue<string>() == _device;
+            WriteActive(msg?["device"]?.GetValue<string>() == _device);
             return;
         }
         if (type != "tap") return;
@@ -181,6 +220,7 @@ public sealed class Relay : IDisposable
             Mode = gesture is "complete" or "snap" ? gesture : "tap",
             Text = tapText.Length > 0 ? tapText : caption,
             Caption = caption,
+            FromRelay = true,
         });
     }
 
@@ -204,7 +244,7 @@ public sealed class Relay : IDisposable
         if (_active && screen == _screen) return;
 
         _screen = screen;
-        _active = true; // 先当作是我，服务端广播回来会纠正
+        WriteActive(true); // 先当作是我，服务端广播回来会纠正
         var line = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { type = "active", screens = Forms.Screen.AllScreens.Length }));
         _ = ws.SendAsync(line, WebSocketMessageType.Text, true, _stop.Token).ContinueWith(t => { if (t.IsFaulted) Program.Log("relay send " + t.Exception?.GetBaseException().Message); });
     }
