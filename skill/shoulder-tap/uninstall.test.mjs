@@ -25,7 +25,13 @@ fs.writeFileSync(path.join(claude, "CLAUDE.md"), "# mine\n\nkeep this\n\n## 专�
 fs.mkdirSync(path.join(home, ".codex"));
 fs.writeFileSync(path.join(home, ".codex", "config.toml"), 'model = "x"\n\n[mcp_servers.shoulder-tap]\ncommand = "node"\nargs = ["a"]\n\n[mcp_servers.other]\ncommand = "y"\n');
 
-const r = spawnSync(process.execPath, [path.join(skills, "shoulder-tap", "uninstall.mjs")], { encoding: "utf8", env: { HOME: home, USERPROFILE: home, PATH: "" } });
+// Claude Desktop（普通版的位置）：接上过 shoulder-tap，还有别的服务器和偏好设置
+const appdata = path.join(home, "AppData", "Roaming"), local = path.join(home, "AppData", "Local");
+const desk = path.join(appdata, "Claude", "claude_desktop_config.json");
+fs.mkdirSync(path.dirname(desk), { recursive: true });
+fs.writeFileSync(desk, JSON.stringify({ preferences: { a: 1 }, mcpServers: { "shoulder-tap": { command: "node" }, other: { command: "x" } } }));
+
+const r = spawnSync(process.execPath, [path.join(skills, "shoulder-tap", "uninstall.mjs")], { encoding: "utf8", env: { HOME: home, USERPROFILE: home, APPDATA: appdata, LOCALAPPDATA: local, PATH: "" } });
 console.log(r.stdout, r.stderr);
 assert.equal(r.status, 0);
 assert.ok(!fs.existsSync(path.join(skills, "shoulder-tap")), "skill 删了");
@@ -38,4 +44,5 @@ assert.deepEqual(Object.keys(settings.hooks), ["Stop"]);
 assert.equal(settings.hooks.Stop[0].hooks[0].command, "echo other");
 assert.equal(fs.readFileSync(path.join(claude, "CLAUDE.md"), "utf8"), "# mine\n\nkeep this\n\n## 别的\n\n也留着\n");
 assert.equal(fs.readFileSync(path.join(home, ".codex", "config.toml"), "utf8"), 'model = "x"\n\n[mcp_servers.other]\ncommand = "y"\n');
+assert.deepEqual(JSON.parse(fs.readFileSync(desk, "utf8")), { preferences: { a: 1 }, mcpServers: { other: { command: "x" } } }, "Claude Desktop：只去掉 shoulder-tap");
 console.log("uninstall ok");

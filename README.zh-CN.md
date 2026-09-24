@@ -1,4 +1,4 @@
-![shoulder-tap：tap tap、pat pat、snap](docs/hands-banner.png)
+![shoulder-tap：tap tap、pat pat、snap，手套和猫爪](docs/hands-banner.png)
 
 [English](README.md) | **中文**
 
@@ -26,7 +26,7 @@ node install.mjs
 
 装完浏览器会打开设置页（只有本机能访问）。五步，每步都能跳过：
 
-1. **接上编程工具** —— 点「接上」，把 shoulder-tap 接进 Claude Code / Codex。
+1. **接上编程工具** —— 点「接上」，把 shoulder-tap 接进 Claude Code / Codex。Claude Desktop 也能在这里接，只有工具（见下）。
    不想点按钮：展开「想自己动手」，有一段可以直接复制给你的 coding agent 的说明。
 2. **第一个习惯** —— 名字你自己定。**软习惯**是简单、随手就能做的（喝水这种），正因为简单所以不能跳过，到点就提醒到你做了为止；**硬习惯**受当天情况影响大（健身这种），可以说「今天不做」。
 3. **今天要做的事** —— 一行一件，按先后顺序。
@@ -80,6 +80,16 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
    command = "node"
    args = ["/Users/你/.claude/skills/shoulder-tap/mcp.mjs"]
    ```
+
+   Claude Desktop（聊天那个 App）：在 `claude_desktop_config.json` 里加（设置 → Developer → Edit Config），然后彻底退出再打开：
+
+   ```json
+   "mcpServers": {
+     "shoulder-tap": { "command": "node", "args": ["/Users/你/.claude/skills/shoulder-tap/mcp.mjs"] }
+   }
+   ```
+
+   Claude Desktop 没有钩子、不读 CLAUDE.md，所以只有工具：不会自己拦你、拍你，你说「看下今天的清单」「喝完水了」它才调。
 
 3. **钩子**：在 `~/.claude/settings.json` 里加（文件没有就新建）：
 
@@ -136,7 +146,7 @@ node ~/.claude/skills/shoulder-tap/uninstall.mjs          # 数据留着
 node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # 数据和密钥也删
 ```
 
-三个平台一样：桌面端退出并取消自启、MCP、钩子、CLAUDE.md 那一节、skill，全部还原。Notion 里的库不动。
+三个平台一样：桌面端退出并取消自启、MCP（Claude Code、Codex、Claude Desktop）、钩子、CLAUDE.md 那一节、skill，全部还原。Notion 里的库不动。
 也可以直接跟 Claude Code 说「卸载 shoulder-tap」，它知道跑这条。
 
 ## 什么会离开这台机器

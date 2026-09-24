@@ -1,4 +1,4 @@
--- After editing the .aseprite files, export these sources (do not rerun repair-paws.lua).
+-- Export the current editable .aseprite sources.
 -- Aseprite --batch --script export-skins.lua
 -- Then python make-webp.py to refresh lossless web previews.
 local root=app.fs.filePath(debug.getinfo(1,'S').source:sub(2))
@@ -12,6 +12,7 @@ for _,skin in ipairs({'cat-paw','glove'}) do
     local sheet=Image(864,80,ColorMode.RGB)
     for f=1,9 do
       local img=Image(96,80,ColorMode.RGB);img:drawSprite(s,f)
+      if skin=='glove' and gesture=='tap' and f==1 then img:saveAs(root..'/tap-glove.png') end
       if skin=='cat-paw' and gesture=='snap' and f==2 then
         img:saveAs(root..'/cat-paw.png')
         local preview=Image(96,80,ColorMode.RGB)
