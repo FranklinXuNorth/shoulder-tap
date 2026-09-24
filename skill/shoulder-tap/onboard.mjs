@@ -6,7 +6,7 @@
  *
  * 同一页两种样子（ui/app.html）：还没设置过 → 五步引导（编程工具 → 第一个习惯 → 今天的事 → 数据放哪 → 手）；
  * 设置过 → 面板（今天 · 习惯 · 手 · 设置），同样那几块都能在里面改。
- * 端口被占着说明已经开着一个，直接把浏览器指过去。页面关了三分钟没请求就自己退出。
+ * 端口被占着说明已经开着一个，直接把浏览器指过去。页面半小时没请求就自己退出。
  */
 import fs from "node:fs";
 import http from "node:http";
@@ -153,9 +153,10 @@ const routes = {
   },
 };
 
-// ponytail: 靠页面每分钟 ping 一次判断还开着；关掉三分钟后退出。
+// ponytail: 靠页面每分钟 ping 一次判断还开着；半小时没动静再退出。
+// Chrome 会冻结后台标签页、停掉 ping，给久一点，回来时大多还连得上；真断了页面会说点托盘图标重开。
 let bye = null;
-const idle = () => { clearTimeout(bye); bye = setTimeout(() => process.exit(0), 180_000); };
+const idle = () => { clearTimeout(bye); bye = setTimeout(() => process.exit(0), 30 * 60_000); };
 
 const SKINS = path.join(HERE, "ui", "sprites", "skins");
 const listSkins = () => fs.readdirSync(SKINS, { withFileTypes: true })
