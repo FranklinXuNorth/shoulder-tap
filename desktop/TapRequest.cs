@@ -24,7 +24,8 @@ public sealed class TapRequest
     [JsonPropertyName("quit")] public bool Quit { get; set; }
 
     /// <summary>没有正文就不值得占屏幕：这一次只是把进程拉起来常驻。</summary>
-    [JsonIgnore] public bool HasMessage => Mode is "complete" or "today" || !string.IsNullOrWhiteSpace(Text);
+    // 响指和拍拍本身就是消息，不带文字也要演；只有 taptap 需要一句话才值得拍
+    [JsonIgnore] public bool HasMessage => Mode is "complete" or "snap" or "today" || !string.IsNullOrWhiteSpace(Text);
 
     public string ToJson() => JsonSerializer.Serialize(this);
 

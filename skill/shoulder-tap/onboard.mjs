@@ -143,7 +143,7 @@ const routes = {
     if (!["tap", "complete", "snap"].includes(mode)) throw new Error(`没有这种手势：${mode}`);
     if (!fs.existsSync(APP)) return { tapped: false };
     const t = String(text).trim().slice(0, 160);
-    const args = ["--mode", mode, "--source-pid", String(process.pid), ...(mode === "tap" ? ["--text", t || "试一下"] : []), ...(t ? ["--caption", t] : [])];
+    const args = ["--mode", mode, "--source-pid", String(process.pid), "--text", t || "试一下", ...(t ? ["--caption", t] : [])];
     spawn(APP, args, { detached: true, stdio: "ignore", windowsHide: true }).unref();
     return { tapped: true };
   },

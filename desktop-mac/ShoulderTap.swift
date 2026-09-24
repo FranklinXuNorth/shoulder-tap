@@ -29,7 +29,7 @@ struct TapRequest: Codable {
     var caption = ""
     var quit = false
 
-    var hasMessage: Bool { mode == "complete" || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    var hasMessage: Bool { mode == "complete" || mode == "snap" || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     static func fromArgs() -> TapRequest {
         var r = TapRequest()
