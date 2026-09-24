@@ -4,9 +4,11 @@
  *
  * 做四件事，每件都可以重复跑：
  *   1. skill  → ~/.claude/skills/shoulder-tap（已有的 .env 不动）
- *   2. 钩子   → ~/.claude/settings.json 里的 UserPromptSubmit / PostToolUse / Stop
+ *   2. 钩子   → ~/.claude/settings.json 里的 UserPromptSubmit / PostToolUse / Stop / PreToolUse(AskUserQuestion)
  *   3. CLAUDE.md → 把 skill/CLAUDE.md.snippet 粘进 ~/.claude/CLAUDE.md（已有「## 专注」就跳过）
  *   4. 桌面端 → Windows 用 .NET SDK、macOS 用 swiftc 编译到 ~/.claude/shoulder-tap/app；没有也不影响文本拍肩
+ *   5. 跨机器 → .env 里有 SHOULDER_TAP_RELAY 但还没登录，就打印一个链接让你在浏览器里登录，
+ *              登录完把设备令牌写进 .env。node install.mjs --login 可以重新登。
  *
  * 不做的事：不碰 Notion，不碰 MCP 配置 —— 那两步要你的密钥，最后会把命令打出来。
  */
@@ -33,18 +35,19 @@ const env = path.join(skillDst, ".env");
 if (!fs.existsSync(env)) fs.copyFileSync(path.join(skillSrc, ".env.example"), env);
 log(`skill → ${skillDst}`);
 
-// 2. 钩子。三个事件各挂一次 watch.mjs；已经挂了就不重复。
+// 2. 钩子。四个事件各挂一次 watch.mjs；已经挂了就不重复。
 const settingsPath = path.join(claude, "settings.json");
 const settings = fs.existsSync(settingsPath) ? JSON.parse(fs.readFileSync(settingsPath, "utf8")) : {};
 settings.hooks ??= {};
 const command = 'node "$HOME/.claude/skills/shoulder-tap/watch.mjs"';
 let added = 0;
-for (const event of ["UserPromptSubmit", "PostToolUse", "Stop"]) {
+for (const event of ["UserPromptSubmit", "PostToolUse", "Stop", "PreToolUse"]) {
   const list = (settings.hooks[event] ??= []);
   if (list.some((g) => (g.hooks ?? []).some((h) => String(h.command).includes("shoulder-tap/watch.mjs")))) continue;
   const hook = { type: "command", command, timeout: 10 };
   if (event === "UserPromptSubmit") hook.statusMessage = "看一眼今天说好要做什么";
-  list.push(event === "PostToolUse" ? { matcher: "*", hooks: [hook] } : { hooks: [hook] });
+  const matcher = { PostToolUse: "*", PreToolUse: "AskUserQuestion" }[event]; // PreToolUse 只为问你话那一刻
+  list.push(matcher ? { matcher, hooks: [hook] } : { hooks: [hook] });
   added++;
 }
 fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
@@ -66,7 +69,7 @@ if (process.platform === "darwin") {
     log("没找到 swiftc：先跑 xcode-select --install，再跑一次这个脚本");
   else {
     fs.mkdirSync(appDir, { recursive: true });
-    for (const sheet of ["tap-glove-sheet.png", "completion-hand-sheet.png"])
+    for (const sheet of ["tap-glove-sheet.png", "completion-hand-sheet.png", "snap-glove-sheet.png"])
       fs.copyFileSync(path.join(skillSrc, "ui", "sprites", sheet), path.join(appDir, sheet));
     const bin = path.join(appDir, "shoulder-tap-tap");
     execFileSync("swiftc", ["-O", path.join(root, "desktop-mac", "ShoulderTap.swift"), "-o", bin], { stdio: "inherit" });
@@ -83,6 +86,40 @@ else {
   }
   execFileSync("dotnet", ["publish", path.join(root, "desktop"), "-c", "Release", "-o", appDir, "--nologo", "-v", "q"], { stdio: "inherit" });
   log(`桌面端 → ${exe}`);
+}
+
+// 5. 跨机器：登录换设备令牌
+const dotenv = Object.fromEntries(
+  fs.readFileSync(env, "utf8").split("\n").map((l) => l.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/)).filter(Boolean).map((m) => [m[1], m[2]]),
+);
+const relay = (dotenv.SHOULDER_TAP_RELAY || "").trim().replace(/\/+$/, "");
+if (!relay) log("跨机器没开：想开的话把 worker/ 部署到 Cloudflare，把地址填进 .env 的 SHOULDER_TAP_RELAY，再跑一次");
+else if (dotenv.SHOULDER_TAP_DEVICE_TOKEN && !process.argv.includes("--login")) log("跨机器 → 已登录（重新登：node install.mjs --login）");
+else await login(relay);
+
+async function login(base) {
+  const issued = await (await fetch(`${base}/device/code`, { method: "POST" })).json();
+  console.log(`
+  在浏览器里打开这个链接登录（Google 或邮箱密码），这台机器就连上了：
+
+    ${issued.url}
+
+  等你……`);
+  const deadline = Date.now() + 10 * 60_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 2000));
+    // 网络抖一下不算失败：码还活着，下一轮接着问。
+    let polled;
+    try { polled = await (await fetch(`${base}/device/poll?code=${issued.code}&secret=${issued.secret}`)).json(); } catch { continue; }
+    if (polled.error) { log(`登录没成功：${polled.error}`); return; }
+    if (!polled.token) continue;
+    const text = fs.readFileSync(env, "utf8");
+    const line = `SHOULDER_TAP_DEVICE_TOKEN=${polled.token}`;
+    fs.writeFileSync(env, /^SHOULDER_TAP_DEVICE_TOKEN=.*$/m.test(text) ? text.replace(/^SHOULDER_TAP_DEVICE_TOKEN=.*$/m, line) : text.trimEnd() + "\n" + line + "\n");
+    log(`跨机器 → 登录成功（${polled.email}），设备令牌已写进 .env`);
+    return;
+  }
+  log("十分钟没等到登录，下次跑 node install.mjs --login 再来");
 }
 
 console.log(`

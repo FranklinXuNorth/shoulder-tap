@@ -69,6 +69,13 @@ dotnet publish desktop -c Release -o "$HOME/.claude/shoulder-tap/app"
 
 **没装也不影响任何事。** `watch.mjs` 找不到 exe 就安静跳过，纯文本的拍肩照常工作。
 
+## 跨机器
+
+常驻进程起来时读 `.env`：有 `SHOULDER_TAP_RELAY` 和 `SHOULDER_TAP_DEVICE_TOKEN` 就挂上中转的 WebSocket
+（[Relay.cs](Relay.cs)），收到密文用 Notion token 派生的密钥解开，当成一次本机拍肩进队列；
+别的机器发来的，字条前面带 `[机器名]`。每秒看一眼 `GetLastInputInfo`，刚被碰过而且自己不是活跃的那台
+（或前台窗口换了块屏）就上报一次。断线退避重连，最长半分钟一次。没配就整个不启动。
+
 ## 谁会调它
 
 只有 `watch.mjs`。模型从不自己调这个 exe——拍肩这件事不该由被拍的人自觉，

@@ -1,0 +1,320 @@
+<title>shoulder-tap 跨机器</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #eef1f2; --surface: #ffffff; --surface-2: #f6f8f8;
+    --ink: #14191a; --muted: #5d6b6d; --line: #d3dbdc; --line-strong: #aebabc;
+    --accent: #0e7c7b; --accent-soft: #d9ecec;
+    --signal: #c1471d; --signal-soft: #f9e4dc;
+    --warn: #8a6a12; --warn-soft: #f5ecd2;
+    --radius: 10px;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1213; --surface: #161c1d; --surface-2: #1b2223;
+      --ink: #e6ecec; --muted: #94a3a4; --line: #2a3435; --line-strong: #3d4a4b;
+      --accent: #4bb5b2; --accent-soft: #123231;
+      --signal: #e98055; --signal-soft: #35201a;
+      --warn: #d4ae5a; --warn-soft: #2d2618;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1213; --surface: #161c1d; --surface-2: #1b2223;
+    --ink: #e6ecec; --muted: #94a3a4; --line: #2a3435; --line-strong: #3d4a4b;
+    --accent: #4bb5b2; --accent-soft: #123231;
+    --signal: #e98055; --signal-soft: #35201a;
+    --warn: #d4ae5a; --warn-soft: #2d2618;
+  }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: "IBM Plex Sans", "Microsoft YaHei UI", ui-sans-serif, system-ui, sans-serif;
+    font-size: 15px; line-height: 1.65;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 16px; padding-block: 48px 72px; }
+
+  h1 { font-size: clamp(26px, 5vw, 36px); font-weight: 600; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+  .sub { color: var(--muted); margin: 10px 0 0; max-width: 60ch; }
+  h2 { font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin: 0 0 4px; }
+  .sec { margin-top: 56px; }
+  .sec > p.lead { margin: 0 0 20px; color: var(--muted); max-width: 62ch; }
+  .sec-title { font-size: 21px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  a { color: var(--accent); }
+
+  .thesis {
+    background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius);
+    padding: 22px 24px; box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .thesis p.big { font-size: 20px; font-weight: 600; margin: 0 0 10px; line-height: 1.5; text-wrap: balance; }
+  .thesis p { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+  .note { margin-top: 18px; border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 14px; border-radius: 0 7px 7px 0; font-size: 14px; }
+  .note.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .note.stop { border-left-color: var(--signal); background: var(--signal-soft); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .card { border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; background: var(--surface); }
+  .card h4 { margin: 0 0 8px; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .card.go { border-left: 4px solid var(--accent); }
+  .card.hold { border-left: 4px solid var(--warn); }
+  .card.stop { border-left: 4px solid var(--signal); }
+  .pill { font-family: var(--mono); font-size: 11px; padding: 2px 7px; border-radius: 20px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); font-weight: 400; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  th, td { text-align: left; padding: 10px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.who { font-weight: 500; white-space: nowrap; }
+  td.you { color: var(--accent); }
+  td.model { color: var(--muted); }
+
+  /* 决定记录 */
+  .dec { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 16px 18px; margin-bottom: 12px; }
+  .dec h4 { margin: 0 0 4px; font-size: 15.5px; font-weight: 600; }
+  .dec .because { color: var(--muted); font-size: 13.5px; margin: 0 0 10px; }
+  .dec .cost { font-size: 13px; padding-top: 9px; border-top: 1px dashed var(--line); color: var(--ink); }
+  .dec .cost b { color: var(--signal); font-weight: 600; }
+
+  ul.no { list-style: none; padding: 0; margin: 0; }
+  ul.no li { display: grid; grid-template-columns: 20px 1fr; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  ul.no li:first-child { border-top: none; }
+  ul.no .x { color: var(--signal); font-family: var(--mono); }
+  ul.no span.why { color: var(--muted); font-size: 13px; display: block; margin-top: 2px; }
+
+  pre.ascii { font-family: var(--mono); font-size: 12px; line-height: 1.35; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 12px 14px; margin: 14px 0 0; overflow-x: auto; color: var(--ink); }
+
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>shoulder-tap 跨机器</h1>
+    <p class="sub">
+      一份小 PRD。状态：<b>Worker、发送端、Windows 接收端、登录已实现</b>；Mac 常驻端、MCP 迁移、历史查看未做。Mac 上的 agent 做完了、或者弹了个问题等你回答，
+      手应该拍在你眼睛所在的那台机器、那块屏上。
+      现在的数据怎么走，看 <a href="architecture.html">数据流</a>。
+    </p>
+  </header>
+
+  <section class="sec">
+    <div class="thesis">
+      <p class="big">你在哪台机器前，手就拍在哪台机器上。</p>
+      <p>
+        现在每一下拍肩都只落在发起它的那台机器上。你同时开着好几台电脑，agent 在 Mac 上跑完了，
+        而你正盯着 Windows，这一下就白拍了。装好 shoulder-tap、让它在后台常驻，就应该能收到，
+        不需要 Tailscale，不需要注册账号，也不需要自己开服务器。
+      </p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>01 — 需求</h2>
+    <p class="sec-title">要做到什么</p>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>需求</th><th>怎么算做到</th></tr></thead>
+      <tbody>
+        <tr><td>R1</td><td>拍拍、taptap、响指三种手势，任何一台机器发起都能跨机器送达</td><td>在 Mac 上结束一轮，Windows 屏上出现拍拍，字条上写着「[Mac 名] 这轮总结」</td></tr>
+        <tr><td>R2</td><td>只拍在当前活跃的那台机器上，而且落在那台机器的活跃屏幕上</td><td>两台机器都开着，只有你刚刚碰过的那台会出现手</td></tr>
+        <tr><td>R3</td><td>只要装了 shoulder-tap 就能用</td><td>不用 Tailscale、不开端口、不注册；身份沿用你已有的 Notion token</td></tr>
+        <tr><td>R4</td><td>服务端读不到内容</td><td>Worker 和存储里只有频道哈希、随机设备 ID、时间戳和密文</td></tr>
+        <tr><td>R5</td><td>延迟在一秒以内</td><td>走 WebSocket 推送，不靠轮询</td></tr>
+        <tr><td>R6</td><td>个人使用零费用</td><td>落在 Cloudflare Workers 免费档里</td></tr>
+        <tr><td>R7</td><td>云端不通时照旧工作</td><td>连不上就退回现在的行为，在本机拍；钩子永远 exit 0</td></tr>
+        <tr><td>R8</td><td>保留拍肩的历史记录</td><td>每一下拍肩（手势、来源机器、字条）都以密文形式存进频道自己的 SQLite，任何一台机器都能拉下来解密后查看</td></tr>
+        <tr><td>R9</td><td>后端统一放在 Cloudflare</td><td>MCP 从 Vercel 迁到同一个 Worker，整个后端只剩一家平台；Claude Code、Codex 等任何支持 MCP 的客户端都能接入</td></tr>
+        <tr><td>R10</td><td>收集使用行为数据，不收集内容</td><td>能统计出每个用户用几台机器、在 Claude Code 和 Codex 之间怎么切换、同时开几块屏；可以一键关闭</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="sec">
+    <h2>02 — 架构</h2>
+    <p class="sec-title">一个 Worker，一个频道对应一个 Durable Object</p>
+    <p class="lead">
+      整个后端都放在一个 Cloudflare Worker 里。<code>/mcp</code> 是从 Vercel 原样迁过来的 MCP，
+      仍然无状态，拿着用户的 Notion token 读写用户自己的库；
+      <code>/ch/{hash}</code> 是拍肩通道，每个频道一个 Durable Object，
+      常驻的桌面端用 WebSocket 连上去（开启 hibernation，空闲时不计时长），
+      历史记录存在这个 DO 自带的 SQLite 里。
+    </p>
+    <pre class="ascii">  Mac                                  Cloudflare                          Windows
+  ───                                  ──────────                          ───────
+  Stop / PreToolUse 钩子               Worker  /ch/{hash}                  常驻 shoulder-tap-tap
+    watch.mjs                            │                                   │
+    ├─ 用 token 派生的密钥加密字条        ▼                                   │
+    └─ POST {device, ciphertext} ──▶  Durable Object ── WebSocket 推送 ──▶  解密 → 在活跃屏上播放
+                                       · 记录谁是活跃机器
+  常驻进程 ── 活跃心跳 ─────────────▶  · 只转发给活跃机器
+                                       · 密文写进 SQLite，作为历史记录（R8）
+  Claude Code ── /mcp ──────────────▶  Worker（无状态）──▶ 用户自己的 Notion</pre>
+  </section>
+
+  <section class="sec">
+    <h2>03 — 活跃判定</h2>
+    <p class="sec-title">谁是「你现在在的那台」</p>
+    <p class="lead">在同一台机器里选哪块屏，现在的前台窗口逻辑已经解决了。这一节只管选哪台机器。</p>
+    <div class="cards">
+      <div class="card go">
+        <h4>只在变化时上报 <span class="pill">本机</span></h4>
+        <p>常驻进程盯着本机上次鼠标点击落在哪块屏、键盘焦点在哪块屏，只有值变了才上报 <code>active</code>。不上报坐标，也不上报窗口标题。</p>
+      </div>
+      <div class="card hold">
+        <h4>不是当前活跃就立刻上报 <span class="pill">补漏</span></h4>
+        <p>从 Windows 切到 Mac 再切回 Windows 同一块屏，屏幕没变就不会上报。所以 DO 会把「当前活跃设备」广播给所有机器，自己不是活跃的那台，一有键鼠输入就马上上报一次。</p>
+      </div>
+      <div class="card stop">
+        <h4>时间以服务端为准 <span class="pill">时钟</span></h4>
+        <p>几台机器的时钟对不上，所以用 DO 收到上报的时间排序，不信客户端的时间戳。</p>
+      </div>
+    </div>
+    <div class="note">
+      通过远程桌面操作 Mac 时，Mac 自己也会收到这些输入，会把自己算成活跃的那台，
+      手会拍在 Mac 的画面里，你透过远程窗口照样看得到，这正是想要的结果。
+    </div>
+    <div class="note warn">
+      没有任何机器在线时，这一下不补拍，只记进历史。拍肩只有当下才有意义，等你十分钟后回来再拍，就只是噪音。
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>04 — 隐私</h2>
+    <p class="sec-title">上云的只有 UI 上的那一行字，而且是密文</p>
+    <p class="lead">
+      「只上传 UI 文字」本身还不够：taptap 的提醒里有任务名，响指的字条里就是完整的问题。
+      所以这行字要在发起机器上加密，在收到的机器上解密，服务端全程只经手密文。
+    </p>
+    <div class="scroll"><table>
+      <thead><tr><th>东西</th><th>怎么来</th><th>服务端能看到</th></tr></thead>
+      <tbody>
+        <tr><td class="who">频道</td><td><code>HKDF(token, "shoulder-tap/channel")</code></td><td class="model">一个哈希，反推不出 token</td></tr>
+        <tr><td class="who">密钥</td><td><code>HKDF(token, "shoulder-tap/key")</code>，AES-GCM</td><td class="model">看不到，永远不离开本机</td></tr>
+        <tr><td class="who">设备 ID</td><td>首次运行时生成的随机 UUID</td><td class="model">一串随机值；机器名放在密文里</td></tr>
+        <tr><td class="who">字条、手势、机器名</td><td>加密成一个 blob</td><td class="model">只看得到长度</td></tr>
+        <tr><td class="who">历史记录</td><td>每条一行：时间戳、设备 ID、密文 blob</td><td class="model">什么时候、从哪个设备 ID 拍过；内容看不到</td></tr>
+        <tr><td class="who">活跃心跳</td><td>设备 ID，外加一个屏幕变了的标记</td><td class="model">哪个设备什么时候被碰过。这是唯一的明文元数据，路由必须用到它</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note warn">换 Notion token 等于换频道，所有机器要一起更新 <code>.env</code>，否则彼此收不到。</div>
+  </section>
+
+  <section class="sec">
+    <h2>04a — 账号</h2>
+    <p class="sec-title">身份是账号，密钥仍然只在本机</p>
+    <p class="lead">
+      账号负责两件事：把同一个人的几台机器归到一个频道，以及让行为统计按人算。
+      字条的加密密钥不从账号来，仍从 Notion token 派生 —— 每台机器本来就有它，不用再同步任何东西，
+      Google 登录也不会碰到「没有密码可派生密钥」的问题。
+    </p>
+    <div class="cards">
+      <div class="card go">
+        <h4>登录方式 <span class="pill">两种</span></h4>
+        <p>邮箱密码（PBKDF2-SHA256，10 万次，在 Durable Object 里算，绕开 Worker 的 CPU 上限）；Google OAuth（配了 client id 才显示）。没有账号就在第一次登录时建。</p>
+      </div>
+      <div class="card go">
+        <h4>设备码 <span class="pill">CLI 常见做法</span></h4>
+        <p><code>install.mjs</code> 向 Worker 要一个 8 位码和一个只有终端知道的 secret，打印链接；浏览器里登录把码绑到账号；终端拿 secret 轮询换到设备令牌。看见屏幕上的码的人拿不走令牌。</p>
+      </div>
+      <div class="card hold">
+        <h4>没做 <span class="pill">下一步</span></h4>
+        <p>登录限速、改密码、找回密码、注销设备。现在的账号只够把机器连起来。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>04b — 行为数据</h2>
+    <p class="sec-title">只收集元数据，永远不收集内容</p>
+    <p class="lead">
+      用来了解大家实际怎么用：跨机器的需求有多大、在各个 agent 之间怎么切换、开几块屏。
+      下面每一项都是计数或枚举值，不含文字、窗口标题和坐标。
+    </p>
+    <div class="scroll"><table>
+      <thead><tr><th>指标</th><th>来源</th><th>上报的字段</th></tr></thead>
+      <tbody>
+        <tr><td class="who">几台机器</td><td>频道下不同的设备 ID</td><td class="model">设备 ID（随机）、平台（win / mac）</td></tr>
+        <tr><td class="who">agent 切换</td><td>MCP 握手时的 <code>clientInfo.name</code>，外加钩子事件</td><td class="model">客户端名称（claude-code / codex …）、时间戳</td></tr>
+        <tr><td class="who">屏幕数</td><td>常驻进程心跳</td><td class="model">一个整数</td></tr>
+        <tr><td class="who">拍肩次数</td><td>DO 收到的事件</td><td class="model">手势类型、是否跨机器送达</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note stop">
+      上线前必须同步更新 README 的「数据在你手里」一节，写明收集哪几项、存多久，
+      并提供 <code>SHOULDER_TAP_TELEMETRY=0</code> 开关。关掉之后，跨机器照常可用，只是不上报统计。
+    </div>
+    <div class="note warn">
+      Codex 能不能像 Claude Code 那样挂 Stop / PreToolUse 钩子来触发拍肩，还没核实，动手前要查它当前的文档。
+      MCP 那条路一定能接上 Codex，所以统计不受影响。
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>05 — 决定</h2>
+    <p class="sec-title">选了什么，放弃了什么</p>
+    <div class="dec">
+      <h4>Cloudflare Durable Objects，而不是 Vercel 加 Redis 轮询</h4>
+      <p class="because">WebSocket 推送延迟在一秒以内；hibernation 下空闲连接几乎不花钱；频道状态、活跃判定和转发都放在一个对象里。</p>
+      <p class="cost"><b>代价：</b>多一个要部署的服务、多一家平台；Vercel 那边的 MCP 保持不变。</p>
+    </div>
+    <div class="dec">
+      <h4>后端统一放在 Cloudflare，不引入 Supabase</h4>
+      <p class="because">MCP 本来就是无状态的，搬进 Worker 几乎不用改；DO 自带 SQLite，历史记录直接存在里面，一个平台就够了。</p>
+      <p class="cost"><b>代价：</b>要把 Next.js 的 <code>/mcp</code> 路由改写成 Worker 的写法；现有用户的 MCP 地址要改。</p>
+    </div>
+    <div class="dec">
+      <h4>历史记录存密文，不存明文</h4>
+      <p class="because">历史要留下来，又要做到「服务端读不到内容」，唯一的办法就是存加密后的 blob，查看时在本机解密。</p>
+      <p class="cost"><b>代价：</b>服务端没法按内容搜索或统计；token 一旦换掉，旧的历史就解不开了。</p>
+    </div>
+    <div class="dec">
+      <h4>服务端负责路由，客户端不自己过滤</h4>
+      <p class="because">DO 只把消息推给活跃的那台，别的机器根本收不到，不会出现两台同时拍、也不会出现谁都没拍。</p>
+      <p class="cost"><b>代价：</b>服务端知道哪个设备 ID 在什么时候活跃。</p>
+    </div>
+    <div class="dec">
+      <h4>用 Notion token 当身份，不另做账号</h4>
+      <p class="because">每台机器本来就有这个 token，同一个 token 就等于同一个人，而且零配置。</p>
+      <p class="cost"><b>代价：</b>拿到 token 的人也能往你的频道里发消息，不过 token 泄露本来就是更大的问题。</p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>06 — 不做</h2>
+    <ul class="no">
+      <li><span class="x">×</span><div>离线补拍<span class="why">错过的拍肩就是错过了，只留在历史里。</span></div></li>
+      <li><span class="x">×</span><div>手机端<span class="why">那是另一个产品。</span></div></li>
+      <li><span class="x">×</span><div>把清单、习惯同步到 Cloudflare<span class="why">它们留在 Notion 里，这条通道只传一行字条。</span></div></li>
+      <li><span class="x">×</span><div>在服务端判断活跃屏幕<span class="why">选哪块屏永远由本机决定，服务端只选机器。</span></div></li>
+    </ul>
+  </section>
+
+  <section class="sec">
+    <h2>07 — 步骤</h2>
+    <p class="sec-title">怎么落地</p>
+    <div class="scroll"><table>
+      <thead><tr><th>#</th><th>做什么</th><th>备注</th></tr></thead>
+      <tbody>
+        <tr><td>1 ✓</td><td>Worker 和两种 Durable Object：账号 / 设备码，频道的 WebSocket、<code>send</code>、<code>history</code></td><td><code>worker/src/index.js</code>，<code>node test.mjs</code> 对着 <code>wrangler dev</code> 走端到端</td></tr>
+        <tr><td>2 ✓</td><td><code>watch.mjs</code>：加密后 POST；送到了本机不拍，失败退回本机拍</td><td>最多等 1.5 秒；<code>relay.mjs</code></td></tr>
+        <tr><td>3 ✓</td><td>Windows 常驻进程：WebSocket 客户端、断线重连、盯屏幕变化、上报活跃</td><td><code>desktop/Relay.cs</code>，每秒轮询 <code>GetLastInputInfo</code>，只取屏幕，不取内容</td></tr>
+        <tr><td>4</td><td>Mac 端改成菜单栏常驻 App（<code>LSUIElement</code> 的 <code>.app</code>，加 LaunchAgent 开机自启）</td><td>现在每拍一下就起一个短命进程，挂不住 WebSocket。<code>install.mjs</code> 在本机编译，所以不需要签名和公证。活跃屏幕只看鼠标点击和前台窗口位置，不读全局键盘，这样就不用申请辅助功能权限。两条道改成在进程内排队，照 Windows 的 <code>Lane</code> 来做</td></tr>
+        <tr><td>5 ✓</td><td><code>install.mjs</code>：设备码登录，把令牌写进 <code>.env</code></td><td>Worker 地址要用户填一次；<code>--login</code> 重新登</td></tr>
+        <tr><td>6</td><td>把 MCP 从 Vercel 迁到 Worker 的 <code>/mcp</code></td><td>过渡期两边都在线，README 里的 <code>claude mcp add</code> 地址换成新的</td></tr>
+        <tr><td>7</td><td>历史查看：托盘菜单或菜单栏里加「最近的拍肩」</td><td>拉取密文，在本机解密后显示</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note">
+      费用（2026-09-24 从 Cloudflare 官方定价页查到）：Free 档每天 10 万次 Worker 请求（每次 10ms CPU），
+      DO 每天 10 万次请求、13,000 GB-s 运行时长；收到的 WebSocket 消息按 20 条算 1 次请求，hibernation 状态下不计时长；
+      SQLite 每天写 10 万行、读 500 万行，总共 5 GB。一个人一天用不到这些额度的百分之一。
+      额度按部署者的账号算、所有用户共用，粗估一两百个活跃用户时才需要开 Paid（每月 $5 起）。
+    </div>
+  </section>
+
+  <footer>
+    shoulder-tap · 跨机器 · 提案 · 2026-09-24
+  </footer>
+</div>

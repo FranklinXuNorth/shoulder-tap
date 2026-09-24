@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "shoulder-tap-relay",
+  "main": "src/index.js",
+  "compatibility_date": "2025-06-01",
+  "durable_objects": {
+    "bindings": [
+      { "name": "ACCOUNTS", "class_name": "Accounts" },
+      { "name": "CHANNEL", "class_name": "Channel" }
+    ]
+  },
+  // Free 档只给 SQLite 后端的 DO，所以两个类都走 new_sqlite_classes。
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Accounts", "Channel"] }],
+  "observability": { "enabled": true }
+}

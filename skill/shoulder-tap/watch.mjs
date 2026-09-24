@@ -9,6 +9,10 @@
  *   UserPromptSubmit  你每次开口     → 读本地缓存，立刻返回，网络甩到后台
  *   PostToolUse       每次工具调用后 → 写操作立即刷新；否则十分钟一次，且只在有到期习惯时出声
  *   Stop              模型说完一轮   → 结尾有哪只 ASCII 手就拍哪下：拍拍 = 做完了，taptap = 提醒
+ *   PreToolUse        模型要问你话   → AskUserQuestion 弹出来之前打个响指，问题贴在手旁边
+ *
+ * 跨机器：每一下拍肩先经中转（relay.mjs）送到「你眼睛所在的那台」，送到了本机就不拍；
+ * 没配、没登录、没人在线、超时，都退回本机拍。
  *
  * 为什么读缓存：网络那一趟是 400ms，而它**卡在你按回车到模型开口之间**。
  * 今天的清单一天才变几次，用几分钟前的副本判断「这件事相不相关」，结论一模一样。
@@ -26,6 +30,8 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { completionGestures, desktopArgs, doneLine, missingHandDecision } from "./completion.mjs";
 import { localJudgement } from "./local-jev.mjs";
+import { relaySend } from "./relay.mjs";
+import crypto from "node:crypto";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SELF = fileURLToPath(import.meta.url);
@@ -96,6 +102,15 @@ function writeState(patch) {
     fs.mkdirSync(STATE_DIR, { recursive: true });
     fs.writeFileSync(STATE, JSON.stringify({ ...readState(), ...patch }, null, 2), "utf8");
   } catch {}
+}
+
+/** 这台机器在频道里的名字：第一次生成，之后不变。随机值，跟机器名无关。 */
+function deviceId() {
+  const { device } = readState();
+  if (device) return device;
+  const fresh = crypto.randomUUID();
+  writeState({ device: fresh });
+  return fresh;
 }
 
 // ---------- 跟 MCP 说话 ----------
@@ -225,6 +240,11 @@ function reminderAfterHand(tail) {
   return stillArt ? "该回到今天说好的那条了。" : last;
 }
 
+/** 弹出来的那几个问题，拼成一行。多个问题用「｜」隔开，字条那边会截断。 */
+function questionLine(input) {
+  return (input?.questions || []).map((q) => (q?.question || "").trim()).filter(Boolean).join(" ｜ ");
+}
+
 // ---------- 主流程 ----------
 
 async function main() {
@@ -265,8 +285,22 @@ async function main() {
     // 手旁边那一小条字：拍拍放这轮的如实总结；taptap 放手后面那句提醒。
     const reminder = reminderAfterHand(tail);
     for (const gesture of completionGestures(payload)) {
-      if (gesture === "tap") tapDesktop(env, reminder, payload, "tap", reminder);
-      else tapDesktop(env, "", payload, "complete", doneLine(payload.last_assistant_message));
+      const mode = gesture === "tap" ? "tap" : "complete";
+      const text = mode === "tap" ? reminder : "";
+      const caption = mode === "tap" ? reminder : doneLine(payload.last_assistant_message);
+      if (await relaySend(env, deviceId(), mode, { caption, text })) continue; // 送到了，那台会自己拍
+      tapDesktop(env, text, payload, mode, caption);
+    }
+    return;
+  }
+
+  // 模型要停下来问你。你可能早切去别的窗口了 —— 打个响指，把问题贴在手旁边。
+  // 不输出任何东西：不拦这次调用，也不往上下文里塞话。
+  if (event === "PreToolUse") {
+    if (payload.tool_name === "AskUserQuestion") {
+      const question = questionLine(payload.tool_input);
+      if (!(await relaySend(env, deviceId(), "snap", { caption: question, text: question })))
+        tapDesktop(env, question, payload, "snap", question);
     }
     return;
   }
