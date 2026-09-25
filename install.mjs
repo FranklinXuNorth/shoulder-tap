@@ -160,9 +160,34 @@ else {
 }
 
 // 5. 设置页。桌面端在跑的话它已经打开了（第一次启动会自己开）；没有桌面端就在这里开，开着直到你点完成。
-console.log(`
-装好了。设置页会在浏览器里打开（没开的话：node "${path.join(skillDst, "onboard.mjs")}" --setup）：
-接上 Claude Code / Codex、定第一个习惯、写下今天要做的事、选数据放哪。
-`);
+// 端口跟 skill/shoulder-tap/onboard.mjs 里的 PORT 是同一个，改那边记得改这里。
+const SETUP_URL = "http://127.0.0.1:47823/#setup";
 const hasDesktop = fs.existsSync(path.join(appDir, "shoulder-tap-tap.exe")) || fs.existsSync(path.join(appDir, "ShoulderTap.app"));
+// 三个系统三种开法：能自己开的就说一声，开不了的说清楚怎么手动开。
+const howItOpens = !hasDesktop
+  ? (process.platform === "linux"
+      ? "Linux 没有桌面端，所以这个脚本现在直接把它打开。"
+      : "桌面端这次没装上，所以这个脚本现在直接把它打开。")
+  : process.platform === "win32"
+    ? "Windows：托盘里那个图标第一次起来会自己打开它；没开就点托盘图标，或者直接开上面那个地址。"
+    : "macOS：菜单栏那个图标第一次起来会自己打开它；没开就点菜单栏图标，或者直接开上面那个地址。";
+
+console.log(`
+装好了。但还没设置完 —— 剩下的都在设置页上点：
+
+  ${SETUP_URL}
+
+${howItOpens}
+没反应就手动跑：node "${path.join(skillDst, "onboard.mjs")}" --setup
+
+那一页五步（都能跳过）：
+  1. 接上 Claude Code / Codex 的 MCP —— 这一步 install.mjs 不做，必须在这里点，或者在终端跑：
+     claude mcp add -s user shoulder-tap -- node "${path.join(skillDst, "mcp.mjs")}"
+     （macOS 上这页由菜单栏 app 打开，看不到你 shell 的 PATH，所以可能显示 Claude Code「没找到」/ 点了不生效 —— 那就用上面这条命令。）
+  2. 第一个习惯  3. 今天要做的事  4. 数据放哪  5. 手的样式
+接完 MCP 要重开一次 Claude Code 会话，工具和钩子才生效。
+
+如果你是替人跑这个脚本的模型：把上面那个地址原样贴进聊天里给用户，并告诉他这五步要他自己点
+（习惯和今天的事别替他填）。装完就不说话，用户不知道还有一页要设置。
+`);
 if (!hasDesktop) spawnSync(process.execPath, [path.join(skillDst, "onboard.mjs"), "--setup"], { stdio: "inherit" });

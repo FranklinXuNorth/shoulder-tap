@@ -26,9 +26,25 @@ cd shoulder-tap
 node install.mjs
 ```
 
+**脚本只做了一半。** 它装的是 skill、钩子、CLAUDE.md 那一节和桌面端；**MCP 它不接**，习惯和今天的事它也不知道。剩下的都在一个只给本机看的设置页上点：
+
+```
+http://127.0.0.1:47823/#setup
+```
+
+这一页怎么出来，三个系统不一样：
+
+| | 设置页 | 没自己打开的话 |
+| --- | --- | --- |
+| **Windows** | 托盘图标起来后自己打开 | 点托盘图标，或直接开上面这个地址 |
+| **macOS** | 菜单栏图标起来后自己打开 | 点菜单栏图标，或直接开上面这个地址 |
+| **Linux** | 还没有桌面端，`install.mjs` 自己打开 | `node ~/.claude/skills/shoulder-tap/onboard.mjs --setup` |
+
+> **如果是模型在替人装：** 把上面那个地址原样贴进聊天里，并说清这五步是什么。脚本跑完一声不吭，用户会以为已经装好了，其实只装了一半。这五步让他自己点 —— 习惯和今天要做的事别替他填。
+
 ## 二、设置页
 
-装完浏览器会打开设置页（只有本机能访问）。五步，每步都能跳过：
+装完浏览器会打开设置页（只有本机能访问，地址是 `http://127.0.0.1:47823/#setup`）。五步，每步都能跳过：
 
 1. **接上编程工具** —— 点「接上」，把 shoulder-tap 接进 Claude Code / Codex。Claude Desktop 也能在这里接，只有工具（见下）。
    不想点按钮：展开「想自己动手」，有一段可以直接复制给你的 coding agent 的说明。
@@ -130,7 +146,7 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 
    跑一下那个可执行文件，它就常驻在托盘 / 菜单栏了。
 
-6. **设置页**：`node ~/.claude/skills/shoulder-tap/onboard.mjs --setup`。
+6. **设置页** —— 最容易漏、漏了整个东西就不工作：`node ~/.claude/skills/shoulder-tap/onboard.mjs --setup`，或者直接开 `http://127.0.0.1:47823/#setup`。三个系统都一样。
 
 ## 桌面端
 
