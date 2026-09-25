@@ -36,7 +36,7 @@
 > **建议让你的 coding agent 帮你装。** 把这句贴给 Claude Code 或 Codex：
 >
 > ```
-> 帮我装 https://github.com/FranklinXuNorth/shoulder-tap。照着它的 README 来，脚本跑完后打开设置页，告诉我那五步是什么。
+> 帮我装 https://github.com/FranklinXuNorth/shoulder-tap。照着它的 README 来，脚本跑完后打开设置页，告诉我那五步是什么（Notion 那步可以跳过，跳过就存在本机）。
 > ```
 >
 > 它会检查 Node / .NET / Xcode 工具、跑脚本、哪步失败就修哪步。想自己动手就往下看。
