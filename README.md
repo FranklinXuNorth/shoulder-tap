@@ -18,7 +18,7 @@ Tell the model what you're doing today. From then on, whenever you drift to some
 
 When it finishes a turn, a hand taps the edge of your screen and says what it just did, so you can wander off while it works.
 
-<p align="center"><img src="docs/demo-v3.gif" alt="Claude finishes while you're in a game; a pixel hand snaps at the screen edge with a one-line summary" width="760"></p>
+<p align="center"><img src="docs/demo-v3.gif" alt="Claude finishes while you're in a game; a pixel hand snaps at the screen edge with a one-line summary" width="640"></p>
 
 <p align="center"><img src="docs/overview.png" alt="Left: the chat ends with a snap and a tap tap. Right: a reminder and a task summary pop up at the screen edge while you work in Photoshop" width="760"></p>
 
