@@ -1,6 +1,6 @@
 ---
 name: shoulder-tap
-description: 接上 shoulder-tap（设置页、MCP、存储），以及在用户跑偏时把他拉回来。当用户说「设置 shoulder-tap」「接上 shoulder-tap」「设置一下专注」，或者 shoulder-tap 的工具报 not_set_up 时使用。
+description: 接上 shoulder-tap（设置页、MCP、存储），以及在用户跑偏时把他拉回来。当用户说「设置 shoulder-tap」「接上 shoulder-tap」「设置一下专注」「更新 shoulder-tap」，或者 shoulder-tap 的工具报 not_set_up 时使用。
 ---
 
 # shoulder-tap
@@ -31,6 +31,17 @@ claude mcp add -s user shoulder-tap -- node ~/.claude/skills/shoulder-tap/mcp.mj
 
 接完 MCP 只是第一步：跑一次上面的 `onboard.mjs` 把设置页打开，让他自己填习惯、今天的事、数据放哪。
 然后告诉他重开一次会话让工具生效。
+
+## 更新
+
+用户说「更新 shoulder-tap」，或者钩子提示有新版本、用户说好：跑
+
+```bash
+node ~/.claude/skills/shoulder-tap/update.mjs
+```
+
+它在装的时候那个仓库里 `git pull`，再重跑 `install.mjs`；数据和设置不动。跑完告诉用户重开一次会话。
+报「找不到仓库」就照它说的：重新 clone 再跑 `node install.mjs`。
 
 ## 工具
 

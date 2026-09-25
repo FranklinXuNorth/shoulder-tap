@@ -228,6 +228,16 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 
 <br>
 
+## 更新
+
+```bash
+node ~/.claude/skills/shoulder-tap/update.mjs
+```
+
+在你当初 clone 的那个目录里拉最新版，再重跑一遍安装；数据和设置不动。也可以直接跟 Claude Code 说「更新 shoulder-tap」，或者设置页出现「更新」按钮时点一下。它每天在后台查一次 GitHub，有新版本时模型会提一句（一天一次）。
+
+<br>
+
 ## 卸载
 
 ```bash
@@ -245,6 +255,7 @@ node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # 数据和密钥也�
 | 什么 | 去哪 | 什么时候 |
 | --- | --- | --- |
 | 任务、习惯 | 你自己的 Notion | 只有你选了 Notion |
+| 对这个仓库 `git fetch` 一次 | GitHub | 一天一次，看有没有更新 |
 | 其它一切 | 哪儿也不去 | — |
 
 <br>

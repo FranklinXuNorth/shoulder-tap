@@ -29,6 +29,7 @@ import { completionGestures, desktopArgs, doneLine, missingHandDecision } from "
 import { localJudgement } from "./local-jev.mjs";
 import { callText } from "./core/tools.mjs";
 import { loadEnv } from "./core/store.mjs";
+import { readUpdate, writeUpdate, dueForCheck } from "./core/update.mjs";
 
 const SELF = fileURLToPath(import.meta.url);
 
@@ -175,6 +176,24 @@ function questionLine(input) {
   return (input?.questions || []).map((q) => (q?.question || "").trim()).filter(Boolean).join(" ｜ ");
 }
 
+/**
+ * 有新版本就一天提一次：检查本身一天一次，甩到后台（git fetch 要走网络）；
+ * 这里只读上次的结果。提醒交给模型带一句，不拍桌面。
+ */
+function updateNote() {
+  try {
+    if (dueForCheck()) {
+      writeUpdate({ checkedAt: Date.now() }); // 先占上，别每句话都起一个 fetch
+      spawn(process.execPath, [path.join(path.dirname(SELF), "update.mjs"), "--check"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    }
+    const { behind = 0, toldOn } = readUpdate();
+    const today = new Date().toLocaleDateString("en-CA"); // 本机时区的日期
+    if (!behind || toldOn === today) return "";
+    writeUpdate({ toldOn: today });
+    return `\n\n【shoulder-tap 有新版本】落后 ${behind} 个提交。这轮回答里顺带说一句：shoulder-tap 有更新，说「更新 shoulder-tap」或跑 node ~/.claude/skills/shoulder-tap/update.mjs。今天只提这一次。`;
+  } catch { return ""; }
+}
+
 // ---------- 主流程 ----------
 
 async function main() {
@@ -239,14 +258,14 @@ async function main() {
     if (state.plan) {
       spawnRefresh();
       const judgement = await localJudgement(env, state.plan, payload.prompt);
-      say(event, fillActivity(state.plan, payload.prompt) + judgement);
+      say(event, fillActivity(state.plan, payload.prompt) + judgement + updateNote());
       return;
     }
     // 第一次跑，没有缓存可用，只能同步等一次。
     await refresh(env).catch(() => {});
     const plan = readState().plan;
     const judgement = await localJudgement(env, plan, payload.prompt);
-    say(event, fillActivity(plan, payload.prompt) + judgement);
+    say(event, fillActivity(plan, payload.prompt) + judgement + updateNote());
     return;
   }
 
