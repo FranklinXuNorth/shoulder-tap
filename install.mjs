@@ -10,6 +10,8 @@
  *              macOS 用 swiftc 包成 ShoulderTap.app 并注册 LaunchAgent；Linux 只指一下接口文档。没有也不影响文本拍肩
  *   5. 设置页 → 桌面端第一次起来会自己打开它；没有桌面端（Linux）就直接打开。
  *              接 MCP、第一个习惯、今天的事、数据放哪，都在那一页里点。
+ * 仓库位置记进 config.json 的 repo，以后 node ~/.claude/skills/shoulder-tap/update.mjs 就在这里 git pull 再重跑本脚本。
+ * --update：update.mjs 调的，最后那一大段「还没设置完」不说，设置页也不开。
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -34,6 +36,12 @@ for (const name of fs.readdirSync(skillSrc)) {
 const env = path.join(skillDst, ".env");
 if (!fs.existsSync(env)) fs.copyFileSync(path.join(skillSrc, ".env.example"), env);
 log(`skill → ${skillDst}`);
+// 记住仓库在哪，update.mjs 要在这里 git pull。
+const configPath = path.join(claude, "shoulder-tap", "config.json");
+let config = {};
+try { config = JSON.parse(fs.readFileSync(configPath, "utf8")); } catch {}
+fs.mkdirSync(path.dirname(configPath), { recursive: true });
+fs.writeFileSync(configPath, JSON.stringify({ ...config, repo: root }, null, 2), "utf8");
 // 卸载是单独一个 skill：用户说「卸载 shoulder-tap」模型就知道跑 uninstall.mjs。
 fs.cpSync(path.join(root, "skill", "shoulder-tap-uninstall"), path.join(claude, "skills", "shoulder-tap-uninstall"), { recursive: true, force: true });
 
@@ -158,6 +166,8 @@ else {
   spawnSync(exe, [], { stdio: "ignore" }); // 现在就拉起来常驻
   }
 }
+
+if (process.argv.includes("--update")) process.exit(0); // 更新：设置早就做过了
 
 // 5. 设置页。桌面端在跑的话它已经打开了（第一次启动会自己开）；没有桌面端就在这里开，开着直到你点完成。
 // 端口跟 skill/shoulder-tap/onboard.mjs 里的 PORT 是同一个，改那边记得改这里。
