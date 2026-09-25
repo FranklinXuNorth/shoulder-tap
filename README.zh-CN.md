@@ -10,6 +10,8 @@
 
 </div>
 
+<br>
+
 ## 这是什么
 
 你告诉模型今天要做什么。之后你每想干点别的，它在动手之前先拍你一下肩膀。
@@ -25,6 +27,8 @@
 
 > **你的所有习惯 + 要做的事情的数据不上云。**
 > shoulder-tap 没有服务器：数据要么在这台机器的一个 JSON 文件里，要么在你自己的 Notion 里（这台机器直接连）。
+
+<br>
 
 ## 一、装
 
@@ -52,6 +56,8 @@ http://127.0.0.1:47823/#setup
 
 > **如果是模型在替人装：** 把上面那个地址原样贴进聊天里，并说清这五步是什么。脚本跑完一声不吭，用户会以为已经装好了，其实只装了一半。这五步让他自己点 —— 习惯和今天要做的事别替他填。
 
+<br>
+
 ## 二、设置页
 
 装完浏览器会打开设置页（只有本机能访问，地址是 `http://127.0.0.1:47823/#setup`）。五步，每步都能跳过：
@@ -77,6 +83,8 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 
 设置完之后，同一个图标打开的是首页：**重新走一遍设置**、**选择皮肤**，下面是你的记录 —— 最近两周的待办、在盯的习惯、习惯的历史。右上角可以切中英文。
 
+<br>
+
 ## 三、用
 
 在 Claude Code 里说：
@@ -87,6 +95,8 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 - 「这周喝了几次水」 —— 看历史
 
 然后正常干活。你一跑偏，回答末尾会有只手，桌面上也会拍你一下。
+
+<br>
 
 ## 不跑脚本，手动装
 
@@ -158,6 +168,8 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 
 6. **设置页** —— 最容易漏、漏了整个东西就不工作：`node ~/.claude/skills/shoulder-tap/onboard.mjs --setup`，或者直接开 `http://127.0.0.1:47823/#setup`。三个系统都一样。
 
+<br>
+
 ## 桌面端
 
 屏幕右缘那只手：**响指**（这轮做完了）、**拍拍**（模型在等你回答）、**taptap**（跑偏了 / 习惯到点了）。
@@ -171,6 +183,8 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 
 三个平台都从 `~/.claude/skills/shoulder-tap/ui/sprites/skins/<样式>/` 读手的图，想画一套自己的看那里的 README。
 
+<br>
+
 ## 卸载
 
 ```bash
@@ -181,6 +195,8 @@ node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # 数据和密钥也�
 三个平台一样：桌面端退出并取消自启、MCP（Claude Code、Codex、Claude Desktop）、钩子、CLAUDE.md 那一节、skill，全部还原。Notion 里的库不动。
 也可以直接跟 Claude Code 说「卸载 shoulder-tap」，它知道跑这条。
 
+<br>
+
 ## 什么会离开这台机器
 
 | 什么 | 去哪 | 什么时候 |
@@ -188,11 +204,15 @@ node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # 数据和密钥也�
 | 任务、习惯 | 你自己的 Notion | 只有你选了 Notion |
 | 其它一切 | 哪儿也不去 | — |
 
+<br>
+
 ## 更多
 
 - 每一块是什么、数据长什么样：[docs/architecture.html](docs/architecture.html)
 - 一次拍肩怎么走、三档判断、习惯的规则：[docs/flow.html](docs/flow.html)
 - 跨设备（一台机器跑完、拍到你正盯着的另一台上）：[`cross-machine`](../../tree/cross-machine) 分支，还在测，这一版不带
+
+<br>
 
 ## 许可
 
