@@ -31,6 +31,13 @@ const desk = path.join(appdata, "Claude", "claude_desktop_config.json");
 fs.mkdirSync(path.dirname(desk), { recursive: true });
 fs.writeFileSync(desk, JSON.stringify({ preferences: { a: 1 }, mcpServers: { "shoulder-tap": { command: "node" }, other: { command: "x" } } }));
 
+// Hermes：mcp_servers 下有 shoulder-tap 和别的；OpenClaw：接过，但 PATH 上没有 openclaw，只能提示手动 unset
+const hermes = path.join(home, ".hermes", "config.yaml");
+fs.mkdirSync(path.dirname(hermes));
+fs.writeFileSync(hermes, 'model: x\nmcp_servers:\n  shoulder-tap:\n    command: "node"\n    args: ["a"]\n  other:\n    command: y\n');
+fs.mkdirSync(path.join(home, ".openclaw"));
+fs.writeFileSync(path.join(home, ".openclaw", "openclaw.json"), '{"mcp":{"servers":{"shoulder-tap":{"command":"node"}}}}');
+
 const r = spawnSync(process.execPath, [path.join(skills, "shoulder-tap", "uninstall.mjs")], { encoding: "utf8", env: { HOME: home, USERPROFILE: home, APPDATA: appdata, LOCALAPPDATA: local, PATH: "" } });
 console.log(r.stdout, r.stderr);
 assert.equal(r.status, 0);
@@ -45,4 +52,6 @@ assert.equal(settings.hooks.Stop[0].hooks[0].command, "echo other");
 assert.equal(fs.readFileSync(path.join(claude, "CLAUDE.md"), "utf8"), "# mine\n\nkeep this\n\n## 别的\n\n也留着\n");
 assert.equal(fs.readFileSync(path.join(home, ".codex", "config.toml"), "utf8"), 'model = "x"\n\n[mcp_servers.other]\ncommand = "y"\n');
 assert.deepEqual(JSON.parse(fs.readFileSync(desk, "utf8")), { preferences: { a: 1 }, mcpServers: { other: { command: "x" } } }, "Claude Desktop：只去掉 shoulder-tap");
+assert.equal(fs.readFileSync(hermes, "utf8"), "model: x\nmcp_servers:\n  other:\n    command: y\n", "Hermes：只去掉 shoulder-tap");
+assert.match(r.stdout, /OpenClaw → 没去掉/);
 console.log("uninstall ok");
