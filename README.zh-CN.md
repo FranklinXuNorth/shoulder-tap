@@ -18,7 +18,7 @@
 
 它每做完一轮，屏幕边上会伸出一只手，用一句话告诉你它刚做了什么。所以它干活的时候你可以走开。
 
-<p align="center"><img src="docs/demo-cut.gif" alt="在打游戏的时候 Claude 做完了，屏幕边上的像素手打个响指，带一句总结" width="760"></p>
+<p align="center"><img src="docs/demo-v3.gif" alt="在打游戏的时候 Claude 做完了，屏幕边上的像素手打个响指，带一句总结" width="760"></p>
 
 <p align="center"><img src="docs/overview.png" alt="左：聊天结尾的响指和 tap tap。右：你在 Photoshop 里干活，屏幕边上弹出喝水提醒和任务总结" width="760"></p>
 
