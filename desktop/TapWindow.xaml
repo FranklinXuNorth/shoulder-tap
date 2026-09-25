@@ -26,10 +26,25 @@
       <Rectangle Fill="{StaticResource Bg}" Margin="4,6" />
       <Rectangle Fill="{StaticResource Bg}" Margin="6,4" />
       <!-- Fusion Pixel draws on a 12px grid; 16 DIP x 150% = 24px keeps every glyph pixel whole. -->
-      <TextBlock x:Name="CaptionText" Foreground="{StaticResource Ink}" Margin="14,9,14,10"
-                 FontFamily="pack://application:,,,/Fonts/#Fusion Pixel 12px Prop zh_hans" FontSize="16"
-                 TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="Aliased"
-                 TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="72" />
+      <StackPanel Margin="14,9,14,10">
+        <TextBlock x:Name="CaptionText" Foreground="{StaticResource Ink}"
+                   FontFamily="pack://application:,,,/Fonts/#Fusion Pixel 12px Prop zh_hans" FontSize="16"
+                   TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="Aliased"
+                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="72" />
+        <!-- 到点习惯的提醒才有：已经做了 = 记一次完成；还没做 = 收起来，到点照样再提 -->
+        <StackPanel x:Name="HabitButtons" Orientation="Horizontal" Margin="0,8,0,0" Visibility="Collapsed">
+          <Border x:Name="DoneButton" Background="{StaticResource Ink}" Padding="10,3" Margin="0,0,8,0" Cursor="Hand">
+            <TextBlock Text="已经做了" Foreground="{StaticResource Bg}" FontSize="14"
+                       FontFamily="pack://application:,,,/Fonts/#Fusion Pixel 12px Prop zh_hans"
+                       TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="Aliased" />
+          </Border>
+          <Border x:Name="LaterButton" BorderBrush="{StaticResource Ink}" BorderThickness="2" Padding="8,1" Cursor="Hand" Background="{StaticResource Bg}">
+            <TextBlock Text="还没做" Foreground="{StaticResource Ink}" FontSize="14"
+                       FontFamily="pack://application:,,,/Fonts/#Fusion Pixel 12px Prop zh_hans"
+                       TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="Aliased" />
+          </Border>
+        </StackPanel>
+      </StackPanel>
     </Grid>
     <!-- Same white-glove pixel style; tap keeps its pointing index, completion keeps its raised palm. -->
     <Image x:Name="PixelHand" Grid.Row="1" Width="288" Height="240"

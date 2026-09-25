@@ -69,6 +69,16 @@ export async function setStatus(_, win, position, status) {
   return { items: await listDay(_, win), hit };
 }
 
+/** 设置页的下拉框：按 id 直接改一条的状态，哪天的都行，改回 pending 也行。 */
+export async function setTaskStatus(_, id, status) {
+  const d = load();
+  const row = d.tasks.find((t) => t.sid === id);
+  if (!row) return false;
+  row.status = status;
+  save(d);
+  return true;
+}
+
 /**
  * 习惯：跟 Notion 那边一样，一次一行，都在 habits 这一个数组里。
  * status = pending（当前激活，activated 是激活时刻）/ done / dropped（finished 是收尾时刻）。

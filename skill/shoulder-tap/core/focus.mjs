@@ -344,6 +344,11 @@ export async function setStatus(token, win, position, status) {
     });
     return { items: await listDay(token, win), hit };
 }
+/** 设置页的下拉框：按页面 id 直接改一条的状态，哪天的都行，改回 pending 也行。 */
+export async function setTaskStatus(token, id, status) {
+    await notion(token, "PATCH", `/pages/${id}`, { properties: { Status: { select: { name: STATUS[status] } } } });
+    return true;
+}
 export const current = (items) => items.find((i) => !i.done);
 // ---------- habit ----------
 /**
