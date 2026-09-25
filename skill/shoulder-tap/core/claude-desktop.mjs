@@ -37,7 +37,8 @@ export function claudeDesktopState() {
 /** 写进每一个找到的配置里（商店版和普通版可能同时在）。 */
 export function addToClaudeDesktop(command, mcpPath) {
   const files = claudeDesktopConfigs();
-  if (!files.length) throw new Error("这台机器上没找到 Claude Desktop");
+  // 话留给调用方说：设置页要跟着页面语言，模型那边要中文
+  if (!files.length) throw Object.assign(new Error("Claude Desktop not found"), { code: "no_claude_desktop" });
   for (const file of files) {
     const cfg = read(file);
     cfg.mcpServers = { ...cfg.mcpServers, "shoulder-tap": { command, args: [mcpPath] } };

@@ -441,7 +441,9 @@
   // 服务在页面关掉一阵后会自己退出；这个旧标签页再点就连不上了。说清楚怎么回来，别只报一个网络错误。
   const gone = () => { $("gone").classList.remove("hidden"); throw new Error(t("gone")); };
   const api = async (method, path, body) => {
-    const r = await fetch(path, { method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined }).catch(gone);
+    // 服务端那边给人看的字（接上了、记下了、报错）也按这个语言出，别让英文界面蹦出中文
+    const url = path + (path.includes("?") ? "&" : "?") + "lang=" + lang;
+    const r = await fetch(url, { method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined }).catch(gone);
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || t("fail"));
     return j;
