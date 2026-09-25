@@ -485,11 +485,11 @@
       catch { say("connect", t("copyFail"), true); }
     };
     $("clients").innerHTML = "";
-    for (const [key, label] of [["claude", "Claude Code"], ["codex", "Codex"], ["desktop", "Claude Desktop"]]) {
+    for (const [key, label] of [["claude", "Claude Code"], ["codex", "Codex"], ["desktop", "Claude Desktop"], ["openclaw", "OpenClaw"], ["hermes", "Hermes"]]) {
       const c = m[key];
       const row = document.createElement("div");
       row.className = "client";
-      row.innerHTML = `<div><b>${label}</b><small>${t(c.connected ? "connected" : c.remote ? "remote" : c.installed ? "installed" : "missing")}${key === "desktop" ? " · " + t("desktopNote") : ""}</small></div>`;
+      row.innerHTML = `<div><b>${label}</b><small>${t(c.connected ? "connected" : c.remote ? "remote" : c.installed ? "installed" : "missing")}${["desktop", "openclaw", "hermes"].includes(key) ? " · " + t("desktopNote") : ""}</small></div>`;
       const btn = document.createElement("button");
       if (c.connected) { btn.textContent = "✓ " + t("connected"); btn.disabled = true; btn.className = "ok"; }
       else {
