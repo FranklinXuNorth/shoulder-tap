@@ -48,7 +48,7 @@ export function writeConfig(patch) {
 /** 这台机器的时区。不写死、不猜：从系统读，用户换了地方它自己就变。 */
 export const machineTz = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-const NAMES = ["listDay", "setDay", "addItem", "setStatus", "listHabits", "overdueHabits", "addHabit", "logHabit", "stopHabit", "habitHistory", "taskHistory"];
+const NAMES = ["listDay", "setDay", "addItem", "setStatus", "setTaskStatus", "listHabits", "overdueHabits", "addHabit", "logHabit", "stopHabit", "habitHistory", "taskHistory"];
 
 /** 返回一组已经绑好后端的函数：store.listDay(win)、store.addHabit(name, …)，不用再传 token。 */
 export function openStore() {
