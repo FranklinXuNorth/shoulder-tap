@@ -10,7 +10,13 @@
 
 </div>
 
+## What is this
+
 Tell the model what you're doing today. From then on, whenever you drift to something else, it taps you on the shoulder before it starts.
+
+When it finishes a turn, a hand taps the edge of your screen and says what it just did, so you can wander off while it works.
+
+<p align="center"><img src="docs/demo.gif" alt="Claude finishes while you're in a game; a pixel hand snaps at the screen edge with a one-line summary" width="760"></p>
 
 Not a todo app. A todo app needs you to open it, and when you're drifting you won't. This one hooks into the Claude Code / Codex you're already using.
 
