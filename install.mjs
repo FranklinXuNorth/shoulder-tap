@@ -16,6 +16,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import net from "node:net";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -37,7 +38,30 @@ const env = path.join(skillDst, ".env");
 if (!fs.existsSync(env)) fs.copyFileSync(path.join(skillSrc, ".env.example"), env);
 log(`skill → ${skillDst}`);
 // 设置页的后台服务可能还开着旧代码（页面关了它也要 30 分钟才自己停），请它退掉。没开就算了。
-await fetch("http://127.0.0.1:47823/api/quit", { method: "POST", signal: AbortSignal.timeout(1000) }).catch(() => {});
+// 光 POST 一下不算数：/api/quit 是后来才加的，旧进程会回 404 —— fetch 照样 resolve，
+// 脚本就以为杀掉了。所以要盯着端口真的空出来，实在不退就照实说，别让人对着旧页面查半天。
+await quitSettingsServer();
+async function quitSettingsServer() {
+  const port = 47823;
+  const busy = () => new Promise((ok) => {
+    const probe = net.connect({ port, host: "127.0.0.1" });
+    probe.on("connect", () => (probe.destroy(), ok(true)));
+    probe.on("error", () => ok(false));
+    setTimeout(() => (probe.destroy(), ok(true)), 300);
+  });
+  if (!(await busy())) return;
+  await fetch(`http://127.0.0.1:${port}/api/quit`, { method: "POST", signal: AbortSignal.timeout(1000) }).catch(() => {});
+  for (let i = 0; i < 10; i++) { // 最多等 2 秒
+    await new Promise((r) => setTimeout(r, 200));
+    if (!(await busy())) return log("设置页服务 → 已退出，下次打开是新版");
+  }
+  // 旧进程认不得 /api/quit（或者卡住了）：macOS 上它是菜单栏 app 拉起来的孤儿进程，
+  // 重装 app 也带不走它，只能按端口找出来收掉。
+  const pids = (spawnSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], { encoding: "utf8" }).stdout || "")
+    .split("\n").map((x) => x.trim()).filter(Boolean);
+  for (const pid of pids) try { process.kill(Number(pid)); } catch {}
+  log(pids.length ? `设置页服务 → 旧进程 ${pids.join("、")} 不认得退出请求，已收掉` : "设置页服务 → 没能让它退出，点一下菜单栏图标重开一次");
+}
 // 记住仓库在哪，update.mjs 要在这里 git pull。
 const configPath = path.join(claude, "shoulder-tap", "config.json");
 let config = {};
@@ -127,7 +151,10 @@ if (process.platform === "darwin") {
     log(boot.status === 0
       ? `登录自启 → ${plist}（取消：launchctl bootout gui/${uid} ${plist}）`
       : "登录自启没注册上，手动 launchctl bootstrap 一下，或者在系统设置 → 登录项里加上 ShoulderTap.app");
-    spawnSync(bin, [], { stdio: "ignore" }); // 现在就拉起来常驻
+    // 现在就拉起来常驻：交给 launchd 起，不要自己 spawn —— 自己起的那个 ppid 是 1、launchd 不认，
+    // `launchctl print` 会显示 job 没在跑，它崩了也没人拉回来。
+    const kick = spawnSync("launchctl", ["kickstart", "-k", `gui/${uid}/com.shoulder-tap.tap`], { stdio: "ignore" });
+    if (kick.status !== 0) spawnSync(bin, [], { stdio: "ignore" }); // launchd 不肯起（没注册上）就退回自己起
     }
   }
 } else if (process.platform === "linux") {
