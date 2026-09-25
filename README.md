@@ -62,7 +62,7 @@ How that page comes up differs per platform:
 | **macOS** | the menu bar icon starts and opens it | click the menu bar icon, or open the address above |
 | **Linux** | no desktop app yet, so `install.mjs` opens it itself | `node ~/.claude/skills/shoulder-tap/onboard.mjs --setup` |
 
-> **If a model is installing this for someone:** paste that address into the chat and say what the five steps are. Finishing the script without a word leaves the person with a half-installed thing they think is done. Let them click the steps themselves — don't fill in their habits or their tasks.
+> **If a model is installing this for someone:** paste that address into the chat and say what the five steps are, and that the Notion step can be skipped (data then stays on this machine). Finishing the script without a word leaves the person with a half-installed thing they think is done. Let them click the steps themselves — don't fill in their habits or their tasks.
 
 <br>
 
@@ -78,7 +78,7 @@ The installer opens a settings page in your browser (reachable only from this ma
    A **soft habit** (drink water) is quick, so it can't be skipped: it reminds you until you say you did it.
    A **hard habit** (workout) depends on the day, so you can say "not today".
 3. **Today's tasks** — one per line, in order.
-4. **Where data lives** — this machine (default, nothing to configure), or your own Notion (visible on your phone too).
+4. **Where data lives** — this machine (default, nothing to configure), or your own Notion (visible on your phone too). **Notion is optional:** skip this step and everything is stored locally; you can switch to Notion later.
 5. **The hand** — play the three gestures, pick a style (glove or cat paw), try a real tap on your desktop.
 
 Come back any time: click the Windows tray / macOS menu bar icon, or:

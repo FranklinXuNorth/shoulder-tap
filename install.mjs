@@ -185,9 +185,10 @@ ${howItOpens}
      claude mcp add -s user shoulder-tap -- node "${path.join(skillDst, "mcp.mjs")}"
      （macOS 上这页由菜单栏 app 打开，看不到你 shell 的 PATH，所以可能显示 Claude Code「没找到」/ 点了不生效 —— 那就用上面这条命令。）
   2. 第一个习惯  3. 今天要做的事  4. 数据放哪  5. 手的样式
+  第 4 步不用非选 Notion：跳过就存在这台机器上（一个 JSON 文件），什么都不用配，以后想换 Notion 再回来点。
 接完 MCP 要重开一次 Claude Code 会话，工具和钩子才生效。
 
 如果你是替人跑这个脚本的模型：把上面那个地址原样贴进聊天里给用户，并告诉他这五步要他自己点
-（习惯和今天的事别替他填）。装完就不说话，用户不知道还有一页要设置。
+（习惯和今天的事别替他填），并说一句：Notion 那步可以跳过，数据就存在本机。装完就不说话，用户不知道还有一页要设置。
 `);
 if (!hasDesktop) spawnSync(process.execPath, [path.join(skillDst, "onboard.mjs"), "--setup"], { stdio: "inherit" });
