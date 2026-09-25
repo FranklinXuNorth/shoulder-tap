@@ -212,6 +212,8 @@ const routes = {
     return { message: msg(lang).updating };
   },
   "POST /api/finish": (_, lang) => { writeConfig({ onboarded: true }); return { message: msg(lang).saved }; },
+  // install.mjs 换完代码后调这个：还开着的旧服务退掉，下次点托盘图标起来的就是新代码。
+  "POST /api/quit": () => { setTimeout(() => process.exit(0), 50); return {}; },
   "GET /api/ping": () => ({}), // 页面开着就隔一会儿来一下，服务知道还有人在看
   // 首页里勾掉 / 放弃一条、记一笔习惯：都是你自己点的，跟你在对话里说一样
   "POST /api/done": async ({ position, dropped }) => ({ message: await callText("complete_focus", { position, dropped: dropped === true }) }),

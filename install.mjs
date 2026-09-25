@@ -36,6 +36,8 @@ for (const name of fs.readdirSync(skillSrc)) {
 const env = path.join(skillDst, ".env");
 if (!fs.existsSync(env)) fs.copyFileSync(path.join(skillSrc, ".env.example"), env);
 log(`skill → ${skillDst}`);
+// 设置页的后台服务可能还开着旧代码（页面关了它也要 30 分钟才自己停），请它退掉。没开就算了。
+await fetch("http://127.0.0.1:47823/api/quit", { method: "POST", signal: AbortSignal.timeout(1000) }).catch(() => {});
 // 记住仓库在哪，update.mjs 要在这里 git pull。
 const configPath = path.join(claude, "shoulder-tap", "config.json");
 let config = {};
