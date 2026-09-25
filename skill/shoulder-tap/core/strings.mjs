@@ -26,6 +26,7 @@ export const STRINGS = {
   gTap: "跑偏了 / 习惯到点", gPat: "模型在等你回答", gSnap: "这轮做完了", tryDesk: "桌面上试",
   tapText: "喝水 —— 45 分钟没动了", patText: "这条算完成了吗？", snapText: "做完了：README 加了卸载那节",
   styleH: "样式", styleHint: "想加一套：在 ui/sprites/skins/ 下建个文件夹，放 tap.png、pat.png、snap.png（各 864×80，9 帧）。", inUse: "在用", switched: "换好了，下次拍就是它。",
+  showH: "停留时间", showWhy: "手和那句话在屏幕上停多久。", secs: (n) => `${n} 秒`,
   noDesktop: "这台机器没装桌面端，拍肩只落在聊天里。",
   connectH: "编程工具", connectWhy: "让 Claude Code / Codex 看到你今天要做的事。都在这台机器上跑。",
   connectMore: "自己动手，或交给模型", connectCmd: "终端里跑：", connectCodex: "Codex：加进 ~/.codex/config.toml", connectAgent: "或把这段发给你的 coding agent：", copy: "复制",
@@ -82,6 +83,8 @@ export const STRINGS = {
     badGesture: (g) => `没有这种手势：${g}`,
     badMotion: (m) => `motion 只能是 system 或 always：${m}`,
     badSkin: (s) => `没有这套皮肤：${s}`,
+    badShowSec: (n) => `停留时间要在 3 到 60 秒之间：${n}`,
+    showSaved: (n) => `好了，之后每次停 ${n} 秒。`,
     tryOnce: "试一下",
   },
   en: {
@@ -102,6 +105,7 @@ export const STRINGS = {
   gTap: "drifted / habit due", gPat: "model is waiting for you", gSnap: "turn finished", tryDesk: "Try on desktop",
   tapText: "Drink water — 45 min overdue", patText: "Is this one done?", snapText: "Done: README got an uninstall section",
   styleH: "Style", styleHint: "To add one: make a folder under ui/sprites/skins/ with tap.png, pat.png, snap.png (864×80, 9 frames each).", inUse: "in use", switched: "Switched. Next tap uses it.",
+  showH: "How long it stays", showWhy: "How long the hand and its line stay on screen.", secs: (n) => `${n} s`,
   noDesktop: "No desktop app on this machine; taps land in the chat only.",
   connectH: "Coding tools", connectWhy: "So Claude Code / Codex can see what you're doing today. Everything runs on this machine.",
   connectMore: "Do it yourself, or hand it to the model", connectCmd: "In a terminal:", connectCodex: "Codex: add to ~/.codex/config.toml", connectAgent: "Or paste this to your coding agent:", copy: "Copy",
@@ -158,6 +162,8 @@ export const STRINGS = {
     badGesture: (g) => `No such gesture: ${g}`,
     badMotion: (m) => `motion must be system or always: ${m}`,
     badSkin: (s) => `No such skin: ${s}`,
+    badShowSec: (n) => `Must be between 3 and 60 seconds: ${n}`,
+    showSaved: (n) => `Done. It stays ${n} s from now on.`,
     tryOnce: "try it",
   },
 };

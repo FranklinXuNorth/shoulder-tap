@@ -221,6 +221,8 @@ The hand at the right edge of your screen: **snap** (turn finished), **pat pat**
   Hand shows up but never moves? macOS **Reduce motion** (System Settings → Accessibility → Display) is on, and it is respected: the hand holds its most extended frame instead of animating. To animate anyway, put `"motion": "always"` in `~/.claude/shoulder-tap/config.json`.
 - **Linux**: not yet. The contract is in [desktop-linux/README.md](desktop-linux/README.md).
 
+How long the hand and its line stay on screen: settings page → Hand → *How long it stays* (default 8 s), or `"showSec"` in `~/.claude/shoulder-tap/config.json`.
+
 All three platforms read the hand sprites from `~/.claude/skills/shoulder-tap/ui/sprites/skins/<style>/`. To draw your own, see the README there.
 
 <br>

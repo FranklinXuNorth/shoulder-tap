@@ -93,7 +93,7 @@
   .card h3 { font-size: 14px; margin: 22px 0 8px; color: var(--muted); font-weight: 600; }
   .why { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
   label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
-  input[type=text], input[type=password], input[type=number], input[type=time], textarea {
+  input[type=text], input[type=password], input[type=number], input[type=time], textarea, select {
     width: 100%; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 7px;
     background: var(--surface-2); color: var(--ink); font: inherit;
   }
@@ -271,6 +271,9 @@
         <h3 data-t="styleH" style="margin-top:0"></h3>
         <div class="skins" id="skins"></div>
         <p class="why" style="margin:10px 0 0;font-size:13px" data-t="styleHint"></p>
+        <h3 data-t="showH"></h3>
+        <select id="showSec"></select>
+        <p class="why" style="margin:6px 0 0;font-size:13px" data-t="showWhy"></p>
       </div>
     </div>
     <div class="msg" id="msg-hands"></div>
@@ -561,7 +564,14 @@
         <div class="name">${esc(name)}${name === S.skin ? `<i>${t("inUse")}</i>` : ""}</div>
       </button>`).join("");
     document.querySelectorAll("[data-stage] .sprite").forEach((el) => trim(el, `/skins/${S.skin}/${el.closest("[data-stage]").dataset.stage}.webp`));
+    const secs = [...new Set([4, 6, 8, 10, 15, 20, 30, S.showSec])].sort((a, b) => a - b);
+    $("showSec").innerHTML = secs.map((n) => `<option value="${n}" ${n === S.showSec ? "selected" : ""}>${t("secs")(n)}</option>`).join("");
   }
+  $("showSec").onchange = async (e) => {
+    const n = Number(e.target.value);
+    try { say("hands", (await api("POST", "/api/hands", { showSec: n })).message); S.showSec = n; }
+    catch (err) { say("hands", err.message, true); }
+  };
   $("gestures").onclick = async (e) => {
     const b = e.target.closest("button");
     if (!b) { const s = e.target.closest("[data-stage]"); if (s) play(s.dataset.stage); return; }
