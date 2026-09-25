@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { completionGestures, desktopArgs, missingHandDecision } from "./completion.mjs";
+import { completionGestures, desktopArgs, dueHabitIn, missingHandDecision } from "./completion.mjs";
 import { localJudgement, planTasks } from "./local-jev.mjs";
 
 test("each hand at the tail is one gesture; snap before tap; no hand, nothing", () => {
@@ -64,4 +64,15 @@ test("the old pat-pat hand still counts as snap for sessions started before the 
 test("the snap hand the rule prints is the one the hook detects", async () => {
   const { doneBanner } = await import("./core/ascii.mjs");
   assert.deepEqual(completionGestures({ hook_event_name: "Stop", last_assistant_message: "做好了\n\n" + doneBanner() }), ["snap"]);
+});
+
+test("提醒那句点了名的到点习惯，桌面端才带「已经做了 / 还没做」", () => {
+  const plan = "清单\n【顺便提一句】\n  · 喝水 —— 超了 45 分钟（说好每 60 分钟一次）\n  · 健身 —— 超了 3 分钟（说好每天 22:30）\n";
+  assert.equal(dueHabitIn(plan, "喝水 —— 45 分钟没动了"), "喝水");
+  assert.equal(dueHabitIn(plan, "该去健身了"), "健身");
+  assert.equal(dueHabitIn(plan, "今天说好的第 2 条还没动。"), "");
+  assert.equal(dueHabitIn("", "喝水"), "");
+  const args = desktopArgs({}, "tap", "喝水", "喝水", "喝水");
+  assert.deepEqual(args.slice(args.indexOf("--habit"), args.indexOf("--habit") + 3), ["--habit", "喝水", "--node"]);
+  assert.ok(!desktopArgs({}, "tap", "x", "x").includes("--habit"));
 });

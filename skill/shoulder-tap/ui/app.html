@@ -131,6 +131,7 @@
   .items .n { color: var(--faint); font-variant-numeric: tabular-nums; padding-top: 1px; }
   .items .note { display: block; color: var(--muted); font-size: 13px; word-break: break-word; }
   .items .acts { display: flex; gap: 6px; }
+  .items .acts select { width: auto; padding: 3px 8px; font-size: 13px; }
   .items li.done .t { color: var(--faint); text-decoration: line-through; }
   .items li.cur .n { color: var(--accent); font-weight: 700; }
   .badge { display: inline-block; font-size: 12px; padding: 0 7px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); margin-left: 6px; vertical-align: 1px; }
@@ -427,7 +428,7 @@
     $("todayNote").textContent = items.length ? t("todayReplace") : "";
   }
 
-  /** 首页的待办记录：最近两周，按天分组，今天在最上面。只有今天没做完的能点完成 / 今天不做。 */
+  /** 首页的待办记录：最近两周，按天分组，今天在最上面。每一条都能用下拉框在 待做 / 完成 / 今天不做 之间切。 */
   function renderTasks() {
     const locale = lang === "zh" ? "zh-CN" : "en-US";
     const key = (iso) => new Date(iso).toLocaleDateString("sv"); // YYYY-MM-DD，本机时区
@@ -452,17 +453,23 @@
         <li class="${dropped ? "dropped" : x.done ? "done" : isToday ? "" : "open"} ${x === cur ? "cur" : ""}">
           <span class="n">${x.done ? "✓" : dropped ? "–" : x.order}</span>
           <div><span class="t">${esc(x.task)}</span>${x === cur ? `<span class="badge now">${t("now")}</span>` : ""}${!isToday && open ? `<span class="badge">${t("notDone")}</span>` : ""}${x.note ? `<span class="note">${esc(x.note)}</span>` : ""}</div>
-          <div class="acts">${isToday && open ? `<button class="small" data-done="${x.order}">${t("doneBtn")}</button><button class="small ghost" data-drop="${x.order}">${t("dropBtn")}</button>` : ""}</div>
+          <div class="acts"><select data-task="${esc(x.id)}">${[["pending", "pendingOpt"], ["done", "doneBtn"], ["dropped", "dropBtn"]].map(([v, k]) =>
+            `<option value="${v}" ${(x.done ? "done" : dropped ? "dropped" : "pending") === v ? "selected" : ""}>${t(k)}</option>`).join("")}</select></div>
         </li>`;
       }).join("");
       return `<div class="day">${label}${isToday ? ` <span>${k}</span>` : ""}</div><ul class="items">${rows || `<li class="empty" style="display:block">${t("todayEmpty")}</li>`}</ul>`;
     }).join("");
   }
-  $("taskDays").onclick = async (e) => {
-    const b = e.target.closest("button"); if (!b) return;
-    const position = Number(b.dataset.done || b.dataset.drop);
-    try { await api("POST", "/api/done", { position, dropped: Boolean(b.dataset.drop) }); await load(); }
+  $("taskDays").onchange = async (e) => {
+    const s = e.target.closest("select[data-task]"); if (!s) return;
+    // 先改页面上的：进度、「现在」那条、划线，立刻跟着变；再存，存完拿一份新的对齐
+    const x = S.tasks.find((t) => t.id === s.dataset.task);
+    if (x) { x.status = s.value; x.done = s.value === "done"; }
+    S.today = S.today.filter((t) => t.id !== s.dataset.task || s.value !== "dropped").map((t) => t.id === s.dataset.task ? { ...t, done: s.value === "done" } : t);
+    renderData();
+    try { await api("POST", "/api/task", { id: s.dataset.task, status: s.value }); }
     catch (err) { say("tasks", err.message, true); }
+    await load();
   };
 
   function renderHabits() {

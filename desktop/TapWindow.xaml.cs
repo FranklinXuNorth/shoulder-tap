@@ -84,6 +84,8 @@ public partial class TapWindow : Window
     private static readonly int[] SnapEnds = [250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250];
     private int[] _ends = FrameEnds;
     private IntPtr _handle;
+    private string _habit = "", _node = "";
+    private static readonly string HabitScript = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "skills", "shoulder-tap", "habit.mjs");
 
     /// <summary>手收回去了。一次性模式靠它决定什么时候可以退出。</summary>
     public event Action? Dismissed;
@@ -107,6 +109,25 @@ public partial class TapWindow : Window
 
         _hide = new DispatcherTimer();
         _hide.Tick += (_, _) => Conceal();
+
+        // 习惯提醒下面那两个按钮。鼠标停在字条上就别收，挪开再给一会儿。
+        DoneButton.MouseLeftButtonUp += (_, _) => { LogHabitDone(_habit, _node); Conceal(); };
+        LaterButton.MouseLeftButtonUp += (_, _) => Conceal();
+        CaptionBox.MouseEnter += (_, _) =>
+        {
+            if (_habit.Length == 0) return;
+            _hide.Stop();
+            PixelHand.BeginAnimation(OpacityProperty, null); CaptionBox.BeginAnimation(OpacityProperty, null);
+            PixelHand.Opacity = CaptionBox.Opacity = 1;
+        };
+        CaptionBox.MouseLeave += (_, _) =>
+        {
+            if (_habit.Length == 0 || !IsVisible) return;
+            var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(FadeMs)) { BeginTime = TimeSpan.FromMilliseconds(1500) };
+            PixelHand.BeginAnimation(OpacityProperty, fade); CaptionBox.BeginAnimation(OpacityProperty, fade);
+            _hide.Interval = TimeSpan.FromMilliseconds(1500 + FadeMs + 150);
+            _hide.Start();
+        };
 
         // 立刻把句柄造出来。否则第一次拍肩时 PlaceOnActiveScreen 打在空句柄上，
         // SetWindowPos 静默失败，窗口就停在 WPF 的默认位置、默认大小，右半边溢出屏幕。
@@ -200,7 +221,8 @@ public partial class TapWindow : Window
     /// <paramref name="caption"/> 非空时，手旁边多一小条字。敲完停两秒，两个一起淡出。
     /// </summary>
     /// <param name="snap">响指：模型弹了个问题在等你。走 taptap 那条道，换一张 sprite。</param>
-    public void Tap(IntPtr anchor = default, bool complete = false, string caption = "", bool snap = false)
+    /// <param name="habit">提醒的是这个到点的习惯：字下面放「已经做了 / 还没做」，这一次窗口能点。</param>
+    public void Tap(IntPtr anchor = default, bool complete = false, string caption = "", bool snap = false, string habit = "", string node = "")
     {
         _hide.Stop();
         _frames.Stop();
@@ -215,6 +237,10 @@ public partial class TapWindow : Window
         PixelHand.Visibility = Visibility.Visible;
         CaptionBox.Opacity = 1;
 
+        _habit = caption.Trim().Length > 0 ? habit : ""; // 没字条就没地方放按钮
+        _node = node;
+        HabitButtons.Visibility = _habit.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SetClickThrough(_habit.Length == 0);
         CaptionText.Text = caption.Trim();
         CaptionBox.Visibility = caption.Trim().Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         // 两种手势共用 96×80 画布和三倍像素缩放。
@@ -244,7 +270,7 @@ public partial class TapWindow : Window
 
         _hide.Interval = TimeSpan.FromMilliseconds(animated ? show + 150 : show); // 动画那边多给一点余量再收
         _hide.Start();
-        Program.Log($"tap skin={_skin} complete={complete} snap={snap} animated={animated} show={show}ms caption=\"{CaptionText.Text}\" visible={IsVisible} hand={PixelHand.Opacity}");
+        Program.Log($"tap skin={_skin} complete={complete} snap={snap} habit={_habit} animated={animated} show={show}ms caption=\"{CaptionText.Text}\" visible={IsVisible} hand={PixelHand.Opacity}");
     }
 
     /// <summary>
@@ -255,6 +281,8 @@ public partial class TapWindow : Window
     {
         _hide.Stop();
         _frames.Stop();
+        _habit = "";
+        SetClickThrough(true); // 平时整扇窗鼠标穿透，只有带按钮的那一次例外
         PixelHand.Visibility = Visibility.Collapsed;
         CaptionBox.Visibility = Visibility.Collapsed;
         Hide();
@@ -265,6 +293,34 @@ public partial class TapWindow : Window
         CaptionBox.Opacity = 0;
 
         Dismissed?.Invoke();
+    }
+
+    /// <summary>
+    /// 平时鼠标穿透整扇窗；带按钮时关掉穿透。窗口是分层的（AllowsTransparency），
+    /// 全透明的像素本来就点不到，所以只有字条那一块接鼠标，屏幕别处照样点得到后面的东西。
+    /// </summary>
+    private void SetClickThrough(bool through)
+    {
+        if (_handle == IntPtr.Zero) return;
+        var ex = (long)GetWindowLongPtr(_handle, GWL_EXSTYLE);
+        SetWindowLongPtr(_handle, GWL_EXSTYLE, new IntPtr(through ? ex | WS_EX_TRANSPARENT : ex & ~WS_EX_TRANSPARENT));
+        IsHitTestVisible = !through;
+    }
+
+    /// <summary>「已经做了」= 在聊天里说做了：跑 habit.mjs 记一笔 log_habit。后台跑，不等它。</summary>
+    private static void LogHabitDone(string habit, string node)
+    {
+        if (habit.Length == 0) return;
+        try
+        {
+            var start = new ProcessStartInfo(node.Length > 0 ? node : "node") { UseShellExecute = false, CreateNoWindow = true };
+            start.ArgumentList.Add(HabitScript);
+            start.ArgumentList.Add("done");
+            start.ArgumentList.Add(habit);
+            Process.Start(start);
+            Program.Log($"habit done {habit}");
+        }
+        catch (Exception e) { Program.Log($"habit done failed {habit}: {e.Message}"); }
     }
 
     /// <summary>

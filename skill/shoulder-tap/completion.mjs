@@ -32,12 +32,20 @@ export function missingHandDecision(payload) {
   };
 }
 
-export function desktopArgs(payload, mode, text = "", caption = "") {
+export function desktopArgs(payload, mode, text = "", caption = "", habit = "") {
   const args = ["--mode", mode, "--session", payload.session_id || payload.transcript_path || "",
     "--source-pid", String(process.ppid)];
   if (text) args.push("--text", text.trim().slice(0, 400));
   if (caption) args.push("--caption", caption.trim().slice(0, 160));
+  // 这次 taptap 提醒的是一个到点的习惯：桌面端在字下面放「已经做了 / 还没做」，点「已经做了」就用这个 node 跑 habit.mjs 记一笔
+  if (habit) args.push("--habit", habit, "--node", process.execPath);
   return args;
+}
+
+/** 提醒那句话里点了名的、正在到点的习惯（从缓存的 check_focus 返回里「顺便提一句」那几行找）。没有就空串。 */
+export function dueHabitIn(plan, reminder) {
+  const due = [...(plan || "").matchAll(/^ {2}· (.+?) —— 超了/gm)].map((m) => m[1].trim());
+  return due.find((name) => reminder.includes(name)) ?? "";
 }
 
 /**
