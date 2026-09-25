@@ -272,6 +272,7 @@ const server = http.createServer(async (req, res) => {
   idle();
 
   if (req.method === "GET" && req.url.split("?")[0] === "/") {
+    if (stamp() !== BORN) return handoff(send); // 磁盘上的代码比我新
     // 加载动画在 /api/state 回来之前就要跑，所以 motion 直接写进 html 标签，页面不用等。
     // 系统开着「减弱动态效果」时页面本来会整段跳过；config.json 里 motion: "always" 就照常播。
     const page = fs.readFileSync(path.join(HERE, "ui", "app.html"), "utf8")
@@ -306,10 +307,33 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// 这个服务是菜单栏 app（macOS 上还会被 reparent 到 1）拉起来的，更新脚本不一定收得掉它：
+// 代码换了、进程还是老的，就会出现「新页面配旧接口」——页面渲染不出来，还看不出是为什么。
+// 所以每次有人开页面时比一眼代码的时间戳，变了就把摊子交给新进程。
+const SRC = ["onboard.mjs", "ui/app.html", "core/strings.mjs", "core"].map((f) => path.join(HERE, ...f.split("/")));
+const stamp = () => SRC.map((f) => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } }).join();
+const BORN = stamp();
+let handing = false;
+function handoff(send) {
+  if (!handing) {
+    handing = true;
+    server.close(); // 先松开端口，新进程起来之前这几百毫秒页面会自己重试
+    spawn(process.execPath, [path.join(HERE, "onboard.mjs"), "--no-open"], {
+      detached: true, stdio: "ignore", env: { ...process.env, SHOULDER_TAP_HANDOFF: "1" },
+    }).unref();
+    setTimeout(() => process.exit(0), 300);
+  }
+  // 这一页只活一秒：等新进程接上，浏览器自己刷回真正的设置页
+  send(200, '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="1"><title>shoulder-tap</title></head><body></body></html>', "text/html; charset=utf-8");
+}
+
 const OPEN = URL_ + (process.argv.includes("--hands") ? "#hands" : process.argv.includes("--setup") ? "#setup" : "");
+let waited = 0;
 server.on("error", (e) => {
-  if (e.code === "EADDRINUSE") { openBrowser(OPEN); process.exit(0); } // 已经开着一个
-  throw e;
+  if (e.code !== "EADDRINUSE") throw e;
+  // 接班的那个：上一任还没完全松开端口，等一会儿再试，别弹浏览器也别退
+  if (process.env.SHOULDER_TAP_HANDOFF && (waited += 200) <= 5000) return setTimeout(() => server.listen(PORT, "127.0.0.1"), 200);
+  openBrowser(OPEN); process.exit(0); // 已经开着一个
 });
 server.listen(PORT, "127.0.0.1", () => {
   fs.mkdirSync(STATE_DIR, { recursive: true });
