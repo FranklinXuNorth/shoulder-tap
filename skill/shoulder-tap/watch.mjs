@@ -25,7 +25,7 @@ import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { completionGestures, desktopArgs, doneLine, missingHandDecision } from "./completion.mjs";
+import { completionGestures, desktopArgs, doneLine, dueHabitIn, missingHandDecision } from "./completion.mjs";
 import { localJudgement } from "./local-jev.mjs";
 import { callText } from "./core/tools.mjs";
 import { loadEnv } from "./core/store.mjs";
@@ -121,7 +121,7 @@ function spawnRefresh(force = false) {
  * 屏幕上只有那一下，不显示文字 —— 话已经通过 say() 进了模型的上下文，
  * 传过去的正文只落进托盘提示，留个事后能看一眼的地方。
  */
-function tapDesktop(env, text, payload = {}, mode = "tap", caption = "") {
+function tapDesktop(env, text, payload = {}, mode = "tap", caption = "", habit = "") {
   // Linux 没有官方桌面端；有人按 desktop-linux/README.md 写了一个放在那个位置，就照样调。
 
   const exe = env.SHOULDER_TAP_APP || APP;
@@ -130,7 +130,7 @@ function tapDesktop(env, text, payload = {}, mode = "tap", caption = "") {
 
   try {
     if (!fs.existsSync(exe)) return; // 没装桌面 App，安静跳过
-    spawn(exe, desktopArgs(payload, mode, body, caption), {
+    spawn(exe, desktopArgs(payload, mode, body, caption, habit), {
       detached: true,
       stdio: "ignore",
       windowsHide: true,
@@ -237,7 +237,8 @@ async function main() {
       // 聊天里的手就是桌面上的手：响指 → 响指，taptap → taptap。
       const mode = gesture;
       const caption = mode === "tap" ? reminder : doneLine(payload.last_assistant_message);
-      tapDesktop(env, caption, payload, mode, caption);
+      const habit = mode === "tap" ? dueHabitIn(state.plan, reminder) : ""; // 提醒的是习惯：手下面带两个按钮
+      tapDesktop(env, caption, payload, mode, caption, habit);
     }
     return;
   }

@@ -49,4 +49,18 @@ fs.writeFileSync(file, JSON.stringify(data));
 assert.match(await call("check_focus", { tz }), /护眼 —— 超了/);
 assert.match(await call("log_habit", { tz, habit: "护眼" }), /记下了：护眼/);
 assert.ok(data.tasks.every((t) => t.day.endsWith("Z")), "时间一律存 UTC");
+// 设置页的下拉框：按 id 在 待做 / 完成 / 今天不做 之间来回切，放弃的也能改回待做
+const local = await import("./local.mjs");
+const since = new Date(Date.now() - 86400_000).toISOString();
+const byName = async (n) => (await local.taskHistory(null, since)).find((t) => t.task === n);
+const run = await byName("跑推理");
+assert.equal(await local.setTaskStatus(null, run.sid, "dropped"), true);
+assert.equal((await byName("跑推理")).status, "dropped");
+assert.doesNotMatch(await call("check_focus", { tz }), /跑推理/, "今天不做的不进清单");
+assert.equal(await local.setTaskStatus(null, run.sid, "pending"), true);
+assert.match(await call("check_focus", { tz }), /跑推理/, "改回待做又回到清单");
+await local.setTaskStatus(null, run.sid, "done");
+assert.equal((await byName("跑推理")).status, "done");
+assert.equal(await local.setTaskStatus(null, "t-nope", "done"), false);
+
 console.log("tools: local store ok");

@@ -188,6 +188,7 @@ async function state() {
   };
 }
 
+const WRITES = new Set(["/api/task", "/api/log", "/api/today", "/api/habit", "/api/storage"]);
 const routes = {
   "GET /api/state": () => state(),
   "POST /api/mcp": ({ client }, lang) => ({ message: connect(client, lang) }),
@@ -216,7 +217,12 @@ const routes = {
   "POST /api/quit": () => { setTimeout(() => process.exit(0), 50); return {}; },
   "GET /api/ping": () => ({}), // 页面开着就隔一会儿来一下，服务知道还有人在看
   // 首页里勾掉 / 放弃一条、记一笔习惯：都是你自己点的，跟你在对话里说一样
-  "POST /api/done": async ({ position, dropped }) => ({ message: await callText("complete_focus", { position, dropped: dropped === true }) }),
+  // 待办的三种状态（待做 / 完成 / 今天不做）互相切，设置页的下拉框用。
+  "POST /api/task": async ({ id, status }, lang) => {
+    if (!["pending", "done", "dropped"].includes(status)) throw new Error(msg(lang).badStatus(status));
+    if (!(await openStore().setTaskStatus(id, status))) throw new Error(msg(lang).noTask);
+    return {};
+  },
   "POST /api/log": async ({ habit, skip, note }, lang) => {
     const m = msg(lang);
     const hit = await openStore().logHabit(habit, notion.requireTz(machineTz()), note, skip === true);
@@ -301,6 +307,8 @@ const server = http.createServer(async (req, res) => {
   }
   try {
     send(200, await route(body, lang));
+    // 清单、习惯在页面上一改，钩子里缓存的那份也马上重拉：模型下一句看到的就是新的，不用等十分钟
+    if (WRITES.has(pathname)) spawn(process.execPath, [path.join(HERE, "watch.mjs"), "--refresh"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
   } catch (e) {
     send(400, { error: String(e?.message ?? e) });
   }

@@ -20,6 +20,12 @@ public sealed class TapRequest
     /// <summary>手旁边那一小条字：现在聚焦哪条、这轮干了什么。有它，手敲完会多停两秒。</summary>
     [JsonPropertyName("caption")] public string Caption { get; set; } = "";
 
+    /// <summary>这次 taptap 提醒的是哪个到点的习惯。有它，字下面多「已经做了 / 还没做」两个按钮。</summary>
+    [JsonPropertyName("habit")] public string Habit { get; set; } = "";
+
+    /// <summary>点「已经做了」时用哪个 node 跑 habit.mjs（钩子传过来的，就是它自己那个）。</summary>
+    [JsonPropertyName("node")] public string Node { get; set; } = "";
+
     /// <summary>true = 不是来拍肩的，是来让常驻进程退出的。</summary>
     [JsonPropertyName("quit")] public bool Quit { get; set; }
 
@@ -55,6 +61,8 @@ public sealed class TapRequest
                 case "source-pid": if (int.TryParse(Next(), out var pid)) req.SourcePid = pid; break;
                 case "text": case "t": req.Text = Next(); break;
                 case "caption": req.Caption = Next(); break;
+                case "habit": req.Habit = Next(); break;
+                case "node": req.Node = Next(); break;
                 case "quit": case "exit": req.Quit = true; break;
             }
         }
