@@ -10,6 +10,8 @@
 
 </div>
 
+<br>
+
 ## What is this
 
 Tell the model what you're doing today. From then on, whenever you drift to something else, it taps you on the shoulder before it starts.
@@ -18,10 +20,14 @@ When it finishes a turn, a hand taps the edge of your screen and says what it ju
 
 <p align="center"><img src="docs/demo.gif" alt="Claude finishes while you're in a game; a pixel hand snaps at the screen edge with a one-line summary" width="760"></p>
 
+<p align="center"><img src="docs/how-it-works.png" alt="Left: the chat ends with a snap and a tap tap. Right: a reminder and a task summary pop up at the screen edge while you work in Photoshop" width="760"></p>
+
 Not a todo app. A todo app needs you to open it, and when you're drifting you won't. This one hooks into the Claude Code / Codex you're already using.
 
 > **Your habits and your tasks never leave your machine.**
 > shoulder-tap has no server. Data lives in one JSON file on this machine, or in your own Notion (this machine talks to it directly).
+
+<br>
 
 ## 1. Install
 
@@ -49,6 +55,8 @@ How that page comes up differs per platform:
 
 > **If a model is installing this for someone:** paste that address into the chat and say what the five steps are. Finishing the script without a word leaves the person with a half-installed thing they think is done. Let them click the steps themselves — don't fill in their habits or their tasks.
 
+<br>
+
 ## 2. Settings page
 
 The installer opens a settings page in your browser (reachable only from this machine), at `http://127.0.0.1:47823/#setup`. Five steps, each skippable:
@@ -74,6 +82,8 @@ The setup ends with a short "try it" step: messages you can paste into Claude Co
 
 After setup, the same icon opens a home screen: **Run setup again**, **Choose a skin**, and below them your records — the last two weeks of tasks, your habits, and habit history. 中文 / English switch in the top right.
 
+<br>
+
 ## 3. Use it
 
 In Claude Code, say:
@@ -84,6 +94,8 @@ In Claude Code, say:
 - "How many times did I drink water this week" — history
 
 Then just work. When you drift, the reply ends with a hand and the desktop taps you.
+
+<br>
 
 ## Manual install (no script)
 
@@ -155,6 +167,8 @@ If you'd rather not let a script touch `~/.claude`, do each step yourself:
 
 6. **Settings page** — the step that is easiest to forget, and nothing works without it: `node ~/.claude/skills/shoulder-tap/onboard.mjs --setup`, or open `http://127.0.0.1:47823/#setup`. Same on all three platforms.
 
+<br>
+
 ## Desktop
 
 The hand at the right edge of your screen: **snap** (turn finished), **pat pat** (the model is waiting for your answer), **tap tap** (you drifted / a habit is due).
@@ -168,6 +182,8 @@ The hand at the right edge of your screen: **snap** (turn finished), **pat pat**
 
 All three platforms read the hand sprites from `~/.claude/skills/shoulder-tap/ui/sprites/skins/<style>/`. To draw your own, see the README there.
 
+<br>
+
 ## Uninstall
 
 ```bash
@@ -178,6 +194,8 @@ node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # removes data and key
 Same on all three platforms: quits the desktop app and removes autostart, the MCP (Claude Code, Codex and Claude Desktop), the hooks, the CLAUDE.md section and the skill. Your Notion database is untouched.
 You can also just tell Claude Code "uninstall shoulder-tap"; it knows to run this.
 
+<br>
+
 ## What leaves this machine
 
 | What | Where | When |
@@ -185,11 +203,15 @@ You can also just tell Claude Code "uninstall shoulder-tap"; it knows to run thi
 | Tasks, habits | Your own Notion | Only if you chose Notion |
 | Everything else | Nowhere | — |
 
+<br>
+
 ## More
 
 - What each part is, what the data looks like: [docs/architecture.html](docs/architecture.html)
 - How one tap works, the three-way judgment, habit rules: [docs/flow.html](docs/flow.html)
 - Cross-device (one machine finishes, the tap lands on the one you're looking at): the [`cross-machine`](../../tree/cross-machine) branch, still in testing, not in this version
+
+<br>
 
 ## License
 
