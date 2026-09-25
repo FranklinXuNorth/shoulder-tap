@@ -31,6 +31,15 @@ Not a todo app. A todo app needs you to open it, and when you're drifting you wo
 
 ## 1. Install
 
+> [!TIP]
+> **Recommended: let your coding agent install it.** Paste this into Claude Code or Codex:
+>
+> ```
+> Install https://github.com/FranklinXuNorth/shoulder-tap for me. Follow its README, and when the script is done, open the settings page and tell me what the five steps are.
+> ```
+>
+> It checks Node / .NET / Xcode tools, runs the script and fixes what fails. Prefer doing it by hand? Read on.
+
 Needs Node 20+. The hand on your screen is optional: Windows needs the .NET 10 SDK, macOS needs the Xcode command line tools (`xcode-select --install`). Without them, the tap lands in the chat instead.
 
 ```bash

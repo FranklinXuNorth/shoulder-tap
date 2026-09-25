@@ -32,6 +32,15 @@
 
 ## 一、装
 
+> [!TIP]
+> **建议让你的 coding agent 帮你装。** 把这句贴给 Claude Code 或 Codex：
+>
+> ```
+> 帮我装 https://github.com/FranklinXuNorth/shoulder-tap。照着它的 README 来，脚本跑完后打开设置页，告诉我那五步是什么。
+> ```
+>
+> 它会检查 Node / .NET / Xcode 工具、跑脚本、哪步失败就修哪步。想自己动手就往下看。
+
 需要 Node 20+。屏幕上那只手是可选的：Windows 要 .NET 10 SDK，macOS 要 Xcode 命令行工具（`xcode-select --install`）；没有也照常用，拍肩落在聊天里。
 
 ```bash
