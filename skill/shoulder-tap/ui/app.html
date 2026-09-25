@@ -478,20 +478,63 @@
       <li>
         <span class="n">${h.kind === "soft" ? t("softTag") : t("hardTag")}</span>
         <div><span class="t">${esc(h.name)}</span>${h.overdueMin > 0 ? `<span class="badge due">${t("dueTxt")(h.overdueMin)}</span>` : ""}<span class="note">${h.at ? t("atTxt")(h.at) : t("everyTxt")(h.everyMin)}</span></div>
-        <div class="acts"><button class="small" data-log="${esc(h.sid || h.name)}">${t("logBtn")}</button>${h.kind === "soft" ? "" : `<button class="small ghost" data-skip="${esc(h.sid || h.name)}">${t("skipBtn")}</button>`}</div>
+        <div class="acts">${h.kind === "soft" ? `<button class="small" data-done="${esc(h.sid || h.name)}" data-name="${esc(h.name)}">${t("logBtn")}</button>` : habitSelect(h)}</div>
       </li>`).join("") : `<li class="empty" style="display:block">${t("habitsEmpty")}</li>`;
     $("historyList").innerHTML = S.history.length ? S.history.map((r) => `
       <li><span class="mark ${r.status}">${r.status === "done" ? "✓" : "–"}</span><span>${fmt(r.finished)}</span><span><b>${esc(r.name)}</b>${r.status === "dropped" && r.note ? ` · ${esc(r.note)}` : ""}</span></li>`).join("")
       : `<li class="empty" style="display:block">${t("historyEmpty")}</li>`;
   }
+  /**
+   * 习惯今天的状态：还在超时 = 待做；否则看今天（凌晨 4 点起）最近那一笔记录是做了还是今天不做。
+   * 做了 / 今天不做 记下去就撤不回，所以那之后「待做」灰掉。软习惯不能跳过，没有「今天不做」。
+   */
+  function habitStatus(h) {
+    if (h.overdueMin > 0) return "pending";
+    const dayStart = new Date(Date.now() - 4 * 3600_000); dayStart.setHours(4, 0, 0, 0);
+    const last = S.history.find((r) => r.name === h.name && Date.parse(r.finished) >= dayStart.getTime());
+    return last?.status ?? "pending";
+  }
+  function habitSelect(h) {
+    const cur = habitStatus(h);
+    const opts = [["pending", "pendingOpt"], ["done", "logBtn"], ...(h.kind === "soft" ? [] : [["dropped", "skipBtn"]])];
+    return `<select data-habit="${esc(h.sid || h.name)}" data-name="${esc(h.name)}">${opts.map(([v, k]) =>
+      `<option value="${v}" ${v === cur ? "selected" : ""} ${v === "pending" && cur !== "pending" ? "disabled" : ""}>${t(k)}</option>`).join("")}</select>`;
+  }
+  // 软习惯（喝水这种）一天做很多次，没有「今天的状态」可选：就一个按钮，喝一次点一次
   $("habitList").onclick = async (e) => {
-    const b = e.target.closest("button"); if (!b) return;
-    const skip = Boolean(b.dataset.skip);
-    const note = skip ? prompt(t("skipWhy")) : undefined;
-    if (skip && note === null) return;
-    try { say("habits", (await api("POST", "/api/log", { habit: b.dataset.log || b.dataset.skip, skip, note })).message); await load(); }
+    const b = e.target.closest("button[data-done]"); if (!b) return;
+    const h = S.habits.find((x) => (x.sid || x.name) === b.dataset.done);
+    if (h) h.overdueMin = -1;
+    S.history.unshift({ name: b.dataset.name, status: "done", finished: new Date().toISOString() });
+    renderHabits();
+    try { say("habits", (await api("POST", "/api/log", { habit: b.dataset.done })).message); }
     catch (err) { say("habits", err.message, true); }
+    await load();
   };
+  $("habitList").onchange = async (e) => {
+    const s = e.target.closest("select[data-habit]"); if (!s || s.value === "pending") return;
+    const skip = s.value === "dropped";
+    const note = skip ? prompt(t("skipWhy")) : undefined;
+    if (skip && note === null) { renderHabits(); return; }
+    // 先改页面上的：超时角标消失、历史里多一笔、下拉框锁在新状态；再存，存完拿一份新的对齐
+    const h = S.habits.find((x) => (x.sid || x.name) === s.dataset.habit);
+    if (h) h.overdueMin = -1;
+    S.history.unshift({ name: s.dataset.name, status: s.value, finished: new Date().toISOString(), note });
+    renderHabits();
+    try { say("habits", (await api("POST", "/api/log", { habit: s.dataset.habit, skip, note })).message); }
+    catch (err) { say("habits", err.message, true); }
+    await load();
+  };
+
+  // 别处改了也要跟上：桌面上那只手点了「已经做了」、或者在聊天里说了做了。
+  // 页面在前台时每 5 秒重读一次，切回来时立刻读；正在点下拉框的时候不刷，免得框被重画收起来。
+  async function poll() {
+    if (document.hidden || document.activeElement?.tagName === "SELECT") return;
+    try { S = await api("GET", "/api/state"); renderTasks(); renderHabits(); renderToday(); } catch {}
+  }
+  setInterval(poll, 5000);
+  document.addEventListener("visibilitychange", poll);
+  window.addEventListener("focus", poll);
 
   function renderClients() {
     const m = S.mcp;
