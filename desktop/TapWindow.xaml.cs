@@ -35,11 +35,8 @@ public partial class TapWindow : Window
 
     private const uint MONITOR_DEFAULTTONEAREST = 2;
 
-    /// <summary>三下 1.3s，陪字条停 2s，淡出 0.24s；多给一点余量再收。</summary>
-    private static readonly TimeSpan Played = TimeSpan.FromMilliseconds(3750);
-
-    /// <summary>系统关了动画时，静止的手停这么久就够了。</summary>
-    private static readonly TimeSpan Still = TimeSpan.FromMilliseconds(3200);
+    /// <summary>淡出用的时间。停留时间（config.json 的 showSec）里最后这 0.24s 在淡出。</summary>
+    private const int FadeMs = 240;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT { public int Left, Top, Right, Bottom; }
@@ -125,6 +122,22 @@ public partial class TapWindow : Window
             return doc.RootElement.TryGetProperty("skin", out var s) ? s.GetString() ?? "glove" : "glove";
         }
         catch { return "glove"; }
+    }
+
+    /// <summary>
+    /// 手和字条在屏幕上停几秒（config.json 的 showSec，默认 8）。在 shoulder-tap 那一页的「手」里改。
+    /// 至少要播完一遍动作再加半秒，不然手还没伸完就淡了。
+    /// </summary>
+    public static int ShowMs(int[] ends)
+    {
+        var sec = 8.0;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(ConfigPath));
+            if (doc.RootElement.TryGetProperty("showSec", out var v) && v.TryGetDouble(out var d)) sec = d;
+        }
+        catch { }
+        return Math.Max(ends[^1] + 500, (int)(Math.Min(sec, 60) * 1000));
     }
 
     /// <summary>皮肤换了就重读三张 sheet。文件不在就退回内置的 glove。</summary>
@@ -218,19 +231,20 @@ public partial class TapWindow : Window
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
 
         var animated = SystemParameters.ClientAreaAnimation;
+        var show = ShowMs(_ends);
 
         if (animated)
         {
             _clock.Restart(); _frames.Start();
-            // 两种手势都播放 1.3s，停 2s，再与字条一起淡出。
-            var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(240)) { BeginTime = TimeSpan.FromMilliseconds(3300) };
+            // 播完动作后停着，到 showSec 的最后 0.24s 与字条一起淡出。
+            var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(FadeMs)) { BeginTime = TimeSpan.FromMilliseconds(show - FadeMs) };
             PixelHand.BeginAnimation(OpacityProperty, fade);
             CaptionBox.BeginAnimation(OpacityProperty, fade);
         }
 
-        _hide.Interval = animated ? Played : Still;
+        _hide.Interval = TimeSpan.FromMilliseconds(animated ? show + 150 : show); // 动画那边多给一点余量再收
         _hide.Start();
-        Program.Log($"tap skin={_skin} complete={complete} snap={snap} animated={animated} caption=\"{CaptionText.Text}\" visible={IsVisible} hand={PixelHand.Opacity}");
+        Program.Log($"tap skin={_skin} complete={complete} snap={snap} animated={animated} show={show}ms caption=\"{CaptionText.Text}\" visible={IsVisible} hand={PixelHand.Opacity}");
     }
 
     /// <summary>

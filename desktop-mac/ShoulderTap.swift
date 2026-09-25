@@ -85,6 +85,13 @@ func cfgValue(_ key: String) -> String? {
     return String(cfg[r.upperBound..<end])
 }
 
+/// config.json 里一个数字字段的值（"showSec": 8 这种）。
+func cfgNumber(_ key: String) -> Double? {
+    let cfg = (try? String(contentsOf: home.appendingPathComponent(".claude/shoulder-tap/config.json"), encoding: .utf8)) ?? ""
+    guard let r = cfg.range(of: "\"\(key)\": ") else { return nil }
+    return Double(cfg[r.upperBound...].prefix(while: { $0.isNumber || $0 == "." }))
+}
+
 /// config.json 里的 motion：设成 "always" 就无视系统的「减弱动态效果」照常逐帧播。
 /// 默认尊重系统设置，但这只手就是全部内容，停着不动会像坏了 —— 所以那种时候停在伸得最远的那一帧。
 func motionAlways() -> Bool { cfgValue("motion") == "always" }
@@ -241,7 +248,7 @@ final class Lane {
 
         panel.orderFrontRegardless()
 
-        // 时间轴：帧动画，停到 3.3 秒，0.24 秒淡出，收。
+        // 时间轴：帧动画，停到 showSec（设置页「手」里改，默认 8 秒），最后 0.24 秒淡出，收。
         let start = Date()
         let last = ends[8]
         if motionAlways() || !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
@@ -257,7 +264,7 @@ final class Lane {
         } else {
             handLayer.contents = frames[sheet.peak] // 不动，但至少是手势张开的样子，不是起手第一帧
         }
-        let hold = max(3.3, Double(last) / 1000 + 2.0)
+        let hold = max(Double(last) / 1000 + 0.5, min(cfgNumber("showSec") ?? 8, 60)) - 0.24
         DispatchQueue.main.asyncAfter(deadline: .now() + hold) { [weak self] in
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.24
