@@ -11,7 +11,7 @@ description: 卸载 shoulder-tap。当用户说「卸载 shoulder-tap」「把 s
 node ~/.claude/skills/shoulder-tap/uninstall.mjs
 ```
 
-它会：请桌面端退出并取消开机自启、去掉 MCP（Claude Code 和 Codex）、去掉四个钩子、
+它会：请桌面端退出并取消开机自启、去掉 MCP（Claude Code、Codex、Claude Desktop、OpenClaw、Hermes）、去掉四个钩子、
 删掉 CLAUDE.md 里「## 专注」那一节、删掉 skill 目录。
 
 **用户的数据默认留着**（`~/.claude/shoulder-tap/data.json`、`config.json`、Notion 密钥）。

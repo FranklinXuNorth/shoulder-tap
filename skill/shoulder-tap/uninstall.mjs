@@ -4,7 +4,8 @@
  *
  * 把 install.mjs 和设置页动过的地方全部还原，三个平台一样：
  *   1. 桌面端：请常驻进程退出，取消开机自启（Windows Run 键 / macOS LaunchAgent），删 ~/.claude/shoulder-tap/app
- *   2. MCP：claude mcp remove；~/.codex/config.toml 里的 [mcp_servers.shoulder-tap] 段；Claude Desktop 配置里的 shoulder-tap
+ *   2. MCP：claude mcp remove；~/.codex/config.toml 里的 [mcp_servers.shoulder-tap] 段；Claude Desktop 配置里的 shoulder-tap；
+ *      openclaw mcp unset；~/.hermes/config.yaml 里 mcp_servers 下的 shoulder-tap
  *   3. 钩子：~/.claude/settings.json 里跑 watch.mjs 的那四个
  *   4. CLAUDE.md：「## 专注」那一节
  *   5. skill：~/.claude/skills/shoulder-tap 和 shoulder-tap-uninstall
@@ -16,6 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { removeFromClaudeDesktop } from "./core/claude-desktop.mjs";
+import { openclawConnected, openclawRemoveArgs, removeFromHermes } from "./core/other-agents.mjs";
 
 const purge = process.argv.includes("--purge");
 const home = os.homedir();
@@ -70,6 +72,9 @@ if (fs.existsSync(codex)) {
 }
 log(mcpGone ? "MCP → 去掉了" : "MCP → 没去掉（claude 不在 PATH 上，或本来就没接）");
 for (const file of removeFromClaudeDesktop()) log(`Claude Desktop → 去掉了（${file}）`);
+if (openclawConnected()) log(run("openclaw", openclawRemoveArgs).status === 0 ? "OpenClaw → 去掉了" : "OpenClaw → 没去掉（openclaw 不在 PATH 上）：openclaw mcp unset shoulder-tap");
+const hermes = removeFromHermes();
+if (hermes) log(`Hermes → 去掉了（${hermes}）`);
 
 // 3. 钩子
 const settingsPath = path.join(claude, "settings.json");
