@@ -35,7 +35,7 @@ Not a todo app. A todo app needs you to open it, and when you're drifting you wo
 > **Recommended: let your coding agent install it.** Paste this into Claude Code or Codex:
 >
 > ```
-> Install https://github.com/FranklinXuNorth/shoulder-tap for me. Follow its README, and when the script is done, open the settings page and tell me what the five steps are.
+> Install https://github.com/FranklinXuNorth/shoulder-tap for me. Follow its README, and when the script is done, open the settings page and tell me what the five steps are (the Notion step is optional; skipping it keeps data on this machine).
 > ```
 >
 > It checks Node / .NET / Xcode tools, runs the script and fixes what fails. Prefer doing it by hand? Read on.
@@ -62,7 +62,7 @@ How that page comes up differs per platform:
 | **macOS** | the menu bar icon starts and opens it | click the menu bar icon, or open the address above |
 | **Linux** | no desktop app yet, so `install.mjs` opens it itself | `node ~/.claude/skills/shoulder-tap/onboard.mjs --setup` |
 
-> **If a model is installing this for someone:** paste that address into the chat and say what the five steps are. Finishing the script without a word leaves the person with a half-installed thing they think is done. Let them click the steps themselves — don't fill in their habits or their tasks.
+> **If a model is installing this for someone:** paste that address into the chat and say what the five steps are, and that the Notion step can be skipped (data then stays on this machine). Finishing the script without a word leaves the person with a half-installed thing they think is done. Let them click the steps themselves — don't fill in their habits or their tasks.
 
 <br>
 
@@ -70,7 +70,7 @@ How that page comes up differs per platform:
 
 The installer opens a settings page in your browser (reachable only from this machine), at `http://127.0.0.1:47823/#setup`. Five steps, each skippable:
 
-1. **Connect your coding tool** — click "Connect" to hook shoulder-tap into Claude Code / Codex. Claude Desktop can be connected here too, tools only (see below).
+1. **Connect your coding tool** — click "Connect" to hook shoulder-tap into Claude Code / Codex. Claude Desktop, OpenClaw and Hermes can be connected here too, tools only (see below).
    Don't want to click? Expand "do it yourself" for a block you can paste straight to your coding agent.
    Says Claude Code **Not found** on macOS when you know it is installed? The settings page comes from the menu bar app, which doesn't see your shell PATH. Expand "do it yourself" and run that command in a terminal.
    Then restart your Claude Code session: `/mcp` shows `shoulder-tap`, `/hooks` shows four hooks.
@@ -78,7 +78,7 @@ The installer opens a settings page in your browser (reachable only from this ma
    A **soft habit** (drink water) is quick, so it can't be skipped: it reminds you until you say you did it.
    A **hard habit** (workout) depends on the day, so you can say "not today".
 3. **Today's tasks** — one per line, in order.
-4. **Where data lives** — this machine (default, nothing to configure), or your own Notion (visible on your phone too).
+4. **Where data lives** — this machine (default, nothing to configure), or your own Notion (visible on your phone too). **Notion is optional:** skip this step and everything is stored locally; you can switch to Notion later.
 5. **The hand** — play the three gestures, pick a style (glove or cat paw), try a real tap on your desktop.
 
 Come back any time: click the Windows tray / macOS menu bar icon, or:
@@ -108,7 +108,18 @@ Then just work. When you drift, the reply ends with a hand and the desktop taps 
 
 ## Manual install (no script)
 
-If you'd rather not let a script touch `~/.claude`, do each step yourself:
+If you'd rather not let a script touch `~/.claude`, do each step yourself.
+
+> [!IMPORTANT]
+> **Use the paths for your own OS.** The shell commands below are for macOS / Linux Terminal. On Windows, run them in **Git Bash** (it comes with Git for Windows, which Claude Code on Windows needs anyway), not PowerShell. Config files (TOML / JSON / YAML) need a **full path** to `mcp.mjs`, and that path differs:
+>
+> | | Full path to `mcp.mjs` |
+> | --- | --- |
+> | **macOS** | `/Users/you/.claude/skills/shoulder-tap/mcp.mjs` |
+> | **Linux** | `/home/you/.claude/skills/shoulder-tap/mcp.mjs` |
+> | **Windows** | `C:/Users/you/.claude/skills/shoulder-tap/mcp.mjs` (forward slashes; backslashes must be doubled: `C:\\Users\\you\\…`) |
+>
+> Replace `you` with your user name. The examples below use the macOS path.
 
 1. **Skill**: copy `skill/shoulder-tap/` to `~/.claude/skills/shoulder-tap/`.
 
@@ -138,7 +149,24 @@ If you'd rather not let a script touch `~/.claude`, do each step yourself:
    }
    ```
 
-   Claude Desktop has no hooks and doesn't read CLAUDE.md, so it only gets the tools: it won't stop you or tap on its own, it runs them when you ask ("what's on my list", "just drank water").
+   Where that file lives: macOS `~/Library/Application Support/Claude/`, Windows `%APPDATA%\Claude\` (Microsoft Store install: `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\`).
+
+   OpenClaw:
+
+   ```bash
+   openclaw mcp add shoulder-tap --command node --arg /Users/you/.claude/skills/shoulder-tap/mcp.mjs
+   ```
+
+   Hermes Agent: add under `mcp_servers` in `~/.hermes/config.yaml`, then restart Hermes or type `/reload-mcp`:
+
+   ```yaml
+   mcp_servers:
+     shoulder-tap:
+       command: "node"
+       args: ["/Users/you/.claude/skills/shoulder-tap/mcp.mjs"]
+   ```
+
+   Claude Desktop, OpenClaw and Hermes have no hooks and don't read CLAUDE.md, so they only get the tools: they won't stop you or tap on their own, they run them when you ask ("what's on my list", "just drank water").
 
 3. **Hooks**: add to `~/.claude/settings.json` (create it if missing):
 
@@ -161,10 +189,15 @@ If you'd rather not let a script touch `~/.claude`, do each step yourself:
 
 5. **Desktop** (optional):
 
+   **Windows** (needs the .NET 10 SDK):
+
    ```bash
-   # Windows
    dotnet publish desktop -c Release -o "$HOME/.claude/shoulder-tap/app"
-   # macOS
+   ```
+
+   **macOS** (needs the Xcode command line tools):
+
+   ```bash
    APP=~/.claude/shoulder-tap/app/ShoulderTap.app
    mkdir -p $APP/Contents/{MacOS,Resources}
    xcrun -sdk macosx swiftc -O desktop-mac/ShoulderTap.swift -o $APP/Contents/MacOS/shoulder-tap-tap
@@ -200,7 +233,7 @@ node ~/.claude/skills/shoulder-tap/uninstall.mjs          # keeps your data
 node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # removes data and keys too
 ```
 
-Same on all three platforms: quits the desktop app and removes autostart, the MCP (Claude Code, Codex and Claude Desktop), the hooks, the CLAUDE.md section and the skill. Your Notion database is untouched.
+Same on all three platforms: quits the desktop app and removes autostart, the MCP (Claude Code, Codex, Claude Desktop, OpenClaw, Hermes), the hooks, the CLAUDE.md section and the skill. Your Notion database is untouched.
 You can also just tell Claude Code "uninstall shoulder-tap"; it knows to run this.
 
 <br>
