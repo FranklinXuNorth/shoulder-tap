@@ -18,6 +18,7 @@ import { callText } from "./core/tools.mjs";
 import { STATE_DIR, loadEnv, readConfig, writeConfig, machineTz, openStore } from "./core/store.mjs";
 import * as notion from "./core/focus.mjs";
 import { pageIdFrom, NotionError } from "./core/notion.mjs";
+import { STRINGS } from "./core/strings.mjs";
 import * as local from "./core/local.mjs";
 import { claudeDesktopState, addToClaudeDesktop } from "./core/claude-desktop.mjs";
 
@@ -30,64 +31,9 @@ const CODEX = path.join(os.homedir(), ".codex", "config.toml");
 const APP = path.join(STATE_DIR, "app", // 跟 watch.mjs 里同一个位置
   process.platform === "win32" ? "shoulder-tap-tap.exe" : process.platform === "darwin" ? "ShoulderTap.app/Contents/MacOS/shoulder-tap-tap" : "shoulder-tap-tap");
 
-// 页面上给人看的字都在这张表里，跟着页面右上角那个语言开关走（请求带 ?lang=）。
-// core/tools.mjs 返回的文本是给模型看的，一律中文，不进这张表。
-const MSG = {
-  zh: {
-    claude: "Claude Code 接上了。已经开着的会话要重开一次才看得到新工具。",
-    codex: "Codex 接上了（写进了 ~/.codex/config.toml）。重开一次 Codex 生效。",
-    desktop: "Claude Desktop 接上了。完全退出它（托盘图标右键 Quit）再打开才生效。它没有钩子：不会自己拦你、拍你，你让它查清单、记习惯时才调工具。",
-    unknownClient: "不认识的客户端",
-    noDesktopApp: "这台机器上没找到 Claude Desktop",
-    addFailed: "mcp add 失败",
-    badToken: "这不像 Notion integration 的密钥（应该是 ntn_ 开头）",
-    notionSays: (e) => `Notion 说：${e.message}（code: ${e.code}）`,
-    adopted: (title, added) => `接管了你已有的库「${title}」` + (added.length ? `，补上了：${added.join("、")}` : "，字段本来就齐"),
-    created: (where) => `建好了：${where}`,
-    moved: (xs) => `\n搬到 Notion 的：${xs.join("、")}`,
-    movedTasks: (n) => `今天的 ${n} 件事`,
-    localData: (p) => `就放在这台机器上：${p}`,
-    saved: "好了。",
-    needWhen: "得说清楚：隔多久一次，还是每天几点。",
-    habitAdded: (h) => `加上了：${h.name}，${h.at ? `每天 ${h.at}` : `每 ${h.everyMin} 分钟`}（${h.kind === "soft" ? "软" : "硬"}）。`,
-    noHabit: (n) => `没找到「${n}」。`,
-    refused: (n) => `「${n}」是软习惯，随手就能做的事不能跳过。什么都没记，到点照样会提醒。`,
-    skipped: (n) => `记下了：${n} 今天跳过。`,
-    logged: (h) => `记下了：${h.name}，下次提醒${h.at ? `明天 ${h.at}` : `在 ${h.everyMin} 分钟后`}。`,
-    badGesture: (g) => `没有这种手势：${g}`,
-    badMotion: (m) => `motion 只能是 system 或 always：${m}`,
-    badSkin: (s) => `没有这套皮肤：${s}`,
-    tryOnce: "试一下",
-  },
-  en: {
-    claude: "Claude Code is connected. Restart any open session to see the new tools.",
-    codex: "Codex is connected (written to ~/.codex/config.toml). Restart Codex for it to take effect.",
-    desktop: "Claude Desktop is connected. Quit it completely (tray icon → Quit) and reopen it. It has no hooks: it won't stop you or tap you on its own — it runs the tools when you ask.",
-    unknownClient: "Unknown client",
-    noDesktopApp: "Claude Desktop isn't installed on this machine",
-    addFailed: "mcp add failed",
-    badToken: "That doesn't look like a Notion integration token (it should start with ntn_)",
-    notionSays: (e) => `Notion says: ${e.message} (code: ${e.code})`,
-    adopted: (title, added) => `Adopted your existing database “${title}”` + (added.length ? `, added: ${added.join(", ")}` : ", the fields were already there"),
-    created: (where) => `Created: ${where}`,
-    moved: (xs) => `\nMoved to Notion: ${xs.join(", ")}`,
-    movedTasks: (n) => `today's ${n} task${n > 1 ? "s" : ""}`,
-    localData: (p) => `Stays on this machine: ${p}`,
-    saved: "Done.",
-    needWhen: "Pick one: every N minutes, or a time of day.",
-    habitAdded: (h) => `Added: ${h.name}, ${h.at ? `daily ${h.at}` : `every ${h.everyMin} min`} (${h.kind === "soft" ? "soft" : "hard"}).`,
-    noHabit: (n) => `No habit called “${n}”.`,
-    refused: (n) => `“${n}” is a soft habit — quick things can't be skipped. Nothing was logged; it will remind you again when it's due.`,
-    skipped: (n) => `Logged: ${n} skipped today.`,
-    logged: (h) => `Logged: ${h.name}. Next reminder ${h.at ? `tomorrow ${h.at}` : `in ${h.everyMin} min`}.`,
-    badGesture: (g) => `No such gesture: ${g}`,
-    badMotion: (m) => `motion must be system or always: ${m}`,
-    badSkin: (s) => `No such skin: ${s}`,
-    tryOnce: "try it",
-  },
-};
-// 页面每个请求都带 lang；别处（curl、老页面）没带就按中文。
-const msg = (lang) => MSG[lang] ?? MSG.zh;
+// 页面上给人看的字都在 core/strings.mjs 里，跟着页面右上角那个语言开关走：
+// 页面每个请求都带 lang，别处（curl、老页面）没带就按中文。
+const msg = (lang) => STRINGS[lang] ?? STRINGS.zh;
 
 function openBrowser(url) {
   const [cmd, args] = process.platform === "win32" ? ["cmd", ["/c", "start", "", url]]
@@ -301,7 +247,9 @@ const server = http.createServer(async (req, res) => {
     // 加载动画在 /api/state 回来之前就要跑，所以 motion 直接写进 html 标签，页面不用等。
     // 系统开着「减弱动态效果」时页面本来会整段跳过；config.json 里 motion: "always" 就照常播。
     const page = fs.readFileSync(path.join(HERE, "ui", "app.html"), "utf8")
-      .replace("<html ", `<html data-motion="${readConfig().motion ?? "system"}" `);
+      .replace("<html ", `<html data-motion="${readConfig().motion ?? "system"}" `)
+      // 中英两份字只有 core/strings.mjs 一份，页面那边是内联进去的，不多要一次请求
+      .replace("// __STRINGS__", () => fs.readFileSync(path.join(HERE, "core", "strings.mjs"), "utf8").replace(/^export /m, ""));
     return send(200, page, "text/html; charset=utf-8");
   }
   const sprite = req.method === "GET" && /^\/skins\/([\w-]+)\/(tap|pat|snap)\.(png|webp)$/.exec(req.url);
