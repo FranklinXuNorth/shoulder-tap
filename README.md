@@ -14,18 +14,17 @@
 
 ## What is this
 
-Tell the model what you're doing today. From then on, whenever you drift to something else, it taps you on the shoulder before it starts.
+**An attention guardrail for coding agents.** Tell Claude Code / Codex what you're doing today. When you ask it for something else, it taps you on the shoulder **before it starts** ("weren't you finishing the portfolio first?"), then still does what you asked, briefly.
 
-When it finishes a turn, a hand taps the edge of your screen and says what it just did, so you can wander off while it works.
+It works because it lives inside the agent. Hooks on every prompt, tool call and turn end compare what you're asking for with what you said you'd do. A reminder app can only ping you at a set time. This one catches the rabbit hole the moment you step into it.
 
 <p align="center"><img src="docs/demo-v3.gif" alt="Claude finishes while you're in a game; a pixel hand snaps at the screen edge with a one-line summary" width="640"></p>
 
 <p align="center"><img src="docs/overview.png" alt="Left: the chat ends with a snap and a tap tap. Right: a reminder and a task summary pop up at the screen edge while you work in Photoshop" width="760"></p>
 
-Not a todo app. A todo app needs you to open it, and when you're drifting you won't. This one hooks into the Claude Code / Codex you're already using.
+Also: when a turn finishes, a hand snaps at your screen edge with a one-line summary, so you can walk away while it works. Habits (water, workout) get one line at a natural pause, never mid-task.
 
-> **Your habits and your tasks never leave your machine.**
-> shoulder-tap has no server. Data lives in one JSON file on this machine, or in your own Notion (this machine talks to it directly).
+> **Your tasks and habits never leave your machine.** No server: one JSON file here, or your own Notion.
 
 <br>
 
