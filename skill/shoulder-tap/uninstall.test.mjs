@@ -25,9 +25,12 @@ fs.writeFileSync(path.join(claude, "CLAUDE.md"), "# mine\n\nkeep this\n\n## 专�
 fs.mkdirSync(path.join(home, ".codex"));
 fs.writeFileSync(path.join(home, ".codex", "config.toml"), 'model = "x"\n\n[mcp_servers.shoulder-tap]\ncommand = "node"\nargs = ["a"]\n\n[mcp_servers.other]\ncommand = "y"\n');
 
-// Claude Desktop（普通版的位置）：接上过 shoulder-tap，还有别的服务器和偏好设置
+// Claude Desktop：接上过 shoulder-tap，还有别的服务器和偏好设置。位置跟 core/claude-desktop.mjs 一样按系统分，
+// 别写死 Windows 的 AppData —— Mac 上卸载去 ~/Library/Application Support 找，测试就对不上了。
 const appdata = path.join(home, "AppData", "Roaming"), local = path.join(home, "AppData", "Local");
-const desk = path.join(appdata, "Claude", "claude_desktop_config.json");
+const deskDir = { win32: path.join(appdata, "Claude"), darwin: path.join(home, "Library", "Application Support", "Claude") }[process.platform]
+  ?? path.join(home, ".config", "Claude");
+const desk = path.join(deskDir, "claude_desktop_config.json");
 fs.mkdirSync(path.dirname(desk), { recursive: true });
 fs.writeFileSync(desk, JSON.stringify({ preferences: { a: 1 }, mcpServers: { "shoulder-tap": { command: "node" }, other: { command: "x" } } }));
 
