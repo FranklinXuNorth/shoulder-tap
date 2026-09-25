@@ -89,7 +89,7 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 
 The setup ends with a short "try it" step: messages you can paste into Claude Code to see it work.
 
-After setup, the same icon opens a home screen: **Run setup again**, **Choose a skin**, and below them your records — the last two weeks of tasks, your habits, and habit history. 中文 / English switch in the top right.
+After setup, the same icon opens a home screen: **Run setup again**, **Hand settings** (style, how long it stays), and below them your records — the last two weeks of tasks, your habits, and habit history. 中文 / English switch in the top right.
 
 <br>
 
