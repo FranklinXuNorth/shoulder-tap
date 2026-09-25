@@ -179,6 +179,7 @@ async function state() {
     // 最近两周的任务，按天分组给页面；时间都是 UTC，页面按本机时区显示
     tasks: await store.taskHistory(new Date(Date.parse(win.startUtc) - 13 * 86400_000).toISOString()).catch(() => []),
     skin: readConfig().skin ?? "glove",
+    showSec: readConfig().showSec ?? 8, // 手和字条在屏幕上停几秒，桌面端每次拍之前重读
     motion: readConfig().motion ?? "system", // "always" = 无视系统的「减弱动态效果」，照常逐帧播
     skins: listSkins(),
     desktop: fs.existsSync(APP),
@@ -221,7 +222,12 @@ const routes = {
     return { tapped: true };
   },
   // 手的样式：ui/sprites/skins/<名字>/{tap,pat,snap}.png。桌面端每次拍之前重读 config.json 的 skin。
-  "POST /api/hands": ({ skin, motion }, lang) => {
+  "POST /api/hands": ({ skin, motion, showSec }, lang) => {
+    if (showSec !== undefined) {
+      if (!(Number.isFinite(showSec) && showSec >= 3 && showSec <= 60)) throw new Error(msg(lang).badShowSec(showSec));
+      writeConfig({ showSec });
+      return { message: msg(lang).showSaved(showSec) };
+    }
     // 系统开着「减弱动态效果」时手会停住不动（看着像坏了）；motion: "always" 是给想看动画的人的开关。
     if (motion !== undefined) {
       if (!["system", "always"].includes(motion)) throw new Error(msg(lang).badMotion(motion));

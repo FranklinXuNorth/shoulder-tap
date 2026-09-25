@@ -221,6 +221,8 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
   手出来了但不动？系统的**减弱动态效果**（系统设置 → 辅助功能 → 显示）开着，这里会尊重它：手停在伸得最远的那一帧，不逐帧播。想照常看动画，在 `~/.claude/shoulder-tap/config.json` 里写 `"motion": "always"`。
 - **Linux**：还没有，接口约定在 [desktop-linux/README.md](desktop-linux/README.md)。
 
+手和那句话在屏幕上停多久：设置页 →「手」→「停留时间」（默认 8 秒），或者 `~/.claude/shoulder-tap/config.json` 里的 `"showSec"`。
+
 三个平台都从 `~/.claude/skills/shoulder-tap/ui/sprites/skins/<样式>/` 读手的图，想画一套自己的看那里的 README。
 
 <br>
