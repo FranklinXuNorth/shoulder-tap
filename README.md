@@ -25,9 +25,25 @@ cd shoulder-tap
 node install.mjs
 ```
 
+**The script is only half of it.** It installs the skill, the hooks, the CLAUDE.md section and the desktop app — it does *not* connect the MCP and does not know your habits. The rest is clicked on a local settings page:
+
+```
+http://127.0.0.1:47823/#setup
+```
+
+How that page comes up differs per platform:
+
+| | Settings page | If it doesn't open |
+| --- | --- | --- |
+| **Windows** | the tray icon starts and opens it | click the tray icon, or open the address above |
+| **macOS** | the menu bar icon starts and opens it | click the menu bar icon, or open the address above |
+| **Linux** | no desktop app yet, so `install.mjs` opens it itself | `node ~/.claude/skills/shoulder-tap/onboard.mjs --setup` |
+
+> **If a model is installing this for someone:** paste that address into the chat and say what the five steps are. Finishing the script without a word leaves the person with a half-installed thing they think is done. Let them click the steps themselves — don't fill in their habits or their tasks.
+
 ## 2. Settings page
 
-The installer opens a settings page in your browser (reachable only from this machine). Five steps, each skippable:
+The installer opens a settings page in your browser (reachable only from this machine), at `http://127.0.0.1:47823/#setup`. Five steps, each skippable:
 
 1. **Connect your coding tool** — click "Connect" to hook shoulder-tap into Claude Code / Codex. Claude Desktop can be connected here too, tools only (see below).
    Don't want to click? Expand "do it yourself" for a block you can paste straight to your coding agent.
@@ -129,7 +145,7 @@ If you'd rather not let a script touch `~/.claude`, do each step yourself:
 
    Run the executable once and it stays in the tray / menu bar.
 
-6. **Settings page**: `node ~/.claude/skills/shoulder-tap/onboard.mjs --setup`.
+6. **Settings page** — the step that is easiest to forget, and nothing works without it: `node ~/.claude/skills/shoulder-tap/onboard.mjs --setup`, or open `http://127.0.0.1:47823/#setup`. Same on all three platforms.
 
 ## Desktop
 
