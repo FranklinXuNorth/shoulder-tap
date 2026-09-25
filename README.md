@@ -5,6 +5,7 @@
 <h1>Shoulder Tap</h1>
 
 <p><b>Stick to your thing. We’ll tap you when you drift.</b></p>
+<p><sub>For vibe coders with an ADHD brain.</sub></p>
 
 <a href="README.md"><img alt="English" src="https://img.shields.io/badge/English-0e7c7b?style=for-the-badge"></a> <a href="README.zh-CN.md"><img alt="中文" src="https://img.shields.io/badge/%E4%B8%AD%E6%96%87-6e7681?style=for-the-badge"></a>
 
