@@ -20,7 +20,7 @@
 
 <p align="center"><img src="docs/demo-cut.gif" alt="在打游戏的时候 Claude 做完了，屏幕边上的像素手打个响指，带一句总结" width="760"></p>
 
-<p align="center"><img src="docs/how-it-works.png" alt="左：聊天结尾的响指和 tap tap。右：你在 Photoshop 里干活，屏幕边上弹出喝水提醒和任务总结" width="760"></p>
+<p align="center"><img src="docs/overview.png" alt="左：聊天结尾的响指和 tap tap。右：你在 Photoshop 里干活，屏幕边上弹出喝水提醒和任务总结" width="760"></p>
 
 不是 todo app——todo app 要你主动打开，而你跑偏的时候恰恰不会打开它。
 这个挂在你已经在用的 Claude Code / Codex 上。
