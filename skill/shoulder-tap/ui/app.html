@@ -63,6 +63,7 @@
   .agent-hint q { quotes: "「" "」"; margin-right: 8px; color: var(--ink); }
   html[lang=en] .agent-hint q { quotes: "“" "”"; }
   @media (max-width: 720px) { .agent-hint { white-space: normal; } }
+  .update { flex: none; display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--accent); border-radius: 8px; font-size: 14px; }
   .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
   @media (max-width: 520px) { .action small { display: none; } .action { padding: 10px 12px; gap: 10px; } }
   .action { display: flex; gap: 14px; align-items: center; text-align: left; padding: 16px 18px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); }
@@ -199,6 +200,7 @@
 
   <!-- 首页：两个入口 + 所有记录 -->
   <div id="home">
+    <div class="update hidden" id="update"><span id="updateText"></span><button class="small primary" id="updateBtn" data-t="updateBtn"></button></div>
     <div class="actions">
       <button class="action" data-go="setup"><span class="ico">↻</span><span><b id="goSetupLabel"></b><small data-t="goSetupWhy"></small></span></button>
       <button class="action" data-go="hands"><span class="ico"><div id="skinIco"></div></span><span><b data-t="goHands"></b><small data-t="goHandsWhy"></small></span></button>
@@ -409,7 +411,14 @@
     $("agentHint").innerHTML = t("agentSays").map((x) => `<q>${esc(x)}</q>`).join("");
     $("logo").style.backgroundImage = $("skinIco").style.backgroundImage = `url(/skins/${S.skin}/tap.webp)`;
     $("uninstallCmd").textContent = `node "${S.mcp.onboard.replace(/onboard\.mjs$/, "uninstall.mjs")}"`;
+    $("update").classList.toggle("hidden", !S.update.behind);
+    $("updateText").textContent = t("updateAvail")(S.update.behind);
   }
+  $("updateBtn").onclick = async () => {
+    $("updateBtn").disabled = true;
+    try { $("updateText").textContent = (await api("POST", "/api/update", {})).message; }
+    catch (e) { $("updateText").textContent = e.message; $("updateBtn").disabled = false; }
+  };
 
   function renderToday() {
     const items = S.today;
