@@ -17,6 +17,8 @@ import { fileURLToPath } from "node:url";
 import { callText } from "./core/tools.mjs";
 import { STATE_DIR, loadEnv, readConfig, writeConfig, machineTz, openStore } from "./core/store.mjs";
 import * as notion from "./core/focus.mjs";
+import { pageIdFrom, NotionError } from "./core/notion.mjs";
+import { STRINGS } from "./core/strings.mjs";
 import * as local from "./core/local.mjs";
 import { claudeDesktopState, addToClaudeDesktop } from "./core/claude-desktop.mjs";
 
@@ -28,6 +30,10 @@ const ENV = path.join(HERE, ".env");
 const CODEX = path.join(os.homedir(), ".codex", "config.toml");
 const APP = path.join(STATE_DIR, "app", // 跟 watch.mjs 里同一个位置
   process.platform === "win32" ? "shoulder-tap-tap.exe" : process.platform === "darwin" ? "ShoulderTap.app/Contents/MacOS/shoulder-tap-tap" : "shoulder-tap-tap");
+
+// 页面上给人看的字都在 core/strings.mjs 里，跟着页面右上角那个语言开关走：
+// 页面每个请求都带 lang，别处（curl、老页面）没带就按中文。
+const msg = (lang) => STRINGS[lang] ?? STRINGS.zh;
 
 function openBrowser(url) {
   const [cmd, args] = process.platform === "win32" ? ["cmd", ["/c", "start", "", url]]
@@ -87,24 +93,26 @@ function mcpState() {
   };
 }
 
-function connect(client) {
+function connect(client, lang) {
+  const m = msg(lang);
   if (client === "claude") {
     sh("claude", ["mcp", "remove", "-s", "user", "shoulder-tap"]); // 以前接过远程版的，先换掉
     const r = sh("claude", claudeArgs);
-    if (r.status !== 0) throw new Error(`${resolveBin("claude") ?? "claude"} ${(r.stderr || r.stdout || "mcp add 失败").trim()}`);
-    return "Claude Code 接上了。已经开着的会话要重开一次才看得到新工具。";
+    if (r.status !== 0) throw new Error(`${resolveBin("claude") ?? "claude"} ${(r.stderr || r.stdout || m.addFailed).trim()}`);
+    return m.claude;
   }
   if (client === "codex") {
     fs.mkdirSync(path.dirname(CODEX), { recursive: true });
     const text = fs.existsSync(CODEX) ? fs.readFileSync(CODEX, "utf8") : "";
     if (!text.includes("[mcp_servers.shoulder-tap]")) fs.writeFileSync(CODEX, text.trimEnd() + "\n" + codexBlock);
-    return "Codex 接上了（写进了 ~/.codex/config.toml）。重开一次 Codex 生效。";
+    return m.codex;
   }
   if (client === "desktop") {
-    addToClaudeDesktop(process.execPath, MCP);
-    return "Claude Desktop 接上了。完全退出它（托盘图标右键 Quit）再打开才生效。它没有钩子：不会自己拦你、拍你，你让它查清单、记习惯时才调工具。";
+    try { addToClaudeDesktop(process.execPath, MCP); }
+    catch (e) { throw new Error(e?.code === "no_claude_desktop" ? m.noDesktopApp : String(e?.message ?? e)); }
+    return m.desktop;
   }
-  throw new Error("不认识的客户端");
+  throw new Error(m.unknownClient);
 }
 
 function setEnv(key, value) {
@@ -115,12 +123,17 @@ function setEnv(key, value) {
 }
 
 /** 选了 Notion：建库（或接管），再把前几步记在本地的习惯和今天的清单搬过去。Notion 里已有的不动。 */
-async function useNotion(token, page) {
-  if (!/^(ntn_|secret_)/.test(token)) throw new Error("这不像 Notion integration 的密钥（应该是 ntn_ 开头）");
+async function useNotion(token, page, lang) {
+  const m = msg(lang);
+  if (!/^(ntn_|secret_)/.test(token)) throw new Error(m.badToken);
   setEnv("NOTION_TOKEN", token);
   writeConfig({ storage: "notion" });
-  const setup = await callText("setup", { notion_page: page });
-  if (/^(Notion 说|出错了)/.test(setup)) throw new Error(setup);
+  // 跟 setup 那个工具做的是同一件事，只是这句话要跟着页面的语言走
+  const setup = await (async () => {
+    const id = pageIdFrom(page);
+    const adopted = await notion.adoptDatabase(token, id).catch(() => undefined);
+    return adopted ? m.adopted(adopted.title, adopted.added) : m.created((await notion.createDatabase(token, id)).url ?? id);
+  })().catch((e) => { throw new Error(e instanceof NotionError ? m.notionSays(e) : String(e?.message ?? e)); });
 
   const tz = machineTz();
   const win = notion.dayWindow(tz);
@@ -134,9 +147,9 @@ async function useNotion(token, page) {
   const today = await local.listDay(null, win);
   if (today.length && !(await notion.listDay(token, win)).length) {
     await notion.setDay(token, win, today.map((t) => ({ task: t.task, note: t.note })), tz);
-    moved.push(`今天的 ${today.length} 件事`);
+    moved.push(m.movedTasks(today.length));
   }
-  return setup + (moved.length ? `\n搬到 Notion 的：${moved.join("、")}` : "");
+  return setup + (moved.length ? m.moved(moved) : "");
 }
 
 async function state() {
@@ -163,36 +176,48 @@ async function state() {
 
 const routes = {
   "GET /api/state": () => state(),
-  "POST /api/mcp": ({ client }) => ({ message: connect(client) }),
-  "POST /api/habit": async ({ name, kind, every_minutes, at }) => ({ message: await callText("add_habit", { name, kind, every_minutes, at }) }),
-  "POST /api/today": async ({ tasks }) => ({ message: await callText("set_focus", { tasks: tasks.map((task) => ({ task })) }) }),
-  "POST /api/storage": async ({ mode, token, page }) => {
-    if (mode === "local") { writeConfig({ storage: "local" }); return { message: "就放在这台机器上：" + local.DATA }; }
-    return { message: await useNotion(String(token || "").trim(), String(page || "").trim()) };
+  "POST /api/mcp": ({ client }, lang) => ({ message: connect(client, lang) }),
+  // 习惯这两条不走 callText：工具那套话是写给模型看的中文，页面要跟着自己的语言开关
+  "POST /api/habit": async ({ name, kind, every_minutes, at }, lang) => {
+    const m = msg(lang);
+    if (!every_minutes && !at) throw new Error(m.needWhen);
+    const tz = notion.requireTz(machineTz());
+    await openStore().addHabit(String(name).trim(), every_minutes ?? 0, "", tz, at, kind === "soft" ? "soft" : "hard");
+    return { message: m.habitAdded({ name: String(name).trim(), at, everyMin: every_minutes, kind }) };
   },
-  "POST /api/finish": () => { writeConfig({ onboarded: true }); return { message: "好了。" }; },
+  "POST /api/today": async ({ tasks }) => ({ message: await callText("set_focus", { tasks: tasks.map((task) => ({ task })) }) }),
+  "POST /api/storage": async ({ mode, token, page }, lang) => {
+    if (mode === "local") { writeConfig({ storage: "local" }); return { message: msg(lang).localData(local.DATA) }; }
+    return { message: await useNotion(String(token || "").trim(), String(page || "").trim(), lang) };
+  },
+  "POST /api/finish": (_, lang) => { writeConfig({ onboarded: true }); return { message: msg(lang).saved }; },
   "GET /api/ping": () => ({}), // 页面开着就隔一会儿来一下，服务知道还有人在看
   // 首页里勾掉 / 放弃一条、记一笔习惯：都是你自己点的，跟你在对话里说一样
   "POST /api/done": async ({ position, dropped }) => ({ message: await callText("complete_focus", { position, dropped: dropped === true }) }),
-  "POST /api/log": async ({ habit, skip, note }) => ({ message: await callText("log_habit", { habit, skip: skip === true, note }) }),
+  "POST /api/log": async ({ habit, skip, note }, lang) => {
+    const m = msg(lang);
+    const hit = await openStore().logHabit(habit, notion.requireTz(machineTz()), note, skip === true);
+    if (!hit) throw new Error(m.noHabit(habit));
+    return { message: hit.refused ? m.refused(hit.name) : skip === true ? m.skipped(hit.name) : m.logged(hit) };
+  },
   // 在屏幕上真拍一下：习惯那一步试 tap，手势页三种都能试。没装桌面端就说没装。
-  "POST /api/tap": ({ mode = "tap", text = "" }) => {
-    if (!["tap", "complete", "snap"].includes(mode)) throw new Error(`没有这种手势：${mode}`);
+  "POST /api/tap": ({ mode = "tap", text = "" }, lang) => {
+    if (!["tap", "complete", "snap"].includes(mode)) throw new Error(msg(lang).badGesture(mode));
     if (!fs.existsSync(APP)) return { tapped: false };
     const t = String(text).trim().slice(0, 160);
-    const args = ["--mode", mode, "--source-pid", String(process.pid), "--text", t || "试一下", ...(t ? ["--caption", t] : [])];
+    const args = ["--mode", mode, "--source-pid", String(process.pid), "--text", t || msg(lang).tryOnce, ...(t ? ["--caption", t] : [])];
     spawn(APP, args, { detached: true, stdio: "ignore", windowsHide: true }).unref();
     return { tapped: true };
   },
   // 手的样式：ui/sprites/skins/<名字>/{tap,pat,snap}.png。桌面端每次拍之前重读 config.json 的 skin。
-  "POST /api/hands": ({ skin, motion }) => {
+  "POST /api/hands": ({ skin, motion }, lang) => {
     // 系统开着「减弱动态效果」时手会停住不动（看着像坏了）；motion: "always" 是给想看动画的人的开关。
     if (motion !== undefined) {
-      if (!["system", "always"].includes(motion)) throw new Error(`motion 只能是 system 或 always：${motion}`);
+      if (!["system", "always"].includes(motion)) throw new Error(msg(lang).badMotion(motion));
       writeConfig({ motion });
       if (skin === undefined) return { message: motion };
     }
-    if (!listSkins().includes(skin)) throw new Error(`没有这套皮肤：${skin}`);
+    if (!listSkins().includes(skin)) throw new Error(msg(lang).badSkin(skin));
     writeConfig({ skin });
     return { message: skin };
   },
@@ -222,7 +247,9 @@ const server = http.createServer(async (req, res) => {
     // 加载动画在 /api/state 回来之前就要跑，所以 motion 直接写进 html 标签，页面不用等。
     // 系统开着「减弱动态效果」时页面本来会整段跳过；config.json 里 motion: "always" 就照常播。
     const page = fs.readFileSync(path.join(HERE, "ui", "app.html"), "utf8")
-      .replace("<html ", `<html data-motion="${readConfig().motion ?? "system"}" `);
+      .replace("<html ", `<html data-motion="${readConfig().motion ?? "system"}" `)
+      // 中英两份字只有 core/strings.mjs 一份，页面那边是内联进去的，不多要一次请求
+      .replace("// __STRINGS__", () => fs.readFileSync(path.join(HERE, "core", "strings.mjs"), "utf8").replace(/^export /m, ""));
     return send(200, page, "text/html; charset=utf-8");
   }
   const sprite = req.method === "GET" && /^\/skins\/([\w-]+)\/(tap|pat|snap)\.(png|webp)$/.exec(req.url);
@@ -234,7 +261,9 @@ const server = http.createServer(async (req, res) => {
     const [file, type] = sprite[3] === "webp" && fs.existsSync(base + ".webp") ? [base + ".webp", "image/webp"] : [base + ".png", "image/png"];
     return fs.existsSync(file) ? send(200, fs.readFileSync(file), type) : send(404, { error: "not found" });
   }
-  const route = routes[`${req.method} ${req.url}`];
+  const [pathname, query] = req.url.split("?");
+  const lang = new URLSearchParams(query).get("lang") === "en" ? "en" : "zh"; // 页面上给人看的字跟着它走
+  const route = routes[`${req.method} ${pathname}`];
   if (!route) return send(404, { error: "not found" });
   let body = {};
   if (req.method === "POST") {
@@ -243,7 +272,7 @@ const server = http.createServer(async (req, res) => {
     try { body = JSON.parse(raw || "{}"); } catch { return send(400, { error: "bad json" }); }
   }
   try {
-    send(200, await route(body));
+    send(200, await route(body, lang));
   } catch (e) {
     send(400, { error: String(e?.message ?? e) });
   }
