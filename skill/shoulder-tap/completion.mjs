@@ -32,14 +32,20 @@ export function missingHandDecision(payload) {
   };
 }
 
-export function desktopArgs(payload, mode, text = "", caption = "", habit = "") {
+export function desktopArgs(payload, mode, text = "", caption = "", habit = "", skippable = false) {
   const args = ["--mode", mode, "--session", payload.session_id || payload.transcript_path || "",
     "--source-pid", String(process.ppid)];
   if (text) args.push("--text", text.trim().slice(0, 400));
   if (caption) args.push("--caption", caption.trim().slice(0, 160));
   // 这次 taptap 提醒的是一个到点的习惯：桌面端在字下面放「已经做了 / 还没做」，点「已经做了」就用这个 node 跑 habit.mjs 记一笔
   if (habit) args.push("--habit", habit, "--node", process.execPath);
+  if (habit && skippable) args.push("--skippable"); // 硬习惯：再多一个「今天不做」
   return args;
+}
+
+/** 这个到点的习惯是不是硬习惯（能说今天不做）。看的是 renderHabits 那一行末尾的标注。 */
+export function habitSkippable(plan, name) {
+  return (plan || "").split("\n").some((l) => l.startsWith(`  · ${name} —— 超了`) && l.includes("硬习惯"));
 }
 
 /** 提醒那句话里点了名的、正在到点的习惯（从缓存的 check_focus 返回里「顺便提一句」那几行找）。没有就空串。 */

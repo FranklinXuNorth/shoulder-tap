@@ -111,7 +111,8 @@ public partial class TapWindow : Window
         _hide.Tick += (_, _) => Conceal();
 
         // 习惯提醒下面那两个按钮。鼠标停在字条上就别收，挪开再给一会儿。
-        DoneButton.MouseLeftButtonUp += (_, _) => { LogHabitDone(_habit, _node); Conceal(); };
+        DoneButton.MouseLeftButtonUp += (_, _) => { LogHabit("done", _habit, _node); Conceal(); };
+        SkipButton.MouseLeftButtonUp += (_, _) => { LogHabit("skip", _habit, _node); Conceal(); };
         LaterButton.MouseLeftButtonUp += (_, _) => Conceal();
         CaptionBox.MouseEnter += (_, _) =>
         {
@@ -222,7 +223,7 @@ public partial class TapWindow : Window
     /// </summary>
     /// <param name="snap">响指：模型弹了个问题在等你。走 taptap 那条道，换一张 sprite。</param>
     /// <param name="habit">提醒的是这个到点的习惯：字下面放「已经做了 / 还没做」，这一次窗口能点。</param>
-    public void Tap(IntPtr anchor = default, bool complete = false, string caption = "", bool snap = false, string habit = "", string node = "")
+    public void Tap(IntPtr anchor = default, bool complete = false, string caption = "", bool snap = false, string habit = "", string node = "", bool skippable = false)
     {
         _hide.Stop();
         _frames.Stop();
@@ -240,6 +241,7 @@ public partial class TapWindow : Window
         _habit = caption.Trim().Length > 0 ? habit : ""; // 没字条就没地方放按钮
         _node = node;
         HabitButtons.Visibility = _habit.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SkipButton.Visibility = skippable ? Visibility.Visible : Visibility.Collapsed;
         SetClickThrough(_habit.Length == 0);
         CaptionText.Text = caption.Trim();
         CaptionBox.Visibility = caption.Trim().Length > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -307,20 +309,20 @@ public partial class TapWindow : Window
         IsHitTestVisible = !through;
     }
 
-    /// <summary>「已经做了」= 在聊天里说做了：跑 habit.mjs 记一笔 log_habit。后台跑，不等它。</summary>
-    private static void LogHabitDone(string habit, string node)
+    /// <summary>「已经做了」/「今天不做」= 在聊天里说做了 / 今天不做：跑 habit.mjs done|skip 记一笔 log_habit。后台跑，不等它。</summary>
+    private static void LogHabit(string cmd, string habit, string node)
     {
         if (habit.Length == 0) return;
         try
         {
             var start = new ProcessStartInfo(node.Length > 0 ? node : "node") { UseShellExecute = false, CreateNoWindow = true };
             start.ArgumentList.Add(HabitScript);
-            start.ArgumentList.Add("done");
+            start.ArgumentList.Add(cmd);
             start.ArgumentList.Add(habit);
             Process.Start(start);
-            Program.Log($"habit done {habit}");
+            Program.Log($"habit {cmd} {habit}");
         }
-        catch (Exception e) { Program.Log($"habit done failed {habit}: {e.Message}"); }
+        catch (Exception e) { Program.Log($"habit {cmd} failed {habit}: {e.Message}"); }
     }
 
     /// <summary>
