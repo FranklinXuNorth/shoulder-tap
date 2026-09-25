@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace ShoulderTap;
@@ -25,6 +25,9 @@ public sealed class TapRequest
 
     /// <summary>点「已经做了」时用哪个 node 跑 habit.mjs（钩子传过来的，就是它自己那个）。</summary>
     [JsonPropertyName("node")] public string Node { get; set; } = "";
+
+    /// <summary>硬习惯：按钮里再多一个「今天不做」。软习惯不许跳过，没有它。</summary>
+    [JsonPropertyName("skippable")] public bool Skippable { get; set; }
 
     /// <summary>true = 不是来拍肩的，是来让常驻进程退出的。</summary>
     [JsonPropertyName("quit")] public bool Quit { get; set; }
@@ -63,6 +66,7 @@ public sealed class TapRequest
                 case "caption": req.Caption = Next(); break;
                 case "habit": req.Habit = Next(); break;
                 case "node": req.Node = Next(); break;
+                case "skippable": req.Skippable = true; break;
                 case "quit": case "exit": req.Quit = true; break;
             }
         }

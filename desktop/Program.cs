@@ -103,6 +103,7 @@ public static class Program
         {
             start.ArgumentList.Add("--habit"); start.ArgumentList.Add(request.Habit);
             start.ArgumentList.Add("--node"); start.ArgumentList.Add(request.Node);
+            if (request.Skippable) start.ArgumentList.Add("--skippable");
         }
 
         try { System.Diagnostics.Process.Start(start); } catch { }
@@ -150,7 +151,7 @@ public static class Program
             {
                 Remember(tray, req.Text);
                 lane.Playing = true;
-                lane.Window.Tap(snap: req.Mode == "snap", caption: req.Caption, habit: req.Habit, node: req.Node);
+                lane.Window.Tap(snap: req.Mode == "snap", caption: req.Caption, habit: req.Habit, node: req.Node, skippable: req.Skippable);
                 return;
             }
             var anchor = new IntPtr(req.WindowHandle);
