@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { completionGestures, desktopArgs, dueHabitIn, missingHandDecision } from "./completion.mjs";
+import { completionGestures, desktopArgs, dueHabitIn, habitSkippable, missingHandDecision } from "./completion.mjs";
 import { localJudgement, planTasks } from "./local-jev.mjs";
 
 test("each hand at the tail is one gesture; snap before tap; no hand, nothing", () => {
@@ -75,4 +75,13 @@ test("提醒那句点了名的到点习惯，桌面端才带「已经做了 / �
   const args = desktopArgs({}, "tap", "喝水", "喝水", "喝水");
   assert.deepEqual(args.slice(args.indexOf("--habit"), args.indexOf("--habit") + 3), ["--habit", "喝水", "--node"]);
   assert.ok(!desktopArgs({}, "tap", "x", "x").includes("--habit"));
+  assert.ok(desktopArgs({}, "tap", "x", "x", "健身", true).includes("--skippable"));
+  assert.ok(!desktopArgs({}, "tap", "x", "x", "", true).includes("--skippable"));
+});
+
+test("硬习惯才在桌面上多一个「今天不做」", () => {
+  const plan = "  · 喝水 —— 超了 45 分钟（说好每 60 分钟一次；软习惯，不能跳过）\n  · 健身 —— 超了 3 分钟（说好每天 22:30；硬习惯，可以今天不做）\n";
+  assert.equal(habitSkippable(plan, "健身"), true);
+  assert.equal(habitSkippable(plan, "喝水"), false);
+  assert.equal(dueHabitIn(plan, "该去健身了"), "健身");
 });
