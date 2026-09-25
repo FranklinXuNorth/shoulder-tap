@@ -19,6 +19,7 @@ import { STATE_DIR, loadEnv, readConfig, writeConfig, machineTz, openStore } fro
 import * as notion from "./core/focus.mjs";
 import { pageIdFrom, NotionError } from "./core/notion.mjs";
 import { STRINGS } from "./core/strings.mjs";
+import { readUpdate, repoDir } from "./core/update.mjs";
 import * as local from "./core/local.mjs";
 import { claudeDesktopState, addToClaudeDesktop } from "./core/claude-desktop.mjs";
 import { openclawConnected, openclawAddArgs, hermesDir, hermesConnected, addToHermes } from "./core/other-agents.mjs";
@@ -179,6 +180,7 @@ async function state() {
     // 最近两周的任务，按天分组给页面；时间都是 UTC，页面按本机时区显示
     tasks: await store.taskHistory(new Date(Date.parse(win.startUtc) - 13 * 86400_000).toISOString()).catch(() => []),
     skin: readConfig().skin ?? "glove",
+    update: { behind: readUpdate().behind ?? 0 },
     showSec: readConfig().showSec ?? 8, // 手和字条在屏幕上停几秒，桌面端每次拍之前重读
     motion: readConfig().motion ?? "system", // "always" = 无视系统的「减弱动态效果」，照常逐帧播
     skins: listSkins(),
@@ -201,6 +203,13 @@ const routes = {
   "POST /api/storage": async ({ mode, token, page }, lang) => {
     if (mode === "local") { writeConfig({ storage: "local" }); return { message: msg(lang).localData(local.DATA) }; }
     return { message: await useNotion(String(token || "").trim(), String(page || "").trim(), lang) };
+  },
+  // 更新要重跑 install.mjs（会换掉这个 skill 目录、重启桌面端），所以甩到独立进程里，输出写进 update.log。
+  "POST /api/update": (_, lang) => {
+    if (!repoDir()) throw new Error(msg(lang).noRepo);
+    const out = fs.openSync(path.join(STATE_DIR, "update.log"), "w");
+    spawn(process.execPath, [path.join(HERE, "update.mjs")], { detached: true, stdio: ["ignore", out, out], windowsHide: true }).unref();
+    return { message: msg(lang).updating };
   },
   "POST /api/finish": (_, lang) => { writeConfig({ onboarded: true }); return { message: msg(lang).saved }; },
   "GET /api/ping": () => ({}), // 页面开着就隔一会儿来一下，服务知道还有人在看

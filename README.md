@@ -228,6 +228,16 @@ All three platforms read the hand sprites from `~/.claude/skills/shoulder-tap/ui
 
 <br>
 
+## Update
+
+```bash
+node ~/.claude/skills/shoulder-tap/update.mjs
+```
+
+Pulls the latest version into the folder you cloned and reruns the installer; your data and settings stay. Or just tell Claude Code "update shoulder-tap", or click **Update** on the settings page when it shows up. Once a day it checks GitHub in the background, and when there's something new the model mentions it once.
+
+<br>
+
 ## Uninstall
 
 ```bash
@@ -245,6 +255,7 @@ You can also just tell Claude Code "uninstall shoulder-tap"; it knows to run thi
 | What | Where | When |
 | --- | --- | --- |
 | Tasks, habits | Your own Notion | Only if you chose Notion |
+| A `git fetch` of this repo | GitHub | Once a day, to see if there's an update |
 | Everything else | Nowhere | — |
 
 <br>
