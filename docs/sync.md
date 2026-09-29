@@ -271,3 +271,33 @@ node ~/.claude/skills/shoulder-tap/login.mjs      # 在自己的终端里：浏�
 - 500 轮长会话那个测试用 `SHOULDER_TAP_NO_RELAY=1` 关掉了转发。
 
 线上 60/60（2026-09-29）。
+
+## 只拍在你正在用的那台（第二步）+ 你在哪、推送记录（2026-09-29）
+
+**怎么知道你在用哪台、哪块屏**：`listen.mjs` 只读空闲时长，不需要任何权限（`core/idle.mjs`）。
+- Windows：一个常驻 PowerShell 每秒读一次 `GetLastInputInfo`，同时读鼠标所在的 Screen。
+- Mac：每 1.5 秒读一次 `ioreg` 的 HIDIdleTime；刚被碰过时，再用 JXA 问一次鼠标在哪块 NSScreen。
+- 不读按了什么键、鼠标坐标、哪个窗口。
+
+这台 3 秒内被碰过，而服务端记的「正在用的」不是它，或者你换了一块屏，就经 WebSocket 报 `{type:"active", screen, screens}`。
+
+**服务端存在哪**（每个账号的频道 server storage 里，`GET /v2/presence` 可看）：
+- `presence` 表：每台设备一行，记设备 ID、名字、最后被碰的是第几块屏、共几块、时间。
+- `meta` 里的 `activeDevice / activeAt / activeScreen`：当前正在用的那台，30 分钟内有效，时间以服务端收到的为准。
+
+**拍肩往哪去**（`POST /tap`，由服务端决定，返回 `route`）：
+- `self`：正在用的就是发起的那台。不往外推，本机拍。
+- `active`：正在用的是另一台，而且在线。只推给它，发起的那台不拍。
+- `all`：不知道你在哪、30 分钟没人碰，或者那台下线了。推给所有其它在线设备，发起的那台也拍。
+
+钩子先问服务端，再决定本机拍不拍，所以登录了的机器本机那一下会晚大约 0.2 秒。
+
+**推送记录**（`taps` 表，`GET /v2/taps?since=N` 可看，最近 1000 条）：每一次拍肩一行，记时间、发起的设备、判法（`route`）、送到了哪几台，以及手势和字条的密文。
+
+测试：
+- K8–K11：正在用 Mac、正在用 Windows、正在用的那台掉线、「正在用」跟着人换。
+- K12：记下哪台哪块屏，换屏也跟着更新。
+- K13：推送记录可查，内容是密文。
+- 测试里不读真的键鼠，读每台机器自己的 `SHOULDER_TAP_IDLE_FILE`；本机拍了什么记进 `SHOULDER_TAP_TAP_LOG`。
+
+线上 66/66（2026-09-29）。

@@ -15,6 +15,8 @@ import { loadEnv, openStore, lastSyncError } from "./core/store.mjs";
 import { syncConfig, listen } from "./core/sync.mjs";
 import { PID_FILE, alive, listenerPid } from "./core/listener.mjs";
 import { tapDesktop } from "./core/desktop.mjs";
+import { watchIdle } from "./core/idle.mjs";
+import { deviceId } from "./core/sync.mjs";
 
 const cfg = syncConfig(loadEnv());
 if (!cfg) {
@@ -60,7 +62,24 @@ function remoteTap(t) {
   console.log(`tap from ${t.host}: ${t.mode} ${t.caption || ""}${shown ? "" : "（这台没装桌面端，没拍）"}`);
 }
 
-const sub = listen(cfg, (m) => refresh(m.seq), { onTap: remoteTap });
+// 你正在用哪台、哪块屏：这台 3 秒内被碰过（键盘、鼠标），而服务端记的正在用的不是它、或者你换了一块屏，就报一声。
+// 服务端据此把拍肩只推给正在用的那台，并把「你在哪台哪块屏」记下来。只报「被碰过」和第几块屏，不报碰了什么。
+const ME = deviceId();
+let serverActive = null, lastReport = 0, lastScreen = null;
+function onIdle(ms, screen) {
+  const key = screen ? `${screen.screen}/${screen.screens}` : null;
+  if (ms >= 3000 || (serverActive === ME && key === lastScreen) || Date.now() - lastReport < 2000) return;
+  lastReport = Date.now();
+  lastScreen = key;
+  sub.send({ type: "active", ...(screen ?? {}) });
+}
+function onActive(device) {
+  if (device !== serverActive) console.log(`active → ${device === ME ? "这台" : device ?? "没人"}`);
+  serverActive = device;
+}
+
+const sub = listen(cfg, (m) => refresh(m.seq), { onTap: remoteTap, onActive });
 await sub.ready;
+watchIdle(onIdle, loadEnv());
 console.log("listening");
 await refresh("start"); // 刚连上：补一次，断线期间别的机器改过的也拉下来

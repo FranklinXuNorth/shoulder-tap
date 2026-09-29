@@ -120,15 +120,20 @@ function spawnRefresh(force = false) {
  * 传过去的正文只落进托盘提示，留个事后能看一眼的地方。
  */
 /**
- * 跨设备：这一下在本机拍完，再推给同一个账号里其它在线的机器（你可能正盯着另一台）。
- * 就在钩子里发完再退（最多等 1.5 秒，平时一两百毫秒）：甩到后台进程的话，Claude Code 在 Windows 上
- * 钩子一结束就连带收掉它的子进程，那一下根本发不出去。没登录、没配同步就什么都不做；发不出去也不影响本机那一下。
+ * 跨设备：只拍在你正在用的那台。先把这一下交给服务端，由它决定去哪（见 worker 的 tap()）：
+ *   你正在用另一台 → 推给那台，这台不拍（返回 true）
+ *   你就在这台 / 不知道你在哪 → 这台照拍（不知道时服务端也会推给其它在线设备）
+ * 就在钩子里等它回话（最多 1.5 秒，平时一两百毫秒）：甩到后台进程的话，Claude Code 在 Windows 上
+ * 钩子一结束就连带收掉它的子进程。没登录、没配同步、发不出去，都当「这台照拍」。
  */
 async function relayTap(env, tap) {
-  if (env.SHOULDER_TAP_NO_RELAY === "1") return;
+  if (env.SHOULDER_TAP_NO_RELAY === "1") return false;
   const cfg = syncConfig(env);
-  if (!cfg) return;
-  try { await sendTap(cfg, tap); } catch {}
+  if (!cfg) return false;
+  try {
+    const r = await sendTap(cfg, tap);
+    return r?.route === "active" && r.delivered > 0;
+  } catch { return false; }
 }
 
 function say(event, text) {
@@ -227,17 +232,15 @@ async function main() {
     // 结尾有几只手就拍几下，桌面按顺序排队：响指（做完了）在前，taptap（提醒）在后。
     // 手旁边那一小条字：响指放这轮的如实总结；taptap 放手后面那句提醒。
     const reminder = reminderAfterHand(tail);
-    const relays = [];
     for (const gesture of completionGestures(payload)) {
       // 聊天里的手就是桌面上的手：响指 → 响指，taptap → taptap。
       const mode = gesture;
       const caption = mode === "tap" ? reminder : doneLine(payload.last_assistant_message);
       const habit = mode === "tap" ? dueHabitIn(state.plan, reminder) : ""; // 提醒的是习惯：手下面带两个按钮
       const skippable = habit !== "" && habitSkippable(state.plan, habit);
-      tapDesktop(env, caption, payload, mode, caption, habit, skippable);
-      relays.push(relayTap(env, { mode, text: caption, caption, habit, skippable }));
+      const elsewhere = await relayTap(env, { mode, text: caption, caption, habit, skippable });
+      if (!elsewhere) tapDesktop(env, caption, payload, mode, caption, habit, skippable);
     }
-    await Promise.all(relays);
     return;
   }
 
@@ -246,8 +249,8 @@ async function main() {
   if (event === "PreToolUse") {
     if (payload.tool_name === "AskUserQuestion") {
       const question = questionLine(payload.tool_input);
-      tapDesktop(env, "", payload, "complete", question); // 问你话 → 拍拍你
-      await relayTap(env, { mode: "complete", text: "", caption: question });
+      const elsewhere = await relayTap(env, { mode: "complete", text: "", caption: question });
+      if (!elsewhere) tapDesktop(env, "", payload, "complete", question); // 问你话 → 拍拍你（你正在用另一台就拍那台）
     }
     return;
   }

@@ -31,7 +31,8 @@ export function deviceId() {
   try { user = os.userInfo().username; } catch {}
   return crypto.createHash("sha256").update(`${os.hostname()}|${user}|${os.homedir()}`).digest("hex").slice(0, 24);
 }
-export const deviceLabel = () => `${os.hostname()} · ${process.platform === "win32" ? "Windows" : process.platform === "darwin" ? "macOS" : process.platform}`;
+export const deviceLabel = () => process.env.SHOULDER_TAP_DEVICE_LABEL ||
+  `${os.hostname()} · ${process.platform === "win32" ? "Windows" : process.platform === "darwin" ? "macOS" : process.platform}`;
 
 /**
  * 配齐了才算开。两种：
@@ -285,8 +286,9 @@ export async function push(cfg, d) {
  * 断了两秒后自己重连；每 30 秒 ping 一下，免得被中间的网络设备掐掉。返回 { ready, close }。
  * 口令放在 Sec-WebSocket-Protocol 里（"st", 口令），不进 URL。
  */
-export function listen(cfg, onChange, { retryMs = 2000, onTap } = {}) {
-  const url = cfg.url.replace(/^http/, "ws") + `/ws?device=${deviceId()}`; // 报上是哪台：别的机器拍肩时不回发给自己
+export function listen(cfg, onChange, { retryMs = 2000, onTap, onActive } = {}) {
+  // 报上是哪台（别的机器拍肩时不回发给自己；服务端「你在哪」那张表也记这个名字）
+  const url = cfg.url.replace(/^http/, "ws") + `/ws?device=${deviceId()}&label=${encodeURIComponent(deviceLabel())}`;
   let ws, timer, closed = false, resolveReady;
   const ready = new Promise((r) => (resolveReady = r));
   const open = () => {
@@ -298,6 +300,7 @@ export function listen(cfg, onChange, { retryMs = 2000, onTap } = {}) {
         const m = JSON.parse(e.data);
         if (m.type === "changed") onChange(m);
         else if (m.type === "tap" && onTap) onTap(unseal(cfg.key, m.blob), m.from);
+        else if ((m.type === "active" || m.type === "hello") && onActive) onActive(m.type === "active" ? m.device : m.active ?? null);
       } catch {}
     };
     ws.onclose = () => { if (!closed) timer = setTimeout(open, retryMs); };
@@ -305,14 +308,16 @@ export function listen(cfg, onChange, { retryMs = 2000, onTap } = {}) {
   };
   open();
   const ping = setInterval(() => { if (ws?.readyState === 1) ws.send("ping"); }, 30_000);
-  return { ready, close() { closed = true; clearTimeout(timer); clearInterval(ping); try { ws?.close(); } catch {} } };
+  const send = (obj) => { if (ws?.readyState === 1) ws.send(JSON.stringify(obj)); };
+  return { ready, send, close() { closed = true; clearTimeout(timer); clearInterval(ping); try { ws?.close(); } catch {} } };
 }
 
 /**
  * 跨设备拍肩：这台拍完之后，把这一下（手势、字条、正文、到点的习惯）加密发出去，服务端转给同一个账号里其它在线的设备，
- * 那边的 listen.mjs 解密后在自己的桌面上拍。服务端只见密文。返回送到了几台。
+ * 那边的 listen.mjs 解密后在自己的桌面上拍。服务端只见密文。
+ * 返回服务端的决定 {delivered, route, active}：route 是 "active" 且送到了，说明你正在用另一台，这台就别拍了。
  */
 export async function sendTap(cfg, tap) {
   const blob = seal(cfg.key, { ...tap, host: os.hostname(), at: nowIso() });
-  return (await request(cfg, "/tap", { method: "POST", body: JSON.stringify({ blob, from: deviceId() }) })).delivered ?? 0;
+  return request(cfg, "/tap", { method: "POST", body: JSON.stringify({ blob, from: deviceId() }) });
 }
