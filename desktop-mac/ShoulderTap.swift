@@ -199,9 +199,26 @@ final class Lane {
         let gap: CGFloat = 12
         let width = hand.width + gap + captionMax
 
+        // 手左边那一小条字：拍拍放这轮的总结，taptap 放提醒，响指放问题。宽度封顶 captionMax，字多了往下长，不截断。
+        var captionLabel: NSTextField?
+        var captionSize = NSSize.zero
+        if !caption.isEmpty {
+            let label = NSTextField(wrappingLabelWithString: caption)
+            label.font = captionFont
+            label.maximumNumberOfLines = 0
+            label.lineBreakMode = .byWordWrapping
+            let inner = captionMax - 24
+            label.preferredMaxLayoutWidth = inner
+            let fit = label.sizeThatFits(NSSize(width: inner, height: .greatestFiniteMagnitude))
+            captionSize = NSSize(width: min(ceil(fit.width), inner), height: ceil(fit.height))
+            captionLabel = label
+        }
+        let boxHeight = captionLabel == nil ? 0 : captionSize.height + 15
+        let height = max(hand.height, boxHeight)
+
         let work = activeScreen().visibleFrame
         let centerY = work.maxY - work.height * fromTop
-        let frame = NSRect(x: work.maxX - width, y: centerY - hand.height / 2, width: width, height: hand.height)
+        let frame = NSRect(x: work.maxX - width, y: centerY - height / 2, width: width, height: height)
 
         let panel = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
@@ -218,24 +235,16 @@ final class Lane {
         panel.contentView = root
 
         let handLayer = CALayer()
-        handLayer.frame = CGRect(x: width - hand.width, y: 0, width: hand.width, height: hand.height)
+        handLayer.frame = CGRect(x: width - hand.width, y: (height - hand.height) / 2, width: hand.width, height: hand.height)
         handLayer.magnificationFilter = .nearest
         handLayer.contents = frames[0]
         root.layer?.addSublayer(handLayer)
 
-        // 手左边那一小条字：拍拍放这轮的总结，taptap 放提醒，响指放问题。最多三行，超了省略号。
-        if !caption.isEmpty {
+        if let label = captionLabel {
             let (ink, paper) = captionColors()
-            let label = NSTextField(wrappingLabelWithString: caption)
-            label.font = captionFont
             label.textColor = ink
-            label.maximumNumberOfLines = 3
-            label.lineBreakMode = .byTruncatingTail
-            let inner = captionMax - 24
-            label.preferredMaxLayoutWidth = inner
-            let fit = label.sizeThatFits(NSSize(width: inner, height: 66))
-            let w = min(fit.width, inner), h = min(fit.height, 66)
-            let box = NSView(frame: NSRect(x: width - hand.width - gap - (w + 24), y: (hand.height - (h + 15)) / 2, width: w + 24, height: h + 15))
+            let (w, h) = (captionSize.width, captionSize.height)
+            let box = NSView(frame: NSRect(x: width - hand.width - gap - (w + 24), y: (height - boxHeight) / 2, width: w + 24, height: boxHeight))
             box.wantsLayer = true
             box.layer?.backgroundColor = paper.cgColor
             box.layer?.borderColor = ink.cgColor
