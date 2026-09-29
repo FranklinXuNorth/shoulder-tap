@@ -1,6 +1,6 @@
 # 跨平台同步（设计稿 v0.1，`sync` 分支）
 
-状态：Worker、客户端同步层、本地 harness（21 个用例）已实现，全部对着 `deploy tool dev` 跑通；**还没部署**，还没在真 Mac 上跑过。
+状态：已部署到 `https://sync.example`。harness 28 个用例对着线上 Worker 全部通过（2026-09-28，从纽约的 Windows 机器跑）。还没在真 Mac、真 OpenClaw 上跑过。
 
 ## 要解决什么
 
@@ -83,6 +83,30 @@ node harness/run.mjs --test-name-pattern=O  # 只跑某一组
 | **W** Windows ↔ Mac | W1 一边 set 另一边看到 · W2 一边勾掉另一边当前条跟着变 · W3 双离线各加一条后顺序一致 · W4 重排删除同步 · W5 一边加习惯另一边记了就不催 · W6 双离线各记一次：一行 pending、两条历史 · W7 服务端只有密文 · W8 错钥匙 403 · W9 不同系统时区 |
 | **C** Claude Code ↔ Codex | C1 同机两个常驻进程并发各加 10 条不丢、编号连续（同步开/关各一遍）· C2 同机 Claude Code 定、Codex 勾、钩子缓存跟上 · C3 跨机器同上 · C4 Codex 离线改的联网后补推 |
 | **O** Mac Claude Code ↔ Discord OpenClaw | O1 同一台 Mac 直接共用 · O2 服务器 OpenClaw 用你的时区 · O3 还没人记过时区时退回 UTC · O4 不标 headless 用 UTC · O5「喝完水了」后 Mac 钩子不催 · O6「加一条」排最后 · O7「第 1 条今天不做了」 |
+| **N** 真网络 | N1 拉推各 50 次的延迟 · N2 一次 check_focus 总耗时 · N3 新频道冷启动 · N4 1200 行分批分页 · N5 超时退回单机、之后补推 · N6 DELETE 清空频道（每个用例收尾都清） |
+| **L** 长会话 | L1 真 watch.mjs 按 Claude Code 的方式跑 500 轮（开口 + 说完）：每轮注入都有清单、这轮的话、第一行规则和手；第 250 轮 OpenClaw 勾掉第 1 条，看注入多久跟上；每 100 轮漏一次手看顶回；钩子不随轮数变慢 |
+
+### 线上结果（2026-09-28）
+
+| 指标 | 数 |
+|---|---|
+| 拉 / 推 | p50 34ms / 42ms，p90 38ms / 45ms |
+| 一次 `check_focus`（MCP 往返 + 三次拉 + 推） | p50 138ms，p90 149ms |
+| 新频道冷启动 | 149–267ms |
+| 500 轮会话里的开口钩子 | 前 50 轮中位数 110ms，后 50 轮 133ms；会话记录涨到 177KB 不影响 |
+| OpenClaw 勾掉后 Mac 注入跟上 | 1.4 秒（第 257 轮）。最坏情况是后台刷新节流 20 秒再加一轮 |
+
+结论：拉的次数（下一步第 3 条）暂时不用优化，都远在 1.5 秒超时以内。
+
+**500 轮测的是什么、没测什么**：shoulder-tap 不靠模型的上下文记事。每轮开口时，钩子都从本机或同步过来的数据重新读一遍清单塞进去，所以上下文多长、有没有被压缩都不影响。L1 证明的就是这一点。真模型在 500 轮上下文里会不会照规则办事（第一行写结论、结尾打手），要真调模型才测得到，这里没测。漏手的情况由 Stop 钩子兜底，顶回一次。
+
+## 第一行是结论
+
+响指旁边那条字（桌面上的总结）一直取的是回答的第一段（`completion.mjs` 的 `doneLine`），但规则写的是「手前面那句话是总结」，两边对不上，桌面上常常显示开场白。现在统一成：
+
+- 规则：每轮回答的**第一行**是一句话的结论，不超过 60 字、不带 markdown。每轮注入的 `renderDone`、`CLAUDE.md.snippet`、漏手时顶回去的提示，三处说法一致。
+- 抓取：`doneLine` 取第一个有字的行，去掉 markdown 壳。
+- 安装：`install.mjs` 以前看到已有「## 专注」就整节不动，老用户永远拿不到新规则。现在只插入或替换带标记的块（`<!-- shoulder-tap:first-line -->`），放在标题下第一行，块外一个字不动；再装一次不变；CRLF 文件照样认得（`core/claude-md.mjs`，有测试）。卸载时整节删除，块跟着走。
 
 **模拟不了、要真机跑的**：
 - 真 Mac 的文件系统和 `rename` 语义。
@@ -94,7 +118,7 @@ node harness/run.mjs --test-name-pattern=O  # 只跑某一组
 
 ## 下一步
 
-1. **部署**：`cd worker && npx deploy tool deploy`，拿到 `*.sync.example` 地址，再用 `node harness/run.mjs <地址>` 在真 sync service 上跑一遍。
+1. ~~部署~~：已完成。重新部署用 `cd worker && npx deploy tool deploy`，然后 `node harness/run.mjs https://sync.example`。
 2. **设置页**：「跨机器同步」一栏。第一台生成密钥，给别的机器看一个可以复制的配对串（地址 + 密钥）；关掉就是删 `.env` 里那两行。
 3. **拉的频率**：现在每次调用都拉，一次 `check_focus` 会拉三回（noteTz、listDay、overdueHabits）。本地 deploy tool 上每次 5ms；真网络上要量，必要时同一进程里 2 秒内只拉一次。
 4. **拍肩中转**（旧 `cross-machine` 设计，d1812b4）：跟这个共用 Worker 和同一把密钥，频道 DO 里再挂 WebSocket。等同步在真机上稳了再接回来。

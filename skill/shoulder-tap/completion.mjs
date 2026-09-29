@@ -27,7 +27,7 @@ export function missingHandDecision(payload) {
   return {
     decision: "block",
     reason:
-      "结尾漏了手。补上：一句话说这轮做了什么，然后原样打出响指那只手（check_focus 的返回里有画，代码块）。" +
+      "结尾漏了手。补上：第一行是一句话的结论，最末尾原样打出响指那只手（check_focus 的返回里有画，代码块）。" +
       "今天说好的那条还没动、或有习惯到点，就再打 taptap 那只手，最后加一句提醒。",
   };
 }
@@ -55,15 +55,15 @@ export function dueHabitIn(plan, reminder) {
 }
 
 /**
- * 这轮回答的第一段，当响指旁边的那条如实总结。
- * 先把结尾的手（不管几只）和它们后面的提醒切掉，取第一段（空行之前），再去掉 markdown 的壳。超了打省略号。
+ * 这轮回答的第一行，当响指旁边的那条如实总结 —— 规则（renderDone、CLAUDE.md 那一节）要求模型把结论写在第一行。
+ * 先把结尾的手（不管几只）和它们后面的提醒切掉，取第一个有字的行（代码块开头、空的标题壳都跳过），再去掉 markdown 的壳。超了打省略号。
  */
 export function doneLine(message, limit = 120) {
   let text = message || "";
   const first = [TAP, SNAP, PAT].map((a) => text.lastIndexOf(a)).filter((i) => i >= 0).sort((a, b) => a - b)[0];
   const fence = first === undefined ? -1 : text.lastIndexOf("```", first);
   if (fence >= 0) text = text.slice(0, fence);
-  text = text.trim().split(/\n\s*\n/)[0] || "";
+  text = text.split("\n").find((l) => !l.trim().startsWith("```") && /[^\s#>*`|-]/.test(l)) || "";
   text = text
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")

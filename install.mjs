@@ -18,7 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import net from "node:net";
 import { execFileSync, spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const claude = path.join(os.homedir(), ".claude");
@@ -92,11 +92,13 @@ log(`钩子 → ${settingsPath}（新加 ${added} 个）`);
 // 3. CLAUDE.md
 const claudeMd = path.join(claude, "CLAUDE.md");
 const have = fs.existsSync(claudeMd) ? fs.readFileSync(claudeMd, "utf8") : "";
-if (have.includes("## 专注")) log("CLAUDE.md 已有「## 专注」，不动");
+// 已经有「## 专注」（多半被你改过）：只插 / 换带标记的块，你自己写的不动。规则见 core/claude-md.mjs。
+const { mergeFocusSection } = await import(pathToFileURL(path.join(skillDst, "core", "claude-md.mjs")).href);
+const merged = mergeFocusSection(have, fs.readFileSync(path.join(root, "skill", "CLAUDE.md.snippet"), "utf8"));
+if (merged === have) log("CLAUDE.md 的「## 专注」已经是最新的，不动");
 else {
-  const snippet = fs.readFileSync(path.join(root, "skill", "CLAUDE.md.snippet"), "utf8").replace(/^<!--[\s\S]*?-->\s*/, "");
-  fs.writeFileSync(claudeMd, have.trimEnd() + (have ? "\n\n" : "") + snippet.trimEnd() + "\n");
-  log(`CLAUDE.md ← 专注那一节`);
+  fs.writeFileSync(claudeMd, merged);
+  log(have.includes("## 专注") ? "CLAUDE.md ← 「## 专注」里更新了 shoulder-tap 的规则块（你自己写的没动）" : "CLAUDE.md ← 专注那一节");
 }
 
 // 4. 桌面端
