@@ -8,11 +8,14 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { call } from "./core/tools.mjs";
 
-const [cmd, name] = process.argv.slice(2);
+const [cmd, raw] = process.argv.slice(2);
+// 提醒发出时带上了「这次提醒」的 ID（习惯名#ID）：一次提醒只能被回答一次，别处点过这里就不重复记
+const m = /^(.*)#([\w-]{8,})$/.exec(raw ?? "");
+const [name, reminder] = m ? [m[1], m[2]] : [raw, undefined];
 if (!["done", "skip"].includes(cmd) || !name) {
   console.log("用法：node habit.mjs done|skip <习惯名>");
   process.exit(1);
 }
 const skip = cmd === "skip" ? { skip: true, note: "桌面上点了今天不做" } : {};
-console.log(await call("log_habit", { habit: name, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, ...skip }));
+console.log(await call("log_habit", { habit: name, reminder, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, ...skip }));
 spawnSync(process.execPath, [path.join(path.dirname(fileURLToPath(import.meta.url)), "watch.mjs"), "--refresh"], { stdio: "ignore", windowsHide: true });

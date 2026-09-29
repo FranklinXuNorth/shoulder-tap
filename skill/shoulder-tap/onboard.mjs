@@ -18,6 +18,7 @@ import { callText } from "./core/tools.mjs";
 import { STATE_DIR, loadEnv, readConfig, writeConfig, machineTz, openStore, syncNow, moveNotionToLocal } from "./core/store.mjs";
 import { startDeviceLogin, pollDeviceLogin, openVault, logout, writeEnv } from "./core/account.mjs";
 import { ensureListener, stopListener } from "./core/listener.mjs";
+import { syncConfig, deviceId } from "./core/sync.mjs";
 import * as notion from "./core/focus.mjs";
 import { pageIdFrom, NotionError } from "./core/notion.mjs";
 import { STRINGS } from "./core/strings.mjs";
@@ -229,6 +230,36 @@ const loginRoutes = {
   },
   "POST /api/login/cancel": () => { pendingLogin = null; return {}; },
   "POST /api/sync": () => syncNow(),
+  // 给设备改名：服务端记一份（设备列表按它显示）；改的是这台自己，本地也记一份，推出去的拍肩字条上用这个名字
+  "POST /api/devices/rename": async ({ device, name }) => {
+    const cfg = syncConfig(loadEnv());
+    if (!cfg) throw new Error("没登录");
+    const clean = String(name ?? "").trim().slice(0, 40);
+    const res = await fetch(`${cfg.url}/rename`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${cfg.auth}` }, body: JSON.stringify({ device, name: clean }), signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error(`没改成（${res.status}）`);
+    if (device === deviceId()) {
+      writeConfig({ deviceName: clean || null });
+      stopListener(); ensureListener(); // 推送连接带着名字，重连一次
+    }
+    return {};
+  },
+  // 右上角菜单里的「设备」：哪几台开着（在运转）、你正在用哪台哪块屏、各自最后一次被碰是什么时候
+  "GET /api/devices": async () => {
+    const cfg = syncConfig(loadEnv());
+    if (!cfg) return { loggedIn: false, devices: [] };
+    const res = await fetch(`${cfg.url}/presence`, { headers: { authorization: `Bearer ${cfg.auth}` }, signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error(`拿不到设备列表（${res.status}）`);
+    const p = await res.json();
+    const me = deviceId();
+    const rows = new Map(p.devices.map((d) => [d.device, { ...d, online: false }]));
+    for (const o of p.online) rows.set(o.device, { ...(rows.get(o.device) ?? { device: o.device, label: o.label }), online: true });
+    return {
+      loggedIn: true,
+      devices: [...rows.values()]
+        .map((d) => ({ ...d, me: d.device === me, active: p.active?.device === d.device, activeScreen: p.active?.device === d.device ? p.active.screen : null }))
+        .sort((a, b) => Number(b.active) - Number(a.active) || Number(b.online) - Number(a.online) || (b.at ?? 0) - (a.at ?? 0)),
+    };
+  },
   "POST /api/logout": async () => {
     const token = loadEnv().SHOULDER_TAP_DEVICE_TOKEN;
     if (token) await logout(syncBase(), token).catch(() => {});

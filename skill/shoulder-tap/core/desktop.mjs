@@ -22,7 +22,7 @@ export function tapDesktop(env, text, payload = {}, mode = "tap", caption = "", 
   const body = (text || "").trim();
   if (!body && mode === "tap") return false;
   // 测试用：记一行「这台拍了什么」，不起桌面端
-  if (env.SHOULDER_TAP_TAP_LOG) { fs.appendFileSync(env.SHOULDER_TAP_TAP_LOG, `${mode} ${caption || body}\n`); return true; }
+  if (env.SHOULDER_TAP_TAP_LOG) { fs.appendFileSync(env.SHOULDER_TAP_TAP_LOG, `${mode} ${caption || body}${habit ? ` habit=${habit}` : ""}\n`); return true; }
   try {
     if (!fs.existsSync(exe)) return false;
     spawn(exe, desktopArgs(payload, mode, body, caption, habit, skippable), { detached: true, stdio: "ignore", windowsHide: true }).unref();

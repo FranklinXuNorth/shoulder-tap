@@ -102,7 +102,7 @@ const status = (h) => h.status ?? "pending";
 const activatedOf = (h) => h.activated ?? h.last;
 
 const asHabit = (h, now = Date.now()) => ({
-  id: h.sid, sid: h.sid, name: h.name, everyMin: h.everyMin ?? 0, at: h.at || undefined, tz: h.tz ?? "",
+  id: h.sid, sid: h.sid, rid: h.rid, name: h.name, everyMin: h.everyMin ?? 0, at: h.at || undefined, tz: h.tz ?? "",
   kind: h.kind === "soft" ? "soft" : "hard",
   status: status(h), activated: activatedOf(h), finished: h.finished, note: h.note ?? "",
   overdueMin: status(h) === "pending"
@@ -131,15 +131,21 @@ export async function addHabit(_, name, everyMinutes, note, tz, at, kind = "hard
   return listHabits();
 }
 
-/** 做了 / 今天跳过：这一行收尾，再开下一行 pending。软习惯不许跳过。 */
-export async function logHabit(_, name, tz, note, skip = false) {
+/**
+ * 做了 / 今天跳过：这一行收尾，再开下一行 pending。软习惯不许跳过。
+ * reminder：桌面上那只手的按钮带回来的「这次提醒」—— 就是提醒发出时 pending 那一行的 rid。
+ * 这一行已经不是 pending 了（别的设备、别的窗口已经点过），就不再记，回 duplicate：一次提醒只能被回答一次。
+ */
+export async function logHabit(_, name, tz, note, skip = false, reminder = null) {
   const d = load();
   const hit = findHabit(active(d).map((h) => asHabit(h)), name);
   if (!hit) return undefined;
   if (skip && hit.kind === "soft") return { ...hit, refused: true };
   const row = active(d).find((h) => h.sid === hit.sid);
+  if (reminder && row.rid !== reminder) return { ...hit, duplicate: true };
   const at = nowUtc();
-  Object.assign(row, { status: skip ? "dropped" : "done", activated: activatedOf(row), finished: at, ...(note === undefined ? {} : { note }) });
+  Object.assign(row, { status: skip ? "dropped" : "done", activated: activatedOf(row), finished: at,
+    ...(note === undefined ? {} : { note }), ...(reminder ? { answers: reminder } : {}) });
   delete row.last;
   // 收尾的这一行换个同步 ID：两台机器离线时各记了一次，是两条记录，不能因为收的是同一行 pending 就合成一条。
   delete row.rid;

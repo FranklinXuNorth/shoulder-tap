@@ -463,12 +463,15 @@ export async function addHabit(token, name, everyMinutes, note, tz, at, kind = "
  * 记一笔：做了（done），或者今天跳过（skip → dropped，原因写 note）。
  * 这一行收尾，再开下一行 pending。软习惯不许跳过：原样返回并带 refused，什么都不写。
  */
-export async function logHabit(token, name, tz, note, skip = false) {
+export async function logHabit(token, name, tz, note, skip = false, reminder = null) {
     const hit = findHabit(await activeHabits(token), name);
     if (!hit)
         return undefined;
     if (skip && hit.kind === "soft")
         return { ...hit, refused: true };
+    // 这次提醒已经被回答过了（pending 那一页已经换成下一页）：不重复记
+    if (reminder && hit.id !== reminder)
+        return { ...hit, duplicate: true };
     const at = nowUtc();
     await notion(token, "PATCH", `/pages/${hit.id}`, {
         properties: {

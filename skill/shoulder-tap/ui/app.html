@@ -59,6 +59,16 @@
   .acct .menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; display: flex; flex-direction: column; min-width: 170px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
   .acct .menu button { border: 0; text-align: left; background: transparent; padding: 8px 10px; font-size: 14px; }
   .acct .menu button:hover { background: var(--surface-2); }
+  .acct .menu { min-width: 290px; }
+  .devs { padding: 6px 10px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+  .devh { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  #devList { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
+  #devList li { display: grid; grid-template-columns: 12px 1fr; gap: 8px; padding: 4px 0; align-items: baseline; }
+  #devList .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); display: inline-block; }
+  #devList .dot.on { background: var(--accent); }
+  #devList small { display: block; color: var(--muted); font-size: 12px; }
+  #devList button.ren { border: 0; background: transparent; padding: 0 4px; font-size: 12px; color: var(--muted); cursor: pointer; }
+  #devList button.ren:hover { color: var(--ink); }
   #acctBtn { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   dialog#loginDlg { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); padding: 22px; width: min(460px, calc(100vw - 32px)); }
   dialog#loginDlg::backdrop { background: rgba(0,0,0,.35); }
@@ -206,6 +216,7 @@
       <button id="signinBtn" class="small primary hidden" data-t="signin"></button>
       <button id="acctBtn" class="small hidden"></button>
       <div id="acctMenu" class="menu hidden">
+        <div class="devs"><div class="devh" data-t="devicesH"></div><ul id="devList"></ul></div>
         <button id="menuCloud" data-t="openCloud"></button>
         <button id="menuSync" data-t="syncNow"></button>
         <button id="menuOut" data-t="signout"></button>
@@ -436,7 +447,37 @@
     $("acctBtn").textContent = (s.email || t("signin")) + " ▾";
     $("acctMenu").classList.add("hidden");
   }
-  $("acctBtn").onclick = (e) => { e.stopPropagation(); $("acctMenu").classList.toggle("hidden"); };
+  $("acctBtn").onclick = (e) => {
+    e.stopPropagation();
+    const menu = $("acctMenu");
+    menu.classList.toggle("hidden");
+    if (!menu.classList.contains("hidden")) renderDevices();
+  };
+  $("acctMenu").onclick = async (e) => {
+    e.stopPropagation();
+    const b = e.target.closest("button.ren");
+    if (!b) return;
+    const name = prompt(t("devRenamePrompt"), b.dataset.name);
+    if (name === null) return;
+    try { await api("POST", "/api/devices/rename", { device: b.dataset.dev, name }); } catch (err) { alert(err.message); }
+    renderDevices();
+  };
+  // 设备：哪几台开着（在运转）、你正在用哪台哪块屏、各自最后一次被碰是什么时候。打开菜单时才去问服务端
+  async function renderDevices() {
+    const list = $("devList");
+    list.innerHTML = `<li><span></span><small>${esc(t("devicesLoading"))}</small></li>`;
+    try {
+      const r = await api("GET", "/api/devices");
+      const when = (at) => at ? new Date(at).toLocaleString(lang === "zh" ? "zh-CN" : "en-US", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+      list.innerHTML = r.devices.length ? r.devices.map((d) => {
+        const bits = [d.online ? t("devOnline") : t("devOffline")];
+        if (d.active) bits.unshift(t("devActive") + (d.activeScreen !== null && d.screens ? " · " + t("devScreen")(Number(d.activeScreen) + 1, d.screens) : ""));
+        if (d.at) bits.push(t("devSeen")(when(d.at)));
+        return `<li><span class="dot${d.online ? " on" : ""}"></span><span>${esc(d.label || d.device.slice(0, 8))}${d.me ? ` <b>${esc(t("devThis"))}</b>` : ""}` +
+          ` <button class="ren" data-dev="${esc(d.device)}" data-name="${esc(d.label || "")}" title="${esc(t("devRename"))}">✎</button><small>${esc(bits.join(" · "))}</small></span></li>`;
+      }).join("") : `<li><span></span><small>${esc(t("devNone"))}</small></li>`;
+    } catch (e) { list.innerHTML = `<li><span></span><small>${esc(e.message)}</small></li>`; }
+  }
   document.addEventListener("click", () => $("acctMenu").classList.add("hidden"));
   $("menuCloud").onclick = () => window.open(S.sync.url + "/app", "_blank", "noopener");
   $("menuSync").onclick = async () => { try { alert(t("synced")(await api("POST", "/api/sync"))); await load(); } catch (e) { alert(e.message); } };

@@ -31,8 +31,14 @@ export function deviceId() {
   try { user = os.userInfo().username; } catch {}
   return crypto.createHash("sha256").update(`${os.hostname()}|${user}|${os.homedir()}`).digest("hex").slice(0, 24);
 }
-export const deviceLabel = () => process.env.SHOULDER_TAP_DEVICE_LABEL ||
-  `${os.hostname()} · ${process.platform === "win32" ? "Windows" : process.platform === "darwin" ? "macOS" : process.platform}`;
+export function deviceLabel() {
+  if (process.env.SHOULDER_TAP_DEVICE_LABEL) return process.env.SHOULDER_TAP_DEVICE_LABEL;
+  try { // 设置页里给这台改过名：存在 config.json 的 deviceName（store.mjs 引用了这个文件，这里直接读，免得循环引用）
+    const name = JSON.parse(fs.readFileSync(path.join(os.homedir(), ".claude", "shoulder-tap", "config.json"), "utf8")).deviceName;
+    if (name) return name;
+  } catch {}
+  return `${os.hostname()} · ${process.platform === "win32" ? "Windows" : process.platform === "darwin" ? "macOS" : process.platform}`;
+}
 
 /**
  * 配齐了才算开。两种：
@@ -221,6 +227,16 @@ function dedupePending(d) {
     if (!cur || at > (cur.activated ?? cur.last ?? "") || (at === (cur.activated ?? cur.last ?? "") && h.rid > cur.rid)) keep.set(h.sid, h);
   }
   d.habits = d.habits.filter((h) => (h.status ?? "pending") !== "pending" || keep.get(h.sid) === h);
+  // 两台离线时各自点了同一次提醒的「已经做了」：answers 一样的收尾行只留最早的那条（一次提醒只算一次）。
+  // 在聊天里说的「做了」没有 answers，照旧各算各的 —— 那可能真是做了两次。
+  const first = new Map();
+  for (const h of d.habits) {
+    if (!h.answers || (h.status ?? "pending") === "pending") continue;
+    const cur = first.get(h.answers);
+    const k = `${h.finished ?? ""} ${h.rid ?? ""}`;
+    if (!cur || k < `${cur.finished ?? ""} ${cur.rid ?? ""}`) first.set(h.answers, h);
+  }
+  d.habits = d.habits.filter((h) => !h.answers || (h.status ?? "pending") === "pending" || first.get(h.answers) === h);
 }
 
 async function request(cfg, path, init = {}) {
@@ -318,6 +334,6 @@ export function listen(cfg, onChange, { retryMs = 2000, onTap, onActive } = {}) 
  * 返回服务端的决定 {delivered, route, active}：route 是 "active" 且送到了，说明你正在用另一台，这台就别拍了。
  */
 export async function sendTap(cfg, tap) {
-  const blob = seal(cfg.key, { ...tap, host: os.hostname(), at: nowIso() });
+  const blob = seal(cfg.key, { ...tap, host: deviceLabel(), at: nowIso() }); // 对面字条前面标的「来自哪台」：用这台的名字
   return request(cfg, "/tap", { method: "POST", body: JSON.stringify({ blob, from: deviceId() }) });
 }

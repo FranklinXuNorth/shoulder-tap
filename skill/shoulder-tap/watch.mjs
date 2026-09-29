@@ -33,6 +33,8 @@ import { readUpdate, writeUpdate, dueForCheck } from "./core/update.mjs";
 import { ensureListener } from "./core/listener.mjs";
 import { tapDesktop } from "./core/desktop.mjs";
 import { syncConfig, sendTap } from "./core/sync.mjs";
+import { openStore } from "./core/store.mjs";
+import { findHabit } from "./core/focus.mjs";
 
 const SELF = fileURLToPath(import.meta.url);
 
@@ -236,8 +238,14 @@ async function main() {
       // 聊天里的手就是桌面上的手：响指 → 响指，taptap → taptap。
       const mode = gesture;
       const caption = mode === "tap" ? reminder : doneLine(payload.last_assistant_message);
-      const habit = mode === "tap" ? dueHabitIn(state.plan, reminder) : ""; // 提醒的是习惯：手下面带两个按钮
-      const skippable = habit !== "" && habitSkippable(state.plan, habit);
+      const due = mode === "tap" ? dueHabitIn(state.plan, reminder) : ""; // 提醒的是习惯：手下面带两个按钮
+      const skippable = due !== "" && habitSkippable(state.plan, due);
+      // 按钮带上「这次提醒」的 ID（此刻 pending 那一行）：同一次提醒在几处被点，只记一次
+      let habit = due;
+      if (due) {
+        const h = findHabit(await openStore().listHabits().catch(() => []), due);
+        if (h?.rid || h?.id) habit = `${due}#${h.rid || h.id}`;
+      }
       const elsewhere = await relayTap(env, { mode, text: caption, caption, habit, skippable });
       if (!elsewhere) tapDesktop(env, caption, payload, mode, caption, habit, skippable);
     }

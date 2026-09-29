@@ -59,7 +59,14 @@ export const TOOLS = [
   {
     name: "log_habit",
     description: "用户说他刚做了某个习惯，就调用这个把计时清零。他说今天不做了，传 skip=true 并把原因写进 note —— 但软习惯（soft）是随手就能做的事，不许跳过，会被拒绝，照实告诉他。不要替他记：他没说做，就是没做。",
-    inputSchema: { type: "object", required: ["habit"], properties: { habit: { type: "string", description: "习惯名或短 ID，模糊匹配" }, skip: { type: "boolean" }, note: { type: "string" }, tz: tzProp } },
+    inputSchema: {
+      type: "object", required: ["habit"],
+      properties: {
+        habit: { type: "string", description: "习惯名或短 ID，模糊匹配" }, skip: { type: "boolean" }, note: { type: "string" }, tz: tzProp,
+        again: { type: "boolean", description: "两分钟内刚记过一次、他确认真的又做了一次时才传 true" },
+        reminder: { type: "string", description: "桌面提醒按钮带来的那次提醒的 ID。你不用填" },
+      },
+    },
   },
   {
     name: "stop_habit",
@@ -129,7 +136,16 @@ export async function call(name, a) {
         habits.map((h) => `  · ${h.name} —— ${when(h)}（${h.kind === "soft" ? "软" : "硬"}）`).join("\n");
     }
     case "log_habit": {
-      const hit = await store.logHabit(a.habit, requireTz(a.tz || tzOr), a.note, a.skip === true);
+      // 在聊天里说「做了」、两分钟内同一个习惯已经记过一次：多半是同一次说了两遍（或者桌面上已经点过），先别记
+      if (!a.skip && !a.reminder && a.again !== true) {
+        const h = findHabit(await store.listHabits().catch(() => []), a.habit);
+        const last = h && (await store.habitHistory(20).catch(() => [])).find((r) => r.sid === h.sid && r.status === "done");
+        const ago = last?.finished ? Date.now() - Date.parse(last.finished) : Infinity;
+        if (ago < 120_000)
+          return `「${h.name}」${Math.max(1, Math.round(ago / 1000))} 秒前刚记过一次，这次没记。问他一句是不是真的又做了一次；是的话带 again: true 再调，只是重复说了一遍就不用管。`;
+      }
+      const hit = await store.logHabit(a.habit, requireTz(a.tz || tzOr), a.note, a.skip === true, a.reminder || null);
+      if (hit?.duplicate) return `这次提醒已经记过了：${hit.name}（别的设备或别的窗口已经点过），没有重复记。`;
       if (hit?.refused) return `「${hit.name}」是软习惯，随手就能做的事不能跳过。什么都没记，到点照样会提醒 —— 把这句照实告诉他。`;
       if (hit) return a.skip ? `记下了：${hit.name} 今天跳过。` : `记下了：${hit.name}，下次提醒${hit.at ? `明天 ${hit.at}` : `在 ${hit.everyMin} 分钟后`}。`;
       const all = await store.listHabits().catch(() => []);
