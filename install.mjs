@@ -205,7 +205,7 @@ if (process.argv.includes("--login")) {
   if (r.status !== 0) log(`登录没走完，之后再跑：node "${loginMjs}"`);
   if (config.onboarded) process.exit(0); // 老机器：设置页早就点过了
 } else if (!/^SHOULDER_TAP_VAULT_KEY=\S/m.test(fs.readFileSync(env, "utf8"))) {
-  log(`跨机器同步 → 还没登录。要跟别的机器同步就跑：node "${loginMjs}"`);
+  log(`跨机器同步 → 没登录（不登录也什么都能用）。要跟别的机器同步：设置页右上角点「登录」，只有终端的机器跑 node "${loginMjs}"`);
 }
 
 if (process.argv.includes("--update")) process.exit(0); // 更新：设置早就做过了
