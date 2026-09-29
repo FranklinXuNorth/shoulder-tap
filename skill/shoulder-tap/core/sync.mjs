@@ -17,9 +17,21 @@
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 export const newSyncKey = () => crypto.randomBytes(32).toString("base64url");
+
+/**
+ * 这台设备是谁：主机名 + 用户名 + 主目录算出来的稳定 ID，不用存。同一台机器重新登录，服务端据此作废旧令牌；
+ * 「这个账号下几个设备」也按它数。label 给人看（设置页 / 网页版的设备列表）。
+ */
+export function deviceId() {
+  let user = "";
+  try { user = os.userInfo().username; } catch {}
+  return crypto.createHash("sha256").update(`${os.hostname()}|${user}|${os.homedir()}`).digest("hex").slice(0, 24);
+}
+export const deviceLabel = () => `${os.hostname()} · ${process.platform === "win32" ? "Windows" : process.platform === "darwin" ? "macOS" : process.platform}`;
 
 /**
  * 配齐了才算开。两种：
@@ -71,7 +83,8 @@ export async function withLock(file, fn, staleMs = 10_000) {
       fs.closeSync(fs.openSync(lock, "wx"));
       break;
     } catch (e) {
-      if (e.code !== "EEXIST") throw e;
+      // Windows：锁文件刚被删、还有别的句柄（杀毒软件常干这事）开着时，会报 EPERM / EACCES / EBUSY 而不是 EEXIST —— 都当「有人占着」，等一下再抢
+      if (!["EEXIST", "EPERM", "EACCES", "EBUSY"].includes(e.code)) throw e;
       try { if (Date.now() - fs.statSync(lock).mtimeMs > staleMs) fs.rmSync(lock, { force: true }); } catch {}
       if (waited > staleMs * 2) throw new Error("data.json 被别的进程锁着太久了");
       await new Promise((r) => setTimeout(r, 25));
@@ -212,7 +225,7 @@ function dedupePending(d) {
 async function request(cfg, path, init = {}) {
   const res = await fetch(cfg.url + path, {
     ...init,
-    headers: { "content-type": "application/json", authorization: `Bearer ${cfg.auth}` },
+    headers: { "content-type": "application/json", authorization: `Bearer ${cfg.auth}`, "x-st-device": deviceId(), "x-st-label": encodeURIComponent(deviceLabel()) },
     signal: AbortSignal.timeout(cfg.timeoutMs),
   });
   if (!res.ok) throw new Error(`sync ${path} → ${res.status} ${await res.text().catch(() => "")}`);

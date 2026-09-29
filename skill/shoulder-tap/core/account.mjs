@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { deviceId, deviceLabel } from "./sync.mjs";
 
 export const ENV_FILE = () => path.join(os.homedir(), ".claude", "skills", "shoulder-tap", ".env");
 async function call(base, pathname, { token, method = "GET", body, fetchImpl = fetch } = {}) {
@@ -26,8 +27,8 @@ async function call(base, pathname, { token, method = "GET", body, fetchImpl = f
  * 设备码登录：要一个码 → onCode(url, code) 让人去浏览器登录 → 轮询到令牌。
  * 浏览器那一步谁来做都行，测试里就直接 POST /auth/password。
  */
-export async function deviceLogin(base, { onCode, intervalMs = 1500, timeoutMs = 10 * 60_000 } = {}) {
-  const issued = await startDeviceLogin(base);
+export async function deviceLogin(base, { onCode, intervalMs = 1500, timeoutMs = 10 * 60_000, device, label } = {}) {
+  const issued = await startDeviceLogin(base, { device, label });
   await onCode?.(issued.url, issued.code);
   for (const end = Date.now() + timeoutMs; Date.now() < end; await new Promise((r) => setTimeout(r, intervalMs))) {
     const data = await pollDeviceLogin(base, issued);
@@ -38,8 +39,9 @@ export async function deviceLogin(base, { onCode, intervalMs = 1500, timeoutMs =
 }
 
 /** 拆开的两步，给自己轮询的人用（设置页）：要一个码 → {code, secret, url}；问一次 → {token,email} | {pending} | {error}。 */
-export async function startDeviceLogin(base) {
-  const issued = (await call(base, "/device/code", { method: "POST" })).data;
+export async function startDeviceLogin(base, { device = deviceId(), label = deviceLabel() } = {}) {
+  // 报上是哪台设备：令牌签发时就记在它名下，这台以前的令牌同时作废
+  const issued = (await call(base, "/device/code", { method: "POST", body: { device, label } })).data;
   if (!issued.code) throw new Error("服务端没发设备码");
   return issued;
 }

@@ -34,8 +34,9 @@
   .records .card { margin: 0; min-height: 0; display: flex; flex-direction: column; }
   .records .card > * { flex: none; }
   #taskDays { flex: 1 1 auto; min-height: 0; }
-  #habitList { flex: 0 1 auto; min-height: 60px; max-height: 45%; }
-  #historyList { flex: 1 1 auto; min-height: 40px; }
+  /* 在盯的习惯不许被记录挤扁：按内容撑开，最多占卡片的 45%，再多自己滚。记录只拿剩下的地方（越攒越长，也只在里面滚） */
+  #habitList { flex: 0 0 auto; min-height: 0; max-height: 45%; }
+  #historyList { flex: 1 1 0; min-height: 40px; }
   .foot { flex: none; margin: 10px 0 0; font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .foot code { font: 11.5px var(--mono); }
   @media (max-width: 720px) { .records { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }

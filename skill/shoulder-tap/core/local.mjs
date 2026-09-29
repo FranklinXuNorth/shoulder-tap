@@ -27,7 +27,14 @@ export function save(d) {
   // 先写临时文件再改名：写到一半断电，也不会留下半个 JSON 把整份数据弄丢。
   const tmp = DATA + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(d, null, 2), "utf8");
-  fs.renameSync(tmp, DATA);
+  // Windows：目标文件正被别的句柄（杀毒软件、索引服务）短暂打开时 rename 会报 EPERM / EBUSY：等一下再试，别把这一次保存丢掉
+  for (let i = 0; ; i++) {
+    try { fs.renameSync(tmp, DATA); return; }
+    catch (e) {
+      if (i >= 40 || !["EPERM", "EACCES", "EBUSY"].includes(e.code)) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
+  }
 }
 
 const inDay = (win) => (t) => t.day >= win.startUtc && t.day < win.endUtc && t.status !== "dropped";
