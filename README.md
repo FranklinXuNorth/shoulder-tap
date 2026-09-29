@@ -70,7 +70,7 @@ How that page comes up differs per platform:
 
 The installer opens a settings page in your browser (reachable only from this machine), at `http://127.0.0.1:47823/#setup`. Five steps, each skippable:
 
-1. **Connect your coding tool** — click "Connect" to hook shoulder-tap into Claude Code / Codex. Claude Desktop, OpenClaw and Hermes can be connected here too, tools only (see below).
+1. **Connect your coding tool** — click "Connect" to hook shoulder-tap into Claude Code / Codex. Claude Desktop can be connected here too, tools only (see below).
    Don't want to click? Expand "do it yourself" for a block you can paste straight to your coding agent.
    Says Claude Code **Not found** on macOS when you know it is installed? The settings page comes from the menu bar app, which doesn't see your shell PATH. Expand "do it yourself" and run that command in a terminal.
    Then restart your Claude Code session: `/mcp` shows `shoulder-tap`, `/hooks` shows four hooks.
@@ -151,22 +151,9 @@ If you'd rather not let a script touch `~/.claude`, do each step yourself.
 
    Where that file lives: macOS `~/Library/Application Support/Claude/`, Windows `%APPDATA%\Claude\` (Microsoft Store install: `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\`).
 
-   OpenClaw:
+   Claude Desktop has no hooks and doesn't read CLAUDE.md, so it only gets the tools: it won't stop you or tap on its own, it runs them when you ask ("what's on my list", "just drank water").
 
-   ```bash
-   openclaw mcp add shoulder-tap --command node --arg /Users/you/.claude/skills/shoulder-tap/mcp.mjs
-   ```
-
-   Hermes Agent: add under `mcp_servers` in `~/.hermes/config.yaml`, then restart Hermes or type `/reload-mcp`:
-
-   ```yaml
-   mcp_servers:
-     shoulder-tap:
-       command: "node"
-       args: ["/Users/you/.claude/skills/shoulder-tap/mcp.mjs"]
-   ```
-
-   Claude Desktop, OpenClaw and Hermes have no hooks and don't read CLAUDE.md, so they only get the tools: they won't stop you or tap on their own, they run them when you ask ("what's on my list", "just drank water").
+   OpenClaw and Hermes are no longer supported as of 2026-09-29: they could only get the tools, never the stopping and tapping half (if you connected one before, uninstall still cleans it up).
 
 3. **Hooks**: add to `~/.claude/settings.json` (create it if missing):
 
@@ -265,7 +252,7 @@ node ~/.claude/skills/shoulder-tap/uninstall.mjs          # keeps your data
 node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # removes data and keys too
 ```
 
-Same on all three platforms: quits the desktop app and removes autostart, the MCP (Claude Code, Codex, Claude Desktop, OpenClaw, Hermes), the hooks, the CLAUDE.md section and the skill. Your Notion database is untouched.
+Same on all three platforms: quits the desktop app and removes autostart, the MCP (Claude Code, Codex, Claude Desktop, plus OpenClaw / Hermes if you connected them before), the hooks, the CLAUDE.md section and the skill. Your Notion database is untouched.
 You can also just tell Claude Code "uninstall shoulder-tap"; it knows to run this.
 
 <br>

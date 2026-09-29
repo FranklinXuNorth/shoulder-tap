@@ -25,7 +25,6 @@ import { STRINGS } from "./core/strings.mjs";
 import { readUpdate, repoDir } from "./core/update.mjs";
 import * as local from "./core/local.mjs";
 import { claudeDesktopState, addToClaudeDesktop } from "./core/claude-desktop.mjs";
-import { openclawConnected, openclawAddArgs, hermesDir, hermesConnected, addToHermes } from "./core/other-agents.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.SHOULDER_TAP_PORT) || 47823; // 测试时换个端口，别撞上正在用的那个
@@ -91,13 +90,9 @@ function mcpState() {
   return {
     claude: { installed: has("claude"), connected: got.status === 0 && got.stdout.includes("mcp.mjs"), remote: got.status === 0 && !got.stdout.includes("mcp.mjs") },
     codex: { installed: has("codex") || fs.existsSync(CODEX), connected: codexText.includes("[mcp_servers.shoulder-tap]") },
-    desktop: claudeDesktopState(), // Claude Desktop、OpenClaw、Hermes：只有工具，没有钩子
-    openclaw: { installed: has("openclaw"), connected: openclawConnected() },
-    hermes: { installed: has("hermes") || fs.existsSync(hermesDir()), connected: hermesConnected() },
+    desktop: claudeDesktopState(), // Claude Desktop：只有工具，没有钩子
     command: ["claude", ...claudeArgs].map(quote).join(" "),
     codexBlock: codexBlock.trim(),
-    openclawCommand: ["openclaw", ...openclawAddArgs(process.execPath, MCP)].map(quote).join(" "),
-    hermesBlock: `mcp_servers:\n  shoulder-tap:\n    command: ${JSON.stringify(process.execPath)}\n    args: [${JSON.stringify(MCP)}]`,
     onboard: path.join(HERE, "onboard.mjs"),
   };
 }
@@ -121,12 +116,6 @@ function connect(client, lang) {
     catch (e) { throw new Error(e?.code === "no_claude_desktop" ? m.noDesktopApp : String(e?.message ?? e)); }
     return m.desktop;
   }
-  if (client === "openclaw") {
-    const r = sh("openclaw", openclawAddArgs(process.execPath, MCP));
-    if (r.status !== 0) throw new Error(`${resolveBin("openclaw") ?? "openclaw"} ${(r.stderr || r.stdout || m.addFailed).trim()}`);
-    return m.openclaw;
-  }
-  if (client === "hermes") { addToHermes(process.execPath, MCP); return m.hermes; }
   throw new Error(m.unknownClient);
 }
 

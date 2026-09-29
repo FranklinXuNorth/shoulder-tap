@@ -96,7 +96,7 @@ const kindName = (k) => (k === "soft" ? "软习惯，随手就能做，不许跳
 
 /**
  * 没传 tz 时用哪个。有人在跟前的机器：就是这台的，而且 check 的时候顺手记下来，同步给别的机器；
- * 没人在跟前的（SHOULDER_TAP_HEADLESS=1，比如服务器上接 Discord 的 OpenClaw）：用记下来的那个，服务器自己的 UTC 不算数。
+ * 没人在跟前的（SHOULDER_TAP_HEADLESS=1，比如服务器上跑的 Claude Code / Codex）：用记下来的那个，服务器自己的 UTC 不算数。
  */
 async function fallbackTz(store, a, note) {
   if (isHeadless()) return (await store.userTz()) || machineTz();

@@ -1,11 +1,13 @@
 /**
- * OpenClaw（龙虾）和 Hermes Agent 的 MCP 配置。跟 Claude Desktop 一样只有工具、没有钩子：
- * 接上后你让它查清单、记习惯它才调，不会自己拦你、拍你。设置页用 add，卸载用 remove。
+ * OpenClaw（龙虾）和 Hermes Agent：2026-09-29 起不再支持接入，只留卸载时的清理。
  *
- * - OpenClaw：走它自己的 CLI（openclaw mcp add / unset），配置文件格式交给它管。
- *   存在 ~/.openclaw/openclaw.json 的 mcp.servers 里，判断接没接上只看这个文件里有没有 "shoulder-tap"。
- * - Hermes：没有 add 命令，只能改 ~/.hermes/config.yaml 的 mcp_servers。没有 YAML 库，按行改：
- *   只动 shoulder-tap 那一段，别的原样留着。
+ * 为什么停：它们接的只是 MCP 工具，拦你、拍你全靠 Claude Code / Codex 的钩子。OpenClaw 虽然有插件钩子
+ * （before_prompt_build / agent_end），但要写进程内插件、开 allowConversationAccess，而且多 agent 归属下
+ * 静默不触发（openclaw/openclaw#142783，未修）。做不到跟 Claude Code / Codex 一样的体验，就不挂名支持。
+ *
+ * 以前接过的机器，卸载时还得替它们清掉，不然会留下一个指向已删文件的 MCP：
+ * - OpenClaw：走它自己的 CLI（openclaw mcp unset）。判断接没接过只看 ~/.openclaw/openclaw.json 里有没有 "shoulder-tap"。
+ * - Hermes：没有命令可用，只能改 ~/.hermes/config.yaml 的 mcp_servers。没有 YAML 库，按行改：只动 shoulder-tap 那一段。
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -18,11 +20,10 @@ const openclawConfig = () => process.env.OPENCLAW_CONFIG_PATH || path.join(openc
 export const openclawConnected = () => {
   try { return fs.readFileSync(openclawConfig(), "utf8").includes('"shoulder-tap"'); } catch { return false; }
 };
-export const openclawAddArgs = (command, mcpPath) => ["mcp", "add", "shoulder-tap", "--command", command, "--arg", mcpPath];
 export const openclawRemoveArgs = ["mcp", "unset", "shoulder-tap"];
 
 // ---------- Hermes ----------
-export const hermesDir = () => process.env.HERMES_HOME || path.join(os.homedir(), ".hermes");
+const hermesDir = () => process.env.HERMES_HOME || path.join(os.homedir(), ".hermes");
 export const hermesConfig = () => path.join(hermesDir(), "config.yaml");
 const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, "utf8") : "");
 const indentOf = (line) => line.match(/^ */)[0].length;
@@ -39,30 +40,6 @@ function hermesBlock(lines) {
     return [i, end];
   }
   return null;
-}
-
-export const hermesConnected = () => hermesBlock(read(hermesConfig()).split("\n")) !== null;
-
-/** 双引号字符串在 YAML 里跟 JSON 一个写法，Windows 路径的反斜杠也照样转义。 */
-export function addToHermes(command, mcpPath) {
-  const file = hermesConfig();
-  const lines = read(file).replace(/\r\n/g, "\n").split("\n");
-  const old = hermesBlock(lines);
-  if (old) lines.splice(old[0], old[1] - old[0]); // 换成现在这个路径
-  const top = lines.findIndex((l) => /^mcp_servers:/.test(l));
-  const entry = (pad) => [`${pad}shoulder-tap:`, `${pad}  command: ${JSON.stringify(command)}`, `${pad}  args: [${JSON.stringify(mcpPath)}]`];
-  if (top < 0) {
-    while (lines.length && lines.at(-1).trim() === "") lines.pop();
-    lines.push(...(lines.length ? [""] : []), "mcp_servers:", ...entry("  "), "");
-  } else {
-    lines[top] = "mcp_servers:"; // 「mcp_servers: {}」这种行内写法改成块写法
-    const next = lines.slice(top + 1).find((l) => l.trim() && !l.trimStart().startsWith("#"));
-    const pad = next && indentOf(next) > 0 ? " ".repeat(indentOf(next)) : "  "; // 跟已有的缩进对齐
-    lines.splice(top + 1, 0, ...entry(pad));
-  }
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, lines.join("\n"));
-  return file;
 }
 
 export function removeFromHermes() {
