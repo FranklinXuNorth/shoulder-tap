@@ -3,6 +3,7 @@
  * 常驻：挂在同步频道的 WebSocket 上。别的机器（或云端网页版）一改，服务端喊一声，这里马上：
  *   1. 拉下来并进本地 data.json（跟 MCP 调用走同一条路：锁、拉、推）
  *   2. 刷新钩子的缓存，下一次你开口时注入的就是最新的清单
+ * 别的机器拍肩（Stop 钩子做完了、AskUserQuestion 问你话）也从这条线过来：解密后在这台的桌面上拍，字条前标上来自哪台。
  * 平时不用手动起：登录之后钩子、设置页会用 core/listener.mjs 把它带起来，一台机器只留一个。
  * 没登录、退出登录、令牌失效，它自己退出。每一轮打一行日志到 stdout。
  */
@@ -13,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { loadEnv, openStore, lastSyncError } from "./core/store.mjs";
 import { syncConfig, listen } from "./core/sync.mjs";
 import { PID_FILE, alive, listenerPid } from "./core/listener.mjs";
+import { tapDesktop } from "./core/desktop.mjs";
 
 const cfg = syncConfig(loadEnv());
 if (!cfg) {
@@ -51,7 +53,14 @@ async function refresh(seq) {
   }
 }
 
-const sub = listen(cfg, (m) => refresh(m.seq));
+// 别的机器的拍肩：在这台桌面上拍一下，字条前面标上是哪台。习惯提醒照样带「已经做了」按钮，点了记在这台、再同步回去
+function remoteTap(t) {
+  const caption = `[${t.host}] ${t.caption || ""}`.trim();
+  const shown = tapDesktop(loadEnv(), t.text ? `[${t.host}] ${t.text}` : "", { session_id: `remote-${t.host}` }, t.mode || "tap", caption, t.habit || "", Boolean(t.skippable));
+  console.log(`tap from ${t.host}: ${t.mode} ${t.caption || ""}${shown ? "" : "（这台没装桌面端，没拍）"}`);
+}
+
+const sub = listen(cfg, (m) => refresh(m.seq), { onTap: remoteTap });
 await sub.ready;
 console.log("listening");
 await refresh("start"); // 刚连上：补一次，断线期间别的机器改过的也拉下来

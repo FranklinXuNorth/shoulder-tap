@@ -31,6 +31,8 @@ import { callText } from "./core/tools.mjs";
 import { loadEnv } from "./core/store.mjs";
 import { readUpdate, writeUpdate, dueForCheck } from "./core/update.mjs";
 import { ensureListener } from "./core/listener.mjs";
+import { tapDesktop } from "./core/desktop.mjs";
+import { syncConfig, sendTap } from "./core/sync.mjs";
 
 const SELF = fileURLToPath(import.meta.url);
 
@@ -41,11 +43,6 @@ const SELF = fileURLToPath(import.meta.url);
 const STATE_DIR = path.join(os.homedir(), ".claude", "shoulder-tap");
 const STATE = path.join(STATE_DIR, "state.json");
 
-/** 桌面 App。装了就用，没装就当没有 —— 哨兵在纯文本模式下照样完整工作。Mac 版包在 .app 里。 */
-const APP = path.join(STATE_DIR, "app",
-  process.platform === "win32" ? "shoulder-tap-tap.exe"
-  : process.platform === "darwin" ? "ShoulderTap.app/Contents/MacOS/shoulder-tap-tap"
-  : "shoulder-tap-tap");
 
 /**
  * 那只 ASCII 手中间一行里最独特的一截：食指那一笔。
@@ -122,19 +119,16 @@ function spawnRefresh(force = false) {
  * 屏幕上只有那一下，不显示文字 —— 话已经通过 say() 进了模型的上下文，
  * 传过去的正文只落进托盘提示，留个事后能看一眼的地方。
  */
-function tapDesktop(env, text, payload = {}, mode = "tap", caption = "", habit = "", skippable = false) {
-  // Linux 没有官方桌面端；有人按 desktop-linux/README.md 写了一个放在那个位置，就照样调。
-
-  const exe = env.SHOULDER_TAP_APP || APP;
-  const body = (text || "").trim();
-  if (!body && mode === "tap") return;
-
+/**
+ * 跨设备：这一下在本机拍完，再推给同一个账号里其它在线的机器（你可能正盯着另一台）。
+ * 甩到独立进程里发，钩子立刻返回，不拖慢你下一句话；没登录、没配同步就什么都不做。
+ */
+function relayTap(env, tap) {
+  if (env.SHOULDER_TAP_NO_RELAY === "1" || !syncConfig(env)) return;
   try {
-    if (!fs.existsSync(exe)) return; // 没装桌面 App，安静跳过
-    spawn(exe, desktopArgs(payload, mode, body, caption, habit, skippable), {
-      detached: true,
-      stdio: "ignore",
-      windowsHide: true,
+    spawn(process.execPath, [SELF, "--relay"], {
+      detached: true, stdio: "ignore", windowsHide: true,
+      env: { ...process.env, SHOULDER_TAP_RELAY_PAYLOAD: Buffer.from(JSON.stringify(tap)).toString("base64") },
     }).unref();
   } catch {}
 }
@@ -206,6 +200,12 @@ async function main() {
     await refresh(env);
     return;
   }
+  // 跨设备拍肩的发送进程（relayTap 甩出来的）：发一下就退
+  if (process.argv.includes("--relay")) {
+    const cfg = syncConfig(env);
+    if (cfg) await sendTap(cfg, JSON.parse(Buffer.from(process.env.SHOULDER_TAP_RELAY_PAYLOAD || "", "base64").toString("utf8") || "{}")).catch(() => {});
+    return;
+  }
 
   let input = "";
   for await (const chunk of process.stdin) input += chunk;
@@ -240,7 +240,9 @@ async function main() {
       const mode = gesture;
       const caption = mode === "tap" ? reminder : doneLine(payload.last_assistant_message);
       const habit = mode === "tap" ? dueHabitIn(state.plan, reminder) : ""; // 提醒的是习惯：手下面带两个按钮
-      tapDesktop(env, caption, payload, mode, caption, habit, habit !== "" && habitSkippable(state.plan, habit));
+      const skippable = habit !== "" && habitSkippable(state.plan, habit);
+      tapDesktop(env, caption, payload, mode, caption, habit, skippable);
+      relayTap(env, { mode, text: caption, caption, habit, skippable });
     }
     return;
   }
@@ -251,6 +253,7 @@ async function main() {
     if (payload.tool_name === "AskUserQuestion") {
       const question = questionLine(payload.tool_input);
       tapDesktop(env, "", payload, "complete", question); // 问你话 → 拍拍你
+      relayTap(env, { mode: "complete", text: "", caption: question });
     }
     return;
   }

@@ -285,8 +285,8 @@ export async function push(cfg, d) {
  * 断了两秒后自己重连；每 30 秒 ping 一下，免得被中间的网络设备掐掉。返回 { ready, close }。
  * 口令放在 Sec-WebSocket-Protocol 里（"st", 口令），不进 URL。
  */
-export function listen(cfg, onChange, { retryMs = 2000 } = {}) {
-  const url = cfg.url.replace(/^http/, "ws") + "/ws";
+export function listen(cfg, onChange, { retryMs = 2000, onTap } = {}) {
+  const url = cfg.url.replace(/^http/, "ws") + `/ws?device=${deviceId()}`; // 报上是哪台：别的机器拍肩时不回发给自己
   let ws, timer, closed = false, resolveReady;
   const ready = new Promise((r) => (resolveReady = r));
   const open = () => {
@@ -294,7 +294,11 @@ export function listen(cfg, onChange, { retryMs = 2000 } = {}) {
     ws.onopen = () => resolveReady();
     ws.onmessage = (e) => {
       if (e.data === "pong") return;
-      try { const m = JSON.parse(e.data); if (m.type === "changed") onChange(m); } catch {}
+      try {
+        const m = JSON.parse(e.data);
+        if (m.type === "changed") onChange(m);
+        else if (m.type === "tap" && onTap) onTap(unseal(cfg.key, m.blob), m.from);
+      } catch {}
     };
     ws.onclose = () => { if (!closed) timer = setTimeout(open, retryMs); };
     ws.onerror = () => {};
@@ -302,4 +306,13 @@ export function listen(cfg, onChange, { retryMs = 2000 } = {}) {
   open();
   const ping = setInterval(() => { if (ws?.readyState === 1) ws.send("ping"); }, 30_000);
   return { ready, close() { closed = true; clearTimeout(timer); clearInterval(ping); try { ws?.close(); } catch {} } };
+}
+
+/**
+ * 跨设备拍肩：这台拍完之后，把这一下（手势、字条、正文、到点的习惯）加密发出去，服务端转给同一个账号里其它在线的设备，
+ * 那边的 listen.mjs 解密后在自己的桌面上拍。服务端只见密文。返回送到了几台。
+ */
+export async function sendTap(cfg, tap) {
+  const blob = seal(cfg.key, { ...tap, host: os.hostname(), at: nowIso() });
+  return (await request(cfg, "/tap", { method: "POST", body: JSON.stringify({ blob, from: deviceId() }) })).delivered ?? 0;
 }
