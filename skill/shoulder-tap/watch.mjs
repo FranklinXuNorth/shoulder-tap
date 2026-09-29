@@ -122,20 +122,15 @@ function spawnRefresh(force = false) {
  * 传过去的正文只落进托盘提示，留个事后能看一眼的地方。
  */
 /**
- * 跨设备：只拍在你正在用的那台。先把这一下交给服务端，由它决定去哪（见 worker 的 tap()）：
- *   你正在用另一台 → 推给那台，这台不拍（返回 true）
- *   你就在这台 / 不知道你在哪 → 这台照拍（不知道时服务端也会推给其它在线设备）
- * 就在钩子里等它回话（最多 1.5 秒，平时一两百毫秒）：甩到后台进程的话，Claude Code 在 Windows 上
- * 钩子一结束就连带收掉它的子进程。没登录、没配同步、发不出去，都当「这台照拍」。
+ * 跨设备：本机拍完，再推给同一个账号里所有其它在线的机器（你可能正盯着另一台）。
+ * 就在钩子里发完再退（最多等 1.5 秒，平时一两百毫秒）：甩到后台进程的话，Claude Code 在 Windows 上
+ * 钩子一结束就连带收掉它的子进程。没登录、没配同步、发不出去，都只是少推一下，本机那一下照拍。
  */
 async function relayTap(env, tap) {
-  if (env.SHOULDER_TAP_NO_RELAY === "1") return false;
+  if (env.SHOULDER_TAP_NO_RELAY === "1") return;
   const cfg = syncConfig(env);
-  if (!cfg) return false;
-  try {
-    const r = await sendTap(cfg, tap);
-    return r?.route === "active" && r.delivered > 0;
-  } catch { return false; }
+  if (!cfg) return;
+  try { await sendTap(cfg, tap); } catch {}
 }
 
 function say(event, text) {
@@ -246,8 +241,8 @@ async function main() {
         const h = findHabit(await openStore().listHabits().catch(() => []), due);
         if (h?.rid || h?.id) habit = `${due}#${h.rid || h.id}`;
       }
-      const elsewhere = await relayTap(env, { mode, text: caption, caption, habit, skippable });
-      if (!elsewhere) tapDesktop(env, caption, payload, mode, caption, habit, skippable);
+      tapDesktop(env, caption, payload, mode, caption, habit, skippable);
+      await relayTap(env, { mode, text: caption, caption, habit, skippable });
     }
     return;
   }
@@ -257,8 +252,8 @@ async function main() {
   if (event === "PreToolUse") {
     if (payload.tool_name === "AskUserQuestion") {
       const question = questionLine(payload.tool_input);
-      const elsewhere = await relayTap(env, { mode: "complete", text: "", caption: question });
-      if (!elsewhere) tapDesktop(env, "", payload, "complete", question); // 问你话 → 拍拍你（你正在用另一台就拍那台）
+      tapDesktop(env, "", payload, "complete", question); // 问你话 → 拍拍你
+      await relayTap(env, { mode: "complete", text: "", caption: question });
     }
     return;
   }

@@ -461,7 +461,7 @@
     try { await api("POST", "/api/devices/rename", { device: b.dataset.dev, name }); } catch (err) { alert(err.message); }
     renderDevices();
   };
-  // 设备：哪几台开着（在运转）、你正在用哪台哪块屏、各自最后一次被碰是什么时候。打开菜单时才去问服务端
+  // 设备：登录过的每台，哪几台此刻在运转，各自最后用过是什么时候。打开菜单时才去问服务端
   async function renderDevices() {
     const list = $("devList");
     list.innerHTML = `<li><span></span><small>${esc(t("devicesLoading"))}</small></li>`;
@@ -470,7 +470,6 @@
       const when = (at) => at ? new Date(at).toLocaleString(lang === "zh" ? "zh-CN" : "en-US", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
       list.innerHTML = r.devices.length ? r.devices.map((d) => {
         const bits = [d.online ? t("devOnline") : t("devOffline")];
-        if (d.active) bits.unshift(t("devActive") + (d.activeScreen !== null && d.screens ? " · " + t("devScreen")(Number(d.activeScreen) + 1, d.screens) : ""));
         if (d.at) bits.push(t("devSeen")(when(d.at)));
         return `<li><span class="dot${d.online ? " on" : ""}"></span><span>${esc(d.label || d.device.slice(0, 8))}${d.me ? ` <b>${esc(t("devThis"))}</b>` : ""}` +
           ` <button class="ren" data-dev="${esc(d.device)}" data-name="${esc(d.label || "")}" title="${esc(t("devRename"))}">✎</button><small>${esc(bits.join(" · "))}</small></span></li>`;

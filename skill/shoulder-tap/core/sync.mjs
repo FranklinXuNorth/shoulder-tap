@@ -310,7 +310,7 @@ export async function push(cfg, d) {
  * 断了两秒后自己重连；每 30 秒 ping 一下，免得被中间的网络设备掐掉。返回 { ready, close }。
  * 口令放在 Sec-WebSocket-Protocol 里（"st", 口令），不进 URL。
  */
-export function listen(cfg, onChange, { retryMs = 2000, onTap, onActive, onReplaced } = {}) {
+export function listen(cfg, onChange, { retryMs = 2000, onTap, onReplaced } = {}) {
   // 报上是哪台（别的机器拍肩时不回发给自己；服务端「你在哪」那张表也记这个名字）
   const url = cfg.url.replace(/^http/, "ws") + `/ws?device=${deviceId()}&label=${encodeURIComponent(deviceLabel())}`;
   let ws, timer, closed = false, resolveReady;
@@ -325,7 +325,6 @@ export function listen(cfg, onChange, { retryMs = 2000, onTap, onActive, onRepla
         if (m.type === "replaced") { closed = true; try { ws.close(); } catch {} onReplaced?.(); return; } // 这台又起了一个监听，服务端把我换下来了
         if (m.type === "changed") onChange(m);
         else if (m.type === "tap" && onTap) onTap(unseal(cfg.key, m.blob), m.from);
-        else if ((m.type === "active" || m.type === "hello") && onActive) onActive(m.type === "active" ? m.device : m.active ?? null);
       } catch {}
     };
     ws.onclose = (e) => {
@@ -343,7 +342,7 @@ export function listen(cfg, onChange, { retryMs = 2000, onTap, onActive, onRepla
 /**
  * 跨设备拍肩：这台拍完之后，把这一下（手势、字条、正文、到点的习惯）加密发出去，服务端转给同一个账号里其它在线的设备，
  * 那边的 listen.mjs 解密后在自己的桌面上拍。服务端只见密文。
- * 返回服务端的决定 {delivered, route, active}：route 是 "active" 且送到了，说明你正在用另一台，这台就别拍了。
+ * 返回 {delivered}：送到了几台。
  */
 export async function sendTap(cfg, tap) {
   const blob = seal(cfg.key, { ...tap, host: deviceLabel(), at: nowIso() }); // 对面字条前面标的「来自哪台」：用这台的名字
