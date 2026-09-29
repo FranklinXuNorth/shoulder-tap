@@ -77,8 +77,8 @@ node ~/.claude/skills/shoulder-tap/update.mjs   # 拉 origin/sync 的最新版�
 登完你调一次 `check_focus` 确认清单和习惯都在。两台机器以前各有记录也没关系：任务取并集，
 同名习惯（两台都有「喝水」）自动并成一个，两边的打卡都留着；两台改了同一条，留最后改的那次。
 
-查看 / 退出：设置页右上角的邮箱菜单（打开云端版 / 立即同步 / 退出登录），或者 `login.mjs --status`、`login.mjs --logout`。退出后本机数据都在。
-手机或没装 shoulder-tap 的电脑：云端网页版 https://sync.example/app ，登录同一个账号就是同一份。
+查看 / 退出：设置页右上角的邮箱菜单（设备列表 / 立即同步 / 退出登录），或者 `login.mjs --status`、`login.mjs --logout`。退出后本机数据都在。
+没有云端网页版：界面只有每台电脑自己的设置页，登录后看到的就是同步过的数据。
 
 ## 工具
 

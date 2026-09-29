@@ -254,7 +254,7 @@ git fetch origin && git switch sync
 node ~/.claude/skills/shoulder-tap/update.mjs     # 更新到 sync 最新版，数据和设置不动
 ```
 
-然后打开设置页（`http://127.0.0.1:47823/`），点**右上角「登录」**，在弹出的浏览器页里用邮箱或 Google 登录，回到设置页就已经在同步了。只有终端的机器用 `node ~/.claude/skills/shoulder-tap/login.mjs`，它会打印登录链接。原来用 Notion 的机器登录时会把 Notion 里的记录搬到本地（Notion 里的原样留着）。两台机器以前各有记录也能合：任务取并集，同名习惯并成一个，两边的打卡都保留；两台改了同一条，留最后改的那次。别的机器一改，一秒内这台就跟上。手机上看：https://sync.example/app 。细节见 [docs/sync.md](docs/sync.md)。
+然后打开设置页（`http://127.0.0.1:47823/`），点**右上角「登录」**，在弹出的浏览器页里用邮箱或 Google 登录，回到设置页就已经在同步了。只有终端的机器用 `node ~/.claude/skills/shoulder-tap/login.mjs`，它会打印登录链接。原来用 Notion 的机器登录时会把 Notion 里的记录搬到本地（Notion 里的原样留着）。两台机器以前各有记录也能合：任务取并集，同名习惯并成一个，两边的打卡都保留；两台改了同一条，留最后改的那次。别的机器一改，一秒内这台就跟上，开着的设置页也会自己刷新。没有云端网页版：云端只管同步，界面就是每台电脑上的设置页。细节见 [docs/sync.md](docs/sync.md)。
 
 <br>
 

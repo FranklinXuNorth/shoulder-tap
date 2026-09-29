@@ -254,7 +254,7 @@ git fetch origin && git switch sync
 node ~/.claude/skills/shoulder-tap/update.mjs     # latest sync version; data and settings stay
 ```
 
-Then open the settings page (`http://127.0.0.1:47823/`) and click **Sign in** in the top-right corner. Sign in with email or Google in the browser tab that opens; back on the settings page, sync is already running. On a terminal-only machine, `node ~/.claude/skills/shoulder-tap/login.mjs` prints the link instead. A machine that used Notion moves its Notion records to local on sign-in (Notion keeps its copy). Two machines that each have history merge: tasks are combined, same-named habits become one, every check-in is kept, and if both changed the same item the later edit wins. Other machines' changes arrive within a second. On a phone: https://sync.example/app. Details: [docs/sync.md](docs/sync.md).
+Then open the settings page (`http://127.0.0.1:47823/`) and click **Sign in** in the top-right corner. Sign in with email or Google in the browser tab that opens; back on the settings page, sync is already running. On a terminal-only machine, `node ~/.claude/skills/shoulder-tap/login.mjs` prints the link instead. A machine that used Notion moves its Notion records to local on sign-in (Notion keeps its copy). Two machines that each have history merge: tasks are combined, same-named habits become one, every check-in is kept, and if both changed the same item the later edit wins. Other machines' changes arrive within a second, and an open settings page refreshes by itself. There is no web version: the cloud only syncs, the interface is the settings page on each machine. Details: [docs/sync.md](docs/sync.md).
 
 <br>
 

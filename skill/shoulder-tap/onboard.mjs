@@ -274,6 +274,8 @@ const WRITES = new Set(["/api/task", "/api/log", "/api/today", "/api/habit", "/a
 const routes = {
   ...loginRoutes,
   "GET /api/state": () => state(),
+  // 数据文件最后一次被改的时刻：页面每几秒问一次，变了就重新拉 /api/state（别处改了清单，这里自己刷新）
+  "GET /api/stamp": () => { try { return { at: fs.statSync(local.DATA).mtimeMs }; } catch { return { at: 0 }; } },
   "POST /api/mcp": ({ client }, lang) => ({ message: connect(client, lang) }),
   // 习惯这两条不走 callText：工具那套话是写给模型看的中文，页面要跟着自己的语言开关
   "POST /api/habit": async ({ name, kind, every_minutes, at }, lang) => {

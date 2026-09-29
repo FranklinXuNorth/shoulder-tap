@@ -43,7 +43,7 @@ export const STRINGS = {
   devicesH: "设备", devicesLoading: "正在看有哪些设备……", devNone: "还没有设备连上来。别的机器登录同一个账号就会出现在这里。",
   devThis: "（这台）", devActive: "正在用", devOnline: "在运转", devOffline: "没开", devScreen: (i, n) => `第 ${i} 块屏（共 ${n} 块）`, devSeen: (w) => `最后碰过 ${w}`,
   devRename: "改名", devRenamePrompt: "给这台设备起个名字（空着 = 用电脑名）：",
-  signin: "登录", signout: "退出登录", openCloud: "打开云端版", syncNow: "立即同步", cancel: "取消", close: "完成",
+  signin: "登录", signout: "退出登录", syncNow: "立即同步", cancel: "取消", close: "完成",
   signinH: "登录，跨机器同步", signinWhy: "登录同一个账号的机器自动同步，不用记口令。不登录也什么都照常能用。",
   signinWait: "在刚打开的浏览器页里用邮箱或 Google 登录，登好了这里自动接上同步。", signinCode: "设备码", signinReopen: "没打开？点这里",
   signinDone: (r) => `登上了：${r.email}。` + (r.moved ? `从 Notion 搬过来 ${r.moved.tasks} 条任务、${r.moved.habits} 条习惯记录。` : "") +
@@ -136,7 +136,7 @@ export const STRINGS = {
   devicesH: "Devices", devicesLoading: "Looking up devices…", devNone: "No devices yet. Sign in to the same account on another machine and it shows up here.",
   devThis: "(this one)", devActive: "In use", devOnline: "Running", devOffline: "Off", devScreen: (i, n) => `screen ${i} of ${n}`, devSeen: (w) => `last touched ${w}`,
   devRename: "Rename", devRenamePrompt: "Name this device (leave empty to use the computer name):",
-  signin: "Sign in", signout: "Sign out", openCloud: "Open the cloud version", syncNow: "Sync now", cancel: "Cancel", close: "Done",
+  signin: "Sign in", signout: "Sign out", syncNow: "Sync now", cancel: "Cancel", close: "Done",
   signinH: "Sign in to sync across machines", signinWhy: "Every machine signed in to the same account syncs automatically, no passphrase. Everything still works without signing in.",
   signinWait: "Sign in with email or Google in the browser tab that just opened. Sync starts by itself.", signinCode: "Device code", signinReopen: "Didn't open? Click here",
   signinDone: (r) => `Signed in as ${r.email}. ` + (r.moved ? `Moved ${r.moved.tasks} tasks and ${r.moved.habits} habit records from Notion. ` : "") +

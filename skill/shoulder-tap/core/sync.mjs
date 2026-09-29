@@ -6,7 +6,7 @@
  *
  *   拉：把别的机器推上来的行拉下来并进本地 → 干活（local.mjs 原样）→ 推：把本地改过的行加密推上去
  *
- * 冲突按时间戳：每一行记着最后一次被改的时刻（row.updated，删掉的记在 d.gone 里）。两台机器改了同一行，
+ * 冲突按时间戳：每一行记着最后一次被改的时刻（row.updatedAt，删掉的记在 d.gone 里）。两台机器改了同一行，
  * 留最后改的那次 —— 跟谁先连上网、谁先推无关。服务端也按这个收：比它手上旧的不写，退回它那份（stale）。
  * 连不上就只动本地，没推上去的行下次接着推，时间戳还是当初改的那一刻。
  * 时间戳用的是各台机器自己的钟：钟差多少，「谁更新」就可能差多少。系统时间都开着自动校准就够了。
@@ -108,7 +108,13 @@ export async function withLock(file, fn, staleMs = 10_000) {
 
 const hashOf = (row) => crypto.createHash("sha256").update(JSON.stringify(row)).digest("base64url").slice(0, 16);
 /** 内容指纹：不算 updated 自己，不然每盖一次戳都像是又改了一次。 */
-const contentOf = (row) => { const { updated, ...rest } = row; return hashOf(rest); };
+const contentOf = (row) => { const { updated, updatedAt, ...rest } = row; return hashOf(rest); };
+/**
+ * 每一行最后一次被改的时刻（UTC ISO）。本地、云端、以后接 Notion，都按这个字段比谁新：同一个 rid，updatedAt 晚的赢。
+ * 早先的数据叫 updated：读的时候照认，下次写的时候改成 updatedAt。
+ */
+const updatedAtOf = (row) => row.updatedAt ?? row.updated;
+const setUpdatedAt = (row, at) => { row.updatedAt = at; delete row.updated; };
 const nowIso = () => new Date().toISOString();
 /** 比上一次更晚：同一毫秒里改两次，也要分得出先后。 */
 const later = (prev) => { const now = Date.now(), p = prev ? Date.parse(prev) : 0; return new Date(Math.max(now, p + 1)).toISOString(); };
@@ -126,7 +132,7 @@ export function snapshot(d) {
   if (d.prefs) d.prefs.rid ??= "prefs";
   for (const row of allRows(d)) {
     if (!row.rid) { row.rid = crypto.randomUUID(); filled = true; }
-    if (!row.updated) { row.updated = naturalAt(row); filled = true; }
+    if (!row.updatedAt) { setUpdatedAt(row, updatedAtOf(row) ?? naturalAt(row)); filled = true; }
   }
   return [new Map(allRows(d).map((r) => [r.rid, contentOf(r)])), filled];
 }
@@ -141,7 +147,7 @@ export function touch(d, before) {
   for (const row of allRows(d)) {
     row.rid ??= crypto.randomUUID();
     now.add(row.rid);
-    if (!before.has(row.rid) || before.get(row.rid) !== contentOf(row)) row.updated = later(row.updated);
+    if (!before.has(row.rid) || before.get(row.rid) !== contentOf(row)) setUpdatedAt(row, later(updatedAtOf(row)));
   }
   const at = nowIso();
   for (const rid of before.keys()) if (!now.has(rid)) (d.gone ??= {})[rid] = at;
@@ -210,7 +216,7 @@ function mergeSameName(d) {
   }
   for (const h of d.habits) {
     const sid = canon.get(key(h));
-    if (sid && h.sid !== sid) { h.sid = sid; h.updated = later(h.updated); }
+    if (sid && h.sid !== sid) { h.sid = sid; setUpdatedAt(h, later(updatedAtOf(h))); }
   }
 }
 
@@ -263,7 +269,7 @@ export async function pull(cfg, d) {
       const local = mine.get(r.rid);
       // 本地改过（或删过）还没推上去：比时间戳，本地这次更晚（或一样）就留着，等会儿推上去；拉下来的更晚就听它的。
       const dirty = local ? hashOf(local.row) !== hashes[r.rid] : r.rid in hashes;
-      if (dirty && (r.at ?? "") <= ((local ? local.row.updated : d.gone?.[r.rid]) ?? "")) continue;
+      if (dirty && (r.at ?? "") <= ((local ? updatedAtOf(local.row) : d.gone?.[r.rid]) ?? "")) continue;
       apply(cfg, d, hashes, r);
       got++;
     }
@@ -282,8 +288,8 @@ export async function push(cfg, d) {
   const rows = [];
   for (const [rid, { kind, row }] of mine) {
     if (hashOf(row) === hashes[rid]) continue;
-    row.updated ??= naturalAt(row);
-    rows.push({ rid, blob: seal(cfg.key, { kind, row }), at: row.updated, hash: hashOf(row) });
+    if (!row.updatedAt) setUpdatedAt(row, updatedAtOf(row) ?? naturalAt(row));
+    rows.push({ rid, blob: seal(cfg.key, { kind, row }), at: row.updatedAt, hash: hashOf(row) });
   }
   for (const rid of Object.keys(hashes)) if (!mine.has(rid)) rows.push({ rid, deleted: true, at: d.gone?.[rid] ?? nowIso() });
   for (let i = 0; i < rows.length; i += 500) {

@@ -217,7 +217,6 @@
       <button id="acctBtn" class="small hidden"></button>
       <div id="acctMenu" class="menu hidden">
         <div class="devs"><div class="devh" data-t="devicesH"></div><ul id="devList"></ul></div>
-        <button id="menuCloud" data-t="openCloud"></button>
         <button id="menuSync" data-t="syncNow"></button>
         <button id="menuOut" data-t="signout"></button>
       </div>
@@ -439,7 +438,7 @@
   $("lang").onclick = () => { lang = lang === "zh" ? "en" : "zh"; try { localStorage.setItem("lang", lang); } catch {} applyLang(); };
   document.querySelectorAll("[data-go]").forEach((b) => b.onclick = () => location.hash = b.dataset.go);
   // ---------- 右上角：登录 / 账号 ----------
-  // 没登录：一个「登录」按钮。登录过：邮箱 ▾，点开是 打开云端版 / 立即同步 / 退出登录。
+  // 没登录：一个「登录」按钮。登录过：邮箱 ▾，点开是 设备 / 立即同步 / 退出登录。
   function renderAccount() {
     const s = S.sync;
     $("signinBtn").classList.toggle("hidden", s.loggedIn);
@@ -479,7 +478,6 @@
     } catch (e) { list.innerHTML = `<li><span></span><small>${esc(e.message)}</small></li>`; }
   }
   document.addEventListener("click", () => $("acctMenu").classList.add("hidden"));
-  $("menuCloud").onclick = () => window.open(S.sync.url + "/app", "_blank", "noopener");
   $("menuSync").onclick = async () => { try { alert(t("synced")(await api("POST", "/api/sync"))); await load(); } catch (e) { alert(e.message); } };
   $("menuOut").onclick = async () => { await api("POST", "/api/logout"); await load(); };
 
@@ -508,6 +506,17 @@
   window.onhashchange = route;
 
   // ---------- 数据 ----------
+  // 别的电脑改了清单（经推送同步到这台的 data.json）、或者 Claude Code 里改了：页面开着就几秒内自己刷新，不用按 F5。
+  // 只问一个文件时间戳，不碰网络；页面在后台时不问。
+  let stamp = null;
+  setInterval(async () => {
+    if (document.hidden || mode !== "home") return;
+    try {
+      const { at } = await api("GET", "/api/stamp");
+      if (stamp !== null && at !== stamp) await load();
+      stamp = at;
+    } catch {}
+  }, 3000);
   async function load() {
     S = await api("GET", "/api/state");
     document.querySelector(`input[name=storage][value=${S.storage}]`).checked = true;
