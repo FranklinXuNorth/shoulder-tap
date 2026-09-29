@@ -15,6 +15,7 @@ import { loadEnv, openStore, lastSyncError } from "./core/store.mjs";
 import { syncConfig, listen } from "./core/sync.mjs";
 import { PID_FILE, alive, listenerPid } from "./core/listener.mjs";
 import { tapDesktop } from "./core/desktop.mjs";
+import { shouldShowHere } from "./core/presence.mjs";
 
 const cfg = syncConfig(loadEnv());
 if (!cfg) {
@@ -55,6 +56,8 @@ async function refresh(seq) {
 
 // 别的机器的拍肩：在这台桌面上拍一下，字条前面标上是哪台。习惯提醒照样带「已经做了」按钮，点了记在这台、再同步回去
 function remoteTap(t) {
+  // 内部开关（默认关）：这台久没人碰，就不在这台显示。只在本机判断，不上传
+  if (!shouldShowHere(loadEnv())) return console.log(`tap from ${t.host}: ${t.mode} ${t.caption || ""}（这台久没人碰，没拍）`);
   const caption = `[${t.host}] ${t.caption || ""}`.trim();
   const shown = tapDesktop(loadEnv(), t.text ? `[${t.host}] ${t.text}` : "", { session_id: `remote-${t.host}` }, t.mode || "tap", caption, t.habit || "", Boolean(t.skippable));
   console.log(`tap from ${t.host}: ${t.mode} ${t.caption || ""}${shown ? "" : "（这台没装桌面端，没拍）"}`);

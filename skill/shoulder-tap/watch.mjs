@@ -32,6 +32,7 @@ import { loadEnv } from "./core/store.mjs";
 import { readUpdate, writeUpdate, dueForCheck } from "./core/update.mjs";
 import { ensureListener } from "./core/listener.mjs";
 import { tapDesktop } from "./core/desktop.mjs";
+import { shouldShowHere } from "./core/presence.mjs";
 import { syncConfig, sendTap } from "./core/sync.mjs";
 import { openStore } from "./core/store.mjs";
 import { findHabit } from "./core/focus.mjs";
@@ -241,7 +242,7 @@ async function main() {
         const h = findHabit(await openStore().listHabits().catch(() => []), due);
         if (h?.rid || h?.id) habit = `${due}#${h.rid || h.id}`;
       }
-      tapDesktop(env, caption, payload, mode, caption, habit, skippable);
+      if (shouldShowHere(env)) tapDesktop(env, caption, payload, mode, caption, habit, skippable); // 内部开关：这台久没人碰就不拍（默认关）
       await relayTap(env, { mode, text: caption, caption, habit, skippable });
     }
     return;
@@ -252,7 +253,7 @@ async function main() {
   if (event === "PreToolUse") {
     if (payload.tool_name === "AskUserQuestion") {
       const question = questionLine(payload.tool_input);
-      tapDesktop(env, "", payload, "complete", question); // 问你话 → 拍拍你
+      if (shouldShowHere(env)) tapDesktop(env, "", payload, "complete", question); // 问你话 → 拍拍你
       await relayTap(env, { mode: "complete", text: "", caption: question });
     }
     return;
