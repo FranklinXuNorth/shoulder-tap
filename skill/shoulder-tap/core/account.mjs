@@ -38,16 +38,23 @@ async function call(base, pathname, { token, method = "GET", body, fetchImpl = f
  * 浏览器那一步谁来做都行，测试里就直接 POST /auth/password。
  */
 export async function deviceLogin(base, { onCode, intervalMs = 1500, timeoutMs = 10 * 60_000 } = {}) {
-  const issued = (await call(base, "/device/code", { method: "POST" })).data;
-  if (!issued.code) throw new Error("服务端没发设备码");
+  const issued = await startDeviceLogin(base);
   await onCode?.(issued.url, issued.code);
   for (const end = Date.now() + timeoutMs; Date.now() < end; await new Promise((r) => setTimeout(r, intervalMs))) {
-    const { data } = await call(base, `/device/poll?code=${issued.code}&secret=${issued.secret}`);
+    const data = await pollDeviceLogin(base, issued);
     if (data.token) return { token: data.token, email: data.email };
     if (data.error) throw new Error(data.error);
   }
   throw new Error("等太久了，重跑一次 node login.mjs");
 }
+
+/** 拆开的两步，给自己轮询的人用（设置页）：要一个码 → {code, secret, url}；问一次 → {token,email} | {pending} | {error}。 */
+export async function startDeviceLogin(base) {
+  const issued = (await call(base, "/device/code", { method: "POST" })).data;
+  if (!issued.code) throw new Error("服务端没发设备码");
+  return issued;
+}
+export const pollDeviceLogin = async (base, { code, secret }) => (await call(base, `/device/poll?code=${code}&secret=${secret}`)).data;
 
 /** 包：v2.<盐>.<密文>。密文就是 sync.mjs 的 seal，里面装着同步密钥。 */
 export function wrapKey(vaultKey, passphrase) {

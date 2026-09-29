@@ -15,7 +15,8 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { callText } from "./core/tools.mjs";
-import { STATE_DIR, loadEnv, readConfig, writeConfig, machineTz, openStore } from "./core/store.mjs";
+import { STATE_DIR, loadEnv, readConfig, writeConfig, machineTz, openStore, syncNow, moveNotionToLocal } from "./core/store.mjs";
+import { startDeviceLogin, pollDeviceLogin, openVault, accountInfo, logout, writeEnv } from "./core/account.mjs";
 import * as notion from "./core/focus.mjs";
 import { pageIdFrom, NotionError } from "./core/notion.mjs";
 import { STRINGS } from "./core/strings.mjs";
@@ -25,7 +26,7 @@ import { claudeDesktopState, addToClaudeDesktop } from "./core/claude-desktop.mj
 import { openclawConnected, openclawAddArgs, hermesDir, hermesConnected, addToHermes } from "./core/other-agents.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const PORT = 47823;
+const PORT = Number(process.env.SHOULDER_TAP_PORT) || 47823; // 测试时换个端口，别撞上正在用的那个
 const URL_ = `http://127.0.0.1:${PORT}/`;
 const MCP = path.join(HERE, "mcp.mjs");
 const ENV = path.join(HERE, ".env");
@@ -185,17 +186,66 @@ async function state() {
     motion: readConfig().motion ?? "system", // "always" = 无视系统的「减弱动态效果」，照常逐帧播
     skins: listSkins(),
     desktop: fs.existsSync(APP),
-    // 跨机器同步：登录过没有、云端网页版在哪。首页那个「云端版」按钮用
+    // 跨机器同步：右上角那个登录 / 账号按钮用
     sync: {
       loggedIn: Boolean(loadEnv().SHOULDER_TAP_DEVICE_TOKEN && loadEnv().SHOULDER_TAP_VAULT_KEY),
-      url: (loadEnv().SHOULDER_TAP_SYNC_URL || "https://sync.example").replace(/\/+$/, ""),
-      login: `node "${path.join(path.dirname(fileURLToPath(import.meta.url)), "login.mjs")}"`,
+      email: readConfig().syncEmail ?? "",
+      url: syncBase(),
     },
   };
 }
 
-const WRITES = new Set(["/api/task", "/api/log", "/api/today", "/api/habit", "/api/storage"]);
+// ---------- 登录（右上角）：整个流程在这一页走完，不用开终端 ----------
+// 浏览器登录页（Worker 的 /link，邮箱或 Google）只管「你是谁」；同步口令在这一页输，只到 127.0.0.1，不出这台机器。
+const syncBase = () => (loadEnv().SHOULDER_TAP_SYNC_URL || "https://sync.example").replace(/\/+$/, "");
+let pendingLogin = null; // {code, secret, token?, email?}：只在内存里，服务退出就没了
+
+const loginRoutes = {
+  "POST /api/login/start": async () => {
+    const issued = await startDeviceLogin(syncBase());
+    pendingLogin = { code: issued.code, secret: issued.secret };
+    return { url: issued.url, code: issued.code };
+  },
+  "POST /api/login/poll": async () => {
+    if (!pendingLogin) throw new Error("先点「登录」");
+    if (!pendingLogin.token) {
+      const d = await pollDeviceLogin(syncBase(), pendingLogin);
+      if (d.error) { pendingLogin = null; throw new Error(d.error); }
+      if (!d.token) return { pending: true };
+      Object.assign(pendingLogin, { token: d.token, email: d.email });
+    }
+    const me = await accountInfo(syncBase(), pendingLogin.token);
+    return { email: pendingLogin.email, hasVault: Boolean(me.hasVault), notion: openStore().kind === "notion" };
+  },
+  "POST /api/login/finish": async ({ passphrase, moveNotion }) => {
+    const p = pendingLogin;
+    if (!p?.token) throw new Error("先在浏览器里登录");
+    const { key } = await openVault(syncBase(), p.token, String(passphrase || ""));
+    let moved = null;
+    if (openStore().kind === "notion") {
+      if (!moveNotion) throw new Error("这台现在把数据存在 Notion。云同步要用本地存储：勾上「搬到本地」才能继续（Notion 里的原样留着）");
+      moved = await moveNotionToLocal();
+    }
+    writeEnv({ SHOULDER_TAP_SYNC_URL: syncBase(), SHOULDER_TAP_DEVICE_TOKEN: p.token, SHOULDER_TAP_VAULT_KEY: key.toString("base64url"), SHOULDER_TAP_SYNC_KEY: null });
+    writeConfig({ syncEmail: p.email });
+    pendingLogin = null;
+    const sync = await syncNow().catch((e) => ({ error: e.message }));
+    return { email: p.email, moved, sync };
+  },
+  "POST /api/login/cancel": () => { pendingLogin = null; return {}; },
+  "POST /api/sync": () => syncNow(),
+  "POST /api/logout": async () => {
+    const token = loadEnv().SHOULDER_TAP_DEVICE_TOKEN;
+    if (token) await logout(syncBase(), token).catch(() => {});
+    writeEnv({ SHOULDER_TAP_DEVICE_TOKEN: null, SHOULDER_TAP_VAULT_KEY: null });
+    writeConfig({ syncEmail: null });
+    return {};
+  },
+};
+
+const WRITES = new Set(["/api/task", "/api/log", "/api/today", "/api/habit", "/api/storage", "/api/login/finish", "/api/sync"]);
 const routes = {
+  ...loginRoutes,
   "GET /api/state": () => state(),
   "POST /api/mcp": ({ client }, lang) => ({ message: connect(client, lang) }),
   // 习惯这两条不走 callText：工具那套话是写给模型看的中文，页面要跟着自己的语言开关

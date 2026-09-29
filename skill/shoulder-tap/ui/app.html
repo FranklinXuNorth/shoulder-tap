@@ -54,6 +54,14 @@
   .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.01em; }
   .logo { width: 29px; height: 24px; background-size: 259px 24px; background-repeat: no-repeat; image-rendering: pixelated; }
   #lang { margin-left: auto; font-size: 13px; }
+  .acct { position: relative; }
+  .acct .menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; display: flex; flex-direction: column; min-width: 170px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+  .acct .menu button { border: 0; text-align: left; background: transparent; padding: 8px 10px; font-size: 14px; }
+  .acct .menu button:hover { background: var(--surface-2); }
+  #acctBtn { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  dialog#loginDlg { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); padding: 22px; width: min(460px, calc(100vw - 32px)); }
+  dialog#loginDlg::backdrop { background: rgba(0,0,0,.35); }
+  dialog#loginDlg input[type=password] { margin-bottom: 8px; }
   .backlink { display: inline-block; margin: 0 0 14px; color: var(--muted); text-decoration: none; font-size: 14px; }
   .backlink:hover { color: var(--ink); }
 
@@ -193,7 +201,35 @@
   <header class="top">
     <div class="brand"><div class="logo" id="logo"></div>shoulder-tap</div>
     <button id="lang" class="ghost small" data-t="lang"></button>
+    <div class="acct">
+      <button id="signinBtn" class="small primary hidden" data-t="signin"></button>
+      <button id="acctBtn" class="small hidden"></button>
+      <div id="acctMenu" class="menu hidden">
+        <button id="menuCloud" data-t="openCloud"></button>
+        <button id="menuSync" data-t="syncNow"></button>
+        <button id="menuOut" data-t="signout"></button>
+      </div>
+    </div>
   </header>
+
+  <dialog id="loginDlg">
+    <h2 data-t="signinH"></h2>
+    <p class="why" data-t="signinWhy"></p>
+    <div id="loginWait">
+      <p data-t="signinWait"></p>
+      <p><span class="why" data-t="signinCode"></span> <code id="loginCode"></code> · <a id="loginReopen" target="_blank" data-t="signinReopen"></a></p>
+    </div>
+    <form id="loginForm" class="hidden" autocomplete="off"><div id="loginPhrase" class="hidden">
+      <p class="why" id="phraseWhy"></p>
+      <input type="password" id="phrase" minlength="8" data-p="phrasePh">
+      <input type="password" id="phrase2" minlength="8" data-p="phrase2Ph" class="hidden">
+      <label class="opt hidden" id="notionRow"><input type="checkbox" id="moveNotion" checked><div data-t="signinNotion"></div></label>
+      <div class="row" style="margin-top:12px"><button class="primary" id="loginGo" data-t="signinGo"></button></div>
+    </div></form>
+    <div id="loginDone" class="hidden"><p id="loginResult"></p><div class="row"><button class="primary" id="loginClose" type="button" data-t="close"></button></div></div>
+    <div class="msg err" id="loginErr"></div>
+    <div class="row" style="justify-content:flex-end"><button class="ghost small" id="loginCancel" type="button" data-t="cancel"></button></div>
+  </dialog>
 
   <div class="promise hidden" id="gone" style="border-color:var(--signal);background:var(--signal-soft)"><b data-t="gone"></b><span data-t="goneWhy"></span></div>
 
@@ -205,7 +241,6 @@
     <div class="actions">
       <button class="action" data-go="setup"><span class="ico">↻</span><span><b id="goSetupLabel"></b><small data-t="goSetupWhy"></small></span></button>
       <button class="action" data-go="hands"><span class="ico"><div id="skinIco"></div></span><span><b data-t="goHands"></b><small data-t="goHandsWhy"></small></span></button>
-      <button class="action" id="cloudBtn"><span class="ico">☁</span><span><b id="goCloudLabel"></b><small id="goCloudWhy"></small></span></button>
     </div>
     <!-- 这一页能点的，在 coding agent 里说一句也行：它们调的是同一套工具 -->
     <p class="agent-hint"><b data-t="agentHintH"></b> <span id="agentHint"></span></p>
@@ -398,7 +433,56 @@
   }
   $("lang").onclick = () => { lang = lang === "zh" ? "en" : "zh"; try { localStorage.setItem("lang", lang); } catch {} applyLang(); };
   document.querySelectorAll("[data-go]").forEach((b) => b.onclick = () => location.hash = b.dataset.go);
-  $("cloudBtn").onclick = () => window.open(S.sync.url + "/app", "_blank", "noopener");
+  // ---------- 右上角：登录 / 账号 ----------
+  // 没登录：一个「登录」按钮。登录过：邮箱 ▾，点开是 打开云端版 / 立即同步 / 退出登录。
+  function renderAccount() {
+    const s = S.sync;
+    $("signinBtn").classList.toggle("hidden", s.loggedIn);
+    $("acctBtn").classList.toggle("hidden", !s.loggedIn);
+    $("acctBtn").textContent = (s.email || t("signin")) + " ▾";
+    $("acctMenu").classList.add("hidden");
+  }
+  $("acctBtn").onclick = (e) => { e.stopPropagation(); $("acctMenu").classList.toggle("hidden"); };
+  document.addEventListener("click", () => $("acctMenu").classList.add("hidden"));
+  $("menuCloud").onclick = () => window.open(S.sync.url + "/app", "_blank", "noopener");
+  $("menuSync").onclick = async () => { try { alert(t("synced")(await api("POST", "/api/sync"))); await load(); } catch (e) { alert(e.message); } };
+  $("menuOut").onclick = async () => { await api("POST", "/api/logout"); await load(); };
+
+  let loginTimer = null, loginInfo = null;
+  const loginStep = (n) => { ["loginWait", "loginPhrase", "loginDone"].forEach((id, i) => $(id).classList.toggle("hidden", i !== n)); $("loginForm").classList.toggle("hidden", n !== 1); };
+  $("signinBtn").onclick = async () => {
+    $("loginErr").textContent = ""; loginStep(0); $("loginDlg").showModal();
+    try {
+      const { url, code } = await api("POST", "/api/login/start");
+      $("loginCode").textContent = code; $("loginReopen").href = url;
+      window.open(url, "_blank");
+      clearInterval(loginTimer);
+      loginTimer = setInterval(async () => {
+        try {
+          const r = await api("POST", "/api/login/poll");
+          if (r.pending) return;
+          clearInterval(loginTimer); loginInfo = r;
+          $("phraseWhy").textContent = t(r.hasVault ? "signinPhrase" : "signinPhraseNew");
+          $("phrase2").classList.toggle("hidden", r.hasVault);
+          $("notionRow").classList.toggle("hidden", !r.notion);
+          loginStep(1); $("phrase").focus();
+        } catch (e) { clearInterval(loginTimer); $("loginErr").textContent = e.message; }
+      }, 1500);
+    } catch (e) { $("loginErr").textContent = e.message; }
+  };
+  $("loginForm").onsubmit = async (e) => {
+    e.preventDefault(); $("loginErr").textContent = "";
+    if (!loginInfo.hasVault && $("phrase").value !== $("phrase2").value) { $("loginErr").textContent = t("phraseMismatch"); return; }
+    $("loginGo").disabled = true;
+    try {
+      const r = await api("POST", "/api/login/finish", { passphrase: $("phrase").value, moveNotion: $("moveNotion").checked });
+      $("loginResult").textContent = t("signinDone")(r); loginStep(2);
+      $("phrase").value = $("phrase2").value = "";
+      await load();
+    } catch (err) { $("loginErr").textContent = err.message; } finally { $("loginGo").disabled = false; }
+  };
+  $("loginCancel").onclick = () => { clearInterval(loginTimer); api("POST", "/api/login/cancel").catch(() => {}); $("loginDlg").close(); };
+  $("loginClose").onclick = () => $("loginDlg").close();
   window.onhashchange = route;
 
   // ---------- 数据 ----------
@@ -412,9 +496,7 @@
     renderClients(); renderToday(); renderTasks(); renderHabits(); renderHands();
     $("agentHint").innerHTML = t("agentSays").map((x) => `<q>${esc(x)}</q>`).join("");
     $("logo").style.backgroundImage = $("skinIco").style.backgroundImage = `url(/skins/${S.skin}/tap.webp)`;
-    // 跨机器同步：登录过就是「打开云端版」，没登录就是「登录云端版」—— 点了都去 sync service 上那个网页版
-    $("goCloudLabel").textContent = t(S.sync.loggedIn ? "goCloudIn" : "goCloud");
-    $("goCloudWhy").textContent = S.sync.loggedIn ? t("goCloudWhyIn") : t("goCloudWhy")(S.sync.login);
+    renderAccount();
     $("update").classList.toggle("hidden", !S.update.behind);
     $("updateText").textContent = t("updateAvail")(S.update.behind);
   }
