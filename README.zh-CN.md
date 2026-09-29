@@ -70,7 +70,7 @@ http://127.0.0.1:47823/#setup
 
 装完浏览器会打开设置页（只有本机能访问，地址是 `http://127.0.0.1:47823/#setup`）。五步，每步都能跳过：
 
-1. **接上编程工具** —— 点「接上」，把 shoulder-tap 接进 Claude Code / Codex。Claude Desktop、OpenClaw、Hermes 也能在这里接，只有工具（见下）。
+1. **接上编程工具** —— 点「接上」，把 shoulder-tap 接进 Claude Code / Codex。Claude Desktop 也能在这里接，只有工具（见下）。
    不想点按钮：展开「想自己动手」，有一段可以直接复制给你的 coding agent 的说明。
    macOS 上显示 Claude Code **没找到**、但你确实装了：设置页由菜单栏那个 app 打开，看不到你 shell 的 PATH。展开「想自己动手」，把那条命令拿到终端里跑。
    然后重开一次 Claude Code 会话：`/mcp` 里能看到 `shoulder-tap`，`/hooks` 里能看到四个钩子。
@@ -151,22 +151,9 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 
    这个文件在哪：macOS `~/Library/Application Support/Claude/`，Windows `%APPDATA%\Claude\`（商店版：`%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\`）。
 
-   OpenClaw（龙虾）：
+   Claude Desktop 没有钩子、不读 CLAUDE.md，所以只有工具：不会自己拦你、拍你，你说「看下今天的清单」「喝完水了」它才调。
 
-   ```bash
-   openclaw mcp add shoulder-tap --command node --arg /Users/你/.claude/skills/shoulder-tap/mcp.mjs
-   ```
-
-   Hermes Agent：在 `~/.hermes/config.yaml` 的 `mcp_servers` 下面加，然后重开 Hermes 或在里面打 `/reload-mcp`：
-
-   ```yaml
-   mcp_servers:
-     shoulder-tap:
-       command: "node"
-       args: ["/Users/你/.claude/skills/shoulder-tap/mcp.mjs"]
-   ```
-
-   Claude Desktop、OpenClaw、Hermes 都没有钩子、不读 CLAUDE.md，所以只有工具：不会自己拦你、拍你，你说「看下今天的清单」「喝完水了」它们才调。
+   OpenClaw、Hermes 从 2026-09-29 起不再支持接入：它们也只能接工具，拦你、拍你那一半做不到（以前接过的，卸载时会替你清掉）。
 
 3. **钩子**：在 `~/.claude/settings.json` 里加（文件没有就新建）：
 
@@ -265,7 +252,7 @@ node ~/.claude/skills/shoulder-tap/uninstall.mjs          # 数据留着
 node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # 数据和密钥也删
 ```
 
-三个平台一样：桌面端退出并取消自启、MCP（Claude Code、Codex、Claude Desktop、OpenClaw、Hermes）、钩子、CLAUDE.md 那一节、skill，全部还原。Notion 里的库不动。
+三个平台一样：桌面端退出并取消自启、MCP（Claude Code、Codex、Claude Desktop，以及以前接过的 OpenClaw、Hermes）、钩子、CLAUDE.md 那一节、skill，全部还原。Notion 里的库不动。
 也可以直接跟 Claude Code 说「卸载 shoulder-tap」，它知道跑这条。
 
 <br>

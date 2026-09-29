@@ -5,7 +5,7 @@
  * 把 install.mjs 和设置页动过的地方全部还原，三个平台一样：
  *   1. 桌面端：请常驻进程退出，取消开机自启（Windows Run 键 / macOS LaunchAgent），删 ~/.claude/shoulder-tap/app
  *   2. MCP：claude mcp remove；~/.codex/config.toml 里的 [mcp_servers.shoulder-tap] 段；Claude Desktop 配置里的 shoulder-tap；
- *      openclaw mcp unset；~/.hermes/config.yaml 里 mcp_servers 下的 shoulder-tap
+ *      以前接过 OpenClaw / Hermes 的（现已不支持接入）：openclaw mcp unset；~/.hermes/config.yaml 里 mcp_servers 下的 shoulder-tap
  *   3. 钩子：~/.claude/settings.json 里跑 watch.mjs 的那四个
  *   4. CLAUDE.md：「## 专注」那一节
  *   5. skill：~/.claude/skills/shoulder-tap 和 shoulder-tap-uninstall

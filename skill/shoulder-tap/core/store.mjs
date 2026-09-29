@@ -55,7 +55,7 @@ export const machineTz = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 const NAMES = ["listDay", "setDay", "addItem", "setStatus", "setTaskStatus", "listHabits", "overdueHabits", "addHabit", "logHabit", "stopHabit", "habitHistory", "taskHistory"];
 const LOCAL_ONLY = ["userTz", "noteTz"];
 
-/** 没人坐在跟前的机器（服务器上的 OpenClaw 之类）：.env 里 SHOULDER_TAP_HEADLESS=1，时区跟着用户走，不看服务器。 */
+/** 没人坐在跟前的机器（服务器上跑的 Claude Code / Codex 之类）：.env 里 SHOULDER_TAP_HEADLESS=1，时区跟着用户走，不看服务器。 */
 export const isHeadless = () => loadEnv().SHOULDER_TAP_HEADLESS === "1";
 
 /**

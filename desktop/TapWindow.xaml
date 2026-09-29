@@ -30,7 +30,7 @@
         <TextBlock x:Name="CaptionText" Foreground="{StaticResource Ink}"
                    FontFamily="pack://application:,,,/Fonts/#Fusion Pixel 12px Prop zh_hans" FontSize="16"
                    TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="Aliased"
-                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="72" />
+                   TextWrapping="Wrap" />
         <!-- 到点习惯的提醒才有：已经做了 = 记一次完成；今天不做 = 硬习惯才有，今天不再提；还没做 = 收起来，到点照样再提 -->
         <StackPanel x:Name="HabitButtons" Orientation="Horizontal" Margin="0,8,0,0" Visibility="Collapsed">
           <Border x:Name="DoneButton" Background="{StaticResource Ink}" Padding="10,3" Margin="0,0,8,0" Cursor="Hand">

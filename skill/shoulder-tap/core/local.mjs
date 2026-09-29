@@ -179,7 +179,7 @@ export async function habitHistory(_, limit = 50) {
 
 /**
  * 用户现在在哪个时区。跟着同步走：有人在身边的机器（跑钩子、开着编辑器的那台）每次 check 都记一下自己的时区；
- * 没人在身边的机器（比如跑在服务器上、从 Discord 收消息的 OpenClaw）读这个，而不是读自己那台服务器的 UTC。
+ * 没人在身边的机器（比如跑在服务器上的 Claude Code / Codex）读这个，而不是读自己那台服务器的 UTC。
  */
 export async function userTz() {
   return load().prefs?.tz;
