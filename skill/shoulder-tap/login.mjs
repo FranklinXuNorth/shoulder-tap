@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 登录 shoulder-tap 的跨机器同步（第三档：经 shoulder-tap 的 sync service）。平时在设置页右上角点「登录」就行；
+ * 登录 shoulder-tap 的跨机器同步（第三档：经 shoulder-tap 的同步服务）。平时在设置页右上角点「登录」就行；
  * 这个脚本给没有桌面、只有终端的机器用（比如跑 OpenClaw 的服务器）。
  *
  *   node login.mjs             打印链接（有桌面就顺手打开浏览器）→ 你用邮箱或 Google 登录 → 自动接上同步
@@ -13,8 +13,8 @@ import { spawn } from "node:child_process";
 import { loadEnv, openStore, syncNow, moveNotionToLocal } from "./core/store.mjs";
 import { deviceLogin, openVault, accountInfo, logout, writeEnv, ENV_FILE } from "./core/account.mjs";
 import { ensureListener, stopListener } from "./core/listener.mjs";
+import { DEFAULT_SYNC_URL as DEFAULT_URL } from "./core/sync.mjs";
 
-const DEFAULT_URL = "https://sync.example";
 const env = loadEnv();
 const base = (env.SHOULDER_TAP_SYNC_URL || DEFAULT_URL).replace(/\/+$/, "");
 const say = (s) => console.log("  " + s);

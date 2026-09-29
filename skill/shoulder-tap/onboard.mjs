@@ -18,7 +18,7 @@ import { callText } from "./core/tools.mjs";
 import { STATE_DIR, loadEnv, readConfig, writeConfig, machineTz, openStore, syncNow, moveNotionToLocal } from "./core/store.mjs";
 import { startDeviceLogin, pollDeviceLogin, openVault, logout, writeEnv } from "./core/account.mjs";
 import { ensureListener, stopListener } from "./core/listener.mjs";
-import { syncConfig, deviceId } from "./core/sync.mjs";
+import { syncConfig, deviceId, DEFAULT_SYNC_URL } from "./core/sync.mjs";
 import * as notion from "./core/focus.mjs";
 import { pageIdFrom, NotionError } from "./core/notion.mjs";
 import { STRINGS } from "./core/strings.mjs";
@@ -200,7 +200,7 @@ async function state() {
 // ---------- 登录（右上角）：整个流程在这一页走完，不用开终端 ----------
 // 浏览器登录页（Worker 的 /link，邮箱或 Google）登好，这里拿到令牌就直接接上同步：没有口令、没有「开始同步」。
 // 用 Notion 的机器顺手把 Notion 里的记录搬到本地（云同步只管本地存储；Notion 里的原样留着）。
-const syncBase = () => (loadEnv().SHOULDER_TAP_SYNC_URL || "https://sync.example").replace(/\/+$/, "");
+const syncBase = () => (loadEnv().SHOULDER_TAP_SYNC_URL || DEFAULT_SYNC_URL).replace(/\/+$/, "");
 let pendingLogin = null; // {code, secret}：只在内存里，服务退出就没了
 
 /** 拿到令牌之后的一整套：取钥匙 →（Notion 就搬到本地）→ 写 .env → 同步一次 → 挂上推送监听。 */
