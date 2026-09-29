@@ -41,6 +41,13 @@ log(`skill → ${skillDst}`);
 // 光 POST 一下不算数：/api/quit 是后来才加的，旧进程会回 404 —— fetch 照样 resolve，
 // 脚本就以为杀掉了。所以要盯着端口真的空出来，实在不退就照实说，别让人对着旧页面查半天。
 await quitSettingsServer();
+// 后台的推送监听（listen.mjs）也还跑着旧代码：收掉它，下一次你开口时钩子会用新代码把它重新挂上
+try {
+  const pidFile = path.join(claude, "shoulder-tap", "listen.pid");
+  const pid = Number(fs.readFileSync(pidFile, "utf8"));
+  if (pid) { process.kill(pid); log(`推送监听 → 旧进程 ${pid} 已收掉，下次开口时自动换成新版`); }
+  fs.rmSync(pidFile, { force: true });
+} catch {}
 async function quitSettingsServer() {
   const port = 47823;
   const busy = () => new Promise((ok) => {
