@@ -78,7 +78,8 @@ function onActive(device) {
   serverActive = device;
 }
 
-const sub = listen(cfg, (m) => refresh(m.seq), { onTap: remoteTap, onActive });
+const onReplaced = () => { console.log("这台又起了一个监听，这个退出"); process.exit(0); };
+const sub = listen(cfg, (m) => refresh(m.seq), { onTap: remoteTap, onActive, onReplaced });
 await sub.ready;
 watchIdle(onIdle, loadEnv());
 console.log("listening");
