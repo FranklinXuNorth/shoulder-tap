@@ -32,6 +32,22 @@ export function missingHandDecision(payload) {
   };
 }
 
+/**
+ * 这一下是哪个编程工具发的。Claude Code 和 Codex 同时开着的时候，桌面上那条字前面标出来，才分得清是谁做完了、谁在问你。
+ * 钩子命令里写明的 --agent 最准（install.mjs 给 Claude Code 挂的那条不带参数）；没写就看会话记录在不在 ~/.codex 下；
+ * 都不是就当 Claude Code。
+ */
+export function agentName(payload, argv = process.argv) {
+  const i = argv.indexOf("--agent");
+  const flag = i >= 0 ? String(argv[i + 1] || "").toLowerCase() : "";
+  if (flag === "codex") return "Codex";
+  if (flag === "claude" || flag === "claude-code") return "Claude Code";
+  return /[\\/]\.codex[\\/]/.test(payload?.transcript_path || "") ? "Codex" : "Claude Code";
+}
+
+/** 字条前面加上是谁。没字的那一下（开口时的 bind）不加，免得只剩一个名字。 */
+export const withAgent = (agent, caption) => (caption?.trim() ? `${agent} · ${caption.trim()}` : caption || "");
+
 export function desktopArgs(payload, mode, text = "", caption = "", habit = "", skippable = false) {
   const args = ["--mode", mode, "--session", payload.session_id || payload.transcript_path || "",
     "--source-pid", String(process.ppid)];

@@ -25,7 +25,7 @@ import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { completionGestures, desktopArgs, doneLine, dueHabitIn, habitSkippable, missingHandDecision } from "./completion.mjs";
+import { agentName, completionGestures, desktopArgs, doneLine, dueHabitIn, habitSkippable, missingHandDecision, withAgent } from "./completion.mjs";
 import { localJudgement } from "./local-jev.mjs";
 import { callText } from "./core/tools.mjs";
 import { loadEnv } from "./core/store.mjs";
@@ -233,7 +233,8 @@ async function main() {
     for (const gesture of completionGestures(payload)) {
       // 聊天里的手就是桌面上的手：响指 → 响指，taptap → taptap。
       const mode = gesture;
-      const caption = mode === "tap" ? reminder : doneLine(payload.last_assistant_message);
+      // 字条前面标上是 Claude Code 还是 Codex（习惯要从没加前缀的原句里认）
+      const caption = withAgent(agentName(payload), mode === "tap" ? reminder : doneLine(payload.last_assistant_message));
       const due = mode === "tap" ? dueHabitIn(state.plan, reminder) : ""; // 提醒的是习惯：手下面带两个按钮
       const skippable = due !== "" && habitSkippable(state.plan, due);
       // 按钮带上「这次提醒」的 ID（此刻 pending 那一行）：同一次提醒在几处被点，只记一次
@@ -252,7 +253,7 @@ async function main() {
   // 不输出任何东西：不拦这次调用，也不往上下文里塞话。
   if (event === "PreToolUse") {
     if (payload.tool_name === "AskUserQuestion") {
-      const question = questionLine(payload.tool_input);
+      const question = withAgent(agentName(payload), questionLine(payload.tool_input));
       if (shouldShowHere(env)) tapDesktop(env, "", payload, "complete", question); // 问你话 → 拍拍你
       await relayTap(env, { mode: "complete", text: "", caption: question });
     }
