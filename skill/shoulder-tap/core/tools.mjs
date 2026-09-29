@@ -3,7 +3,7 @@
  * 数据在本地 JSON 或你自己的 Notion（见 store.mjs），不经过 shoulder-tap 的任何服务器。
  * 时区默认读这台机器的；模型传了 tz 就用它传的。
  */
-import { openStore, machineTz } from "./store.mjs";
+import { openStore, machineTz, isHeadless } from "./store.mjs";
 import { current, dayWindow, offsetOf, requireTz, DB_TITLE, adoptDatabase, createDatabase, findHabit } from "./focus.mjs";
 import { pageIdFrom, NotionError } from "./notion.mjs";
 import { renderCheck, renderPlan } from "./render.mjs";
@@ -78,8 +78,8 @@ export const TOOLS = [
   },
 ];
 
-function zoneOf(tz, day) {
-  const use = requireTz(tz || machineTz());
+function zoneOf(tz, day, fallback = machineTz()) {
+  const use = requireTz(tz || fallback);
   const win = dayWindow(use, day);
   return { tz: use, win, line: `时区 ${use}（UTC${offsetOf(use)}）→ 今天是 ${win.day}` };
 }
@@ -87,24 +87,35 @@ function zoneOf(tz, day) {
 const when = (h) => (h.at ? `每天 ${h.at}` : `每 ${h.everyMin} 分钟`);
 const kindName = (k) => (k === "soft" ? "软习惯，随手就能做，不许跳过" : "硬习惯，看当天情况，可以说今天不做");
 
+/**
+ * 没传 tz 时用哪个。有人在跟前的机器：就是这台的，而且 check 的时候顺手记下来，同步给别的机器；
+ * 没人在跟前的（SHOULDER_TAP_HEADLESS=1，比如服务器上接 Discord 的 OpenClaw）：用记下来的那个，服务器自己的 UTC 不算数。
+ */
+async function fallbackTz(store, a, note) {
+  if (isHeadless()) return (await store.userTz()) || machineTz();
+  if (note) await store.noteTz(a.tz || machineTz());
+  return machineTz();
+}
+
 export async function call(name, a) {
   const store = openStore();
+  const tzOr = await fallbackTz(store, a, name === "check_focus");
   switch (name) {
     case "check_focus": {
-      const z = zoneOf(a.tz, a.day);
+      const z = zoneOf(a.tz, a.day, tzOr);
       const [items, habits] = await Promise.all([store.listDay(z.win), store.overdueHabits().catch(() => [])]);
       return `${z.line}\n\n${renderCheck(items, z.win.day, a.activity, habits)}`;
     }
     case "set_focus": {
-      const z = zoneOf(a.tz, a.day);
+      const z = zoneOf(a.tz, a.day, tzOr);
       return `记下了。${z.line}\n\n${renderPlan(await store.setDay(z.win, a.tasks, z.tz), z.win.day)}`;
     }
     case "add_focus": {
-      const z = zoneOf(a.tz, a.day);
+      const z = zoneOf(a.tz, a.day, tzOr);
       return `加上了。${z.line}\n\n${renderPlan(await store.addItem(z.win, a.task, a.note ?? "", a.position, z.tz), z.win.day)}`;
     }
     case "complete_focus": {
-      const z = zoneOf(a.tz, a.day);
+      const z = zoneOf(a.tz, a.day, tzOr);
       const { items, hit } = await store.setStatus(z.win, a.position, a.dropped ? "dropped" : "done");
       if (!hit) return `今天没有第 ${a.position} 条。\n\n${renderPlan(items, z.win.day)}`;
       const next = current(items);
@@ -113,12 +124,12 @@ export async function call(name, a) {
     }
     case "add_habit": {
       if (!a.every_minutes && !a.at) return "every_minutes 和 at 得给一个：隔多久一次，还是每天几点。";
-      const habits = await store.addHabit(a.name, a.every_minutes ?? 0, a.note ?? "", requireTz(a.tz || machineTz()), a.at, a.kind);
+      const habits = await store.addHabit(a.name, a.every_minutes ?? 0, a.note ?? "", requireTz(a.tz || tzOr), a.at, a.kind);
       return `加上了：${a.name}，${a.at ? `每天 ${a.at}` : `每 ${a.every_minutes} 分钟`}，${kindName(a.kind)}。\n\n现在盯着这些：\n` +
         habits.map((h) => `  · ${h.name} —— ${when(h)}（${h.kind === "soft" ? "软" : "硬"}）`).join("\n");
     }
     case "log_habit": {
-      const hit = await store.logHabit(a.habit, requireTz(a.tz || machineTz()), a.note, a.skip === true);
+      const hit = await store.logHabit(a.habit, requireTz(a.tz || tzOr), a.note, a.skip === true);
       if (hit?.refused) return `「${hit.name}」是软习惯，随手就能做的事不能跳过。什么都没记，到点照样会提醒 —— 把这句照实告诉他。`;
       if (hit) return a.skip ? `记下了：${hit.name} 今天跳过。` : `记下了：${hit.name}，下次提醒${hit.at ? `明天 ${hit.at}` : `在 ${hit.everyMin} 分钟后`}。`;
       const all = await store.listHabits().catch(() => []);
@@ -129,7 +140,7 @@ export async function call(name, a) {
       return hit ? `停用了：${hit.name}。历史都还在，以后不再提醒。` : `没找到「${a.habit}」。`;
     }
     case "habit_history": {
-      const tz = machineTz();
+      const tz = tzOr;
       let rows = await store.habitHistory(200);
       if (a.habit) {
         const hit = findHabit(rows, a.habit);

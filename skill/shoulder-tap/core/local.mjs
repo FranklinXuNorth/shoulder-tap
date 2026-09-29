@@ -12,16 +12,17 @@ import { overdueMinutes } from "./protocol.mjs";
 
 export const DATA = path.join(os.homedir(), ".claude", "shoulder-tap", "data.json");
 
-function load() {
+/** 除了 tasks / habits，同步的游标和偏好（sync、prefs）也在这个文件里，读写都得原样带着。 */
+export function load() {
   try {
     const d = JSON.parse(fs.readFileSync(DATA, "utf8"));
-    return { tasks: d.tasks ?? [], habits: d.habits ?? [] };
+    return { ...d, tasks: d.tasks ?? [], habits: d.habits ?? [] };
   } catch {
     return { tasks: [], habits: [] };
   }
 }
 
-function save(d) {
+export function save(d) {
   fs.mkdirSync(path.dirname(DATA), { recursive: true });
   // 先写临时文件再改名：写到一半断电，也不会留下半个 JSON 把整份数据弄丢。
   const tmp = DATA + ".tmp";
@@ -31,10 +32,16 @@ function save(d) {
 
 const inDay = (win) => (t) => t.day >= win.startUtc && t.day < win.endUtc && t.status !== "dropped";
 
-const asItem = (t) => ({ id: t.sid, sid: t.sid, order: t.order, task: t.task, note: t.note ?? "", tz: t.tz ?? "", done: t.status === "done" });
+const asItem = (t, order = t.order) => ({ id: t.sid, sid: t.sid, order, task: t.task, note: t.note ?? "", tz: t.tz ?? "", done: t.status === "done" });
+
+/**
+ * 当天的行，按存的 order 排，同号再按 sid。第几条永远是排出来的位置，不直接信存的 order：
+ * 两台机器离线时各往今天末尾加一条，存下来的都是同一个 order，合到一起也得有确定的先后。
+ */
+const dayRows = (d, win) => d.tasks.filter(inDay(win)).sort((a, b) => a.order - b.order || a.sid.localeCompare(b.sid));
 
 export async function listDay(_, win) {
-  return load().tasks.filter(inDay(win)).sort((a, b) => a.order - b.order).map(asItem);
+  return dayRows(load(), win).map((t, i) => asItem(t, i + 1));
 }
 
 export async function setDay(_, win, tasks, tz) {
@@ -49,9 +56,9 @@ export async function setDay(_, win, tasks, tz) {
 
 export async function addItem(_, win, task, note, position, tz) {
   const d = load();
-  const today = d.tasks.filter(inDay(win));
-  const last = today.reduce((m, t) => Math.max(m, t.order), 0);
-  const at = position === undefined || position > today.length ? last + 1 : Math.max(1, position);
+  const today = dayRows(d, win);
+  today.forEach((t, i) => { if (t.order !== i + 1) t.order = i + 1; }); // 先压成 1..n，插队才插得准
+  const at = position === undefined || position > today.length ? today.length + 1 : Math.max(1, position);
   for (const t of today) if (t.order >= at) t.order++;
   d.tasks.push({ sid: mintId("t", new Set(d.tasks.map((t) => t.sid))), order: at, task, note, status: "pending", day: dayStamp(win), tz });
   save(d);
@@ -60,10 +67,10 @@ export async function addItem(_, win, task, note, position, tz) {
 
 export async function setStatus(_, win, position, status) {
   const d = load();
-  const row = d.tasks.filter(inDay(win)).find((t) => t.order === position);
+  const row = dayRows(d, win)[position - 1];
   const items = await listDay(_, win);
   if (!row) return { items, hit: undefined };
-  const hit = asItem(row);
+  const hit = asItem(row, position);
   row.status = status;
   save(d);
   return { items: await listDay(_, win), hit };
@@ -127,6 +134,8 @@ export async function logHabit(_, name, tz, note, skip = false) {
   const at = nowUtc();
   Object.assign(row, { status: skip ? "dropped" : "done", activated: activatedOf(row), finished: at, ...(note === undefined ? {} : { note }) });
   delete row.last;
+  // 收尾的这一行换个同步 ID：两台机器离线时各记了一次，是两条记录，不能因为收的是同一行 pending 就合成一条。
+  delete row.rid;
   d.habits.push(pendingRow({ ...row, tz }, nextActivation(skip, tz)));
   save(d);
   return { ...hit, overdueMin: -1, finished: at };
@@ -153,4 +162,19 @@ export async function taskHistory(_, sinceUtc) {
 export async function habitHistory(_, limit = 50) {
   return load().habits.filter((h) => status(h) !== "pending").map((h) => asHabit(h))
     .sort((a, b) => (b.finished ?? "").localeCompare(a.finished ?? "")).slice(0, limit);
+}
+
+/**
+ * 用户现在在哪个时区。跟着同步走：有人在身边的机器（跑钩子、开着编辑器的那台）每次 check 都记一下自己的时区；
+ * 没人在身边的机器（比如跑在服务器上、从 Discord 收消息的 OpenClaw）读这个，而不是读自己那台服务器的 UTC。
+ */
+export async function userTz() {
+  return load().prefs?.tz;
+}
+
+export async function noteTz(_, tz) {
+  const d = load();
+  if (!tz || d.prefs?.tz === tz) return;
+  d.prefs = { tz };
+  save(d);
 }
