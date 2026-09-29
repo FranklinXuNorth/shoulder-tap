@@ -1,3 +1,7 @@
 node_modules/
 media_local/
 tmp/
+
+# 同步服务在另一个仓库（shoulder-tap-backend）；这里不该再出现它的本地状态
+worker/
+.deploy tool/
