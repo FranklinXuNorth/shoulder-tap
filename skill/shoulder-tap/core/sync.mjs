@@ -19,9 +19,17 @@ import path from "node:path";
 
 export const newSyncKey = () => crypto.randomBytes(32).toString("base64url");
 
-/** 配齐了才算开：中转地址 + 同步密钥。 */
+/**
+ * 配齐了才算开。两种：
+ *   登录过（node login.mjs）：设备令牌 + 拆开的同步密钥 → /v2，频道是账号
+ *   手填一把同步密钥：从它派生频道、口令、加密密钥 → /v1
+ */
 export function syncConfig(env) {
   const base = (env.SHOULDER_TAP_SYNC_URL || "").trim().replace(/\/+$/, "");
+  const timeoutMs = Number(env.SHOULDER_TAP_SYNC_TIMEOUT_MS) || 1500;
+  const device = (env.SHOULDER_TAP_DEVICE_TOKEN || "").trim();
+  const vault = (env.SHOULDER_TAP_VAULT_KEY || "").trim();
+  if (base && device && vault) return { url: `${base}/v2`, auth: device, key: Buffer.from(vault, "base64url"), timeoutMs };
   const secret = (env.SHOULDER_TAP_SYNC_KEY || "").trim();
   if (!base || !secret) return null;
   const derive = (info) => Buffer.from(crypto.hkdfSync("sha256", secret, "", info, 32));
@@ -29,7 +37,7 @@ export function syncConfig(env) {
     url: `${base}/v1/${derive("shoulder-tap/sync/channel").toString("hex").slice(0, 32)}`,
     auth: derive("shoulder-tap/sync/auth").toString("hex"),
     key: derive("shoulder-tap/sync/key"),
-    timeoutMs: Number(env.SHOULDER_TAP_SYNC_TIMEOUT_MS) || 1500,
+    timeoutMs,
   };
 }
 

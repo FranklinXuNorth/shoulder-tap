@@ -123,3 +123,30 @@ node harness/run.mjs --test-name-pattern=O  # 只跑某一组
 3. **拉的频率**：现在每次调用都拉，一次 `check_focus` 会拉三回（noteTz、listDay、overdueHabits）。本地 deploy tool 上每次 5ms；真网络上要量，必要时同一进程里 2 秒内只拉一次。
 4. **拍肩中转**（旧 `cross-machine` 设计，d1812b4）：跟这个共用 Worker 和同一把密钥，频道 DO 里再挂 WebSocket。等同步在真机上稳了再接回来。
 5. 核实 Codex 的钩子；核实 OpenClaw 网关怎么给 MCP 子进程传环境变量。
+
+## 登录（v2）
+
+账号只决定「你是谁、进哪个频道」，能不能读取决于同步口令。两者分开，所以服务端既认得你，又读不了你。
+
+- `node ~/.claude/skills/shoulder-tap/login.mjs`：终端打印链接并打开浏览器，用邮箱密码或 Google 登录（设备码流程：浏览器绑码，终端拿只有它知道的 secret 换令牌），再在终端输同步口令。
+- 第一台机器随机生成同步密钥，用口令加一层（scrypt N=2^15 + AES-256-GCM）存到服务端；之后每台机器登录时拉下来，在本机拆开。口令从不上传。
+- 写进 `.env` 的是 `SHOULDER_TAP_SYNC_URL`、`SHOULDER_TAP_DEVICE_TOKEN` 和 `SHOULDER_TAP_VAULT_KEY`（拆开后的密钥，只在本机）。有这三项就走 `/v2`，频道等于账号；v1（手填 `SHOULDER_TAP_SYNC_KEY`）照旧能用。
+- `--status` 查看登录状态，`--logout` 注销这台。`DELETE /account` 注销整个账号（设备、密钥、密文全删）。
+- 同一个邮箱连错 5 次密码，锁 15 分钟。
+- 服务端存的东西：邮箱、PBKDF2 密码哈希、设备令牌、包起来的密钥、密文行。
+
+**Google 登录需要你手动做的三件事**：
+1. 把 `GOOGLE_CLIENT_ID` 和 `GOOGLE_CLIENT_SECRET` 设成 Worker 的 secret：`cd worker && npx deploy tool secret put …`，或者在 sync service 控制台 → Workers → shoulder-tap-sync → Settings → Variables and Secrets 里添加。
+2. 在 Google Console 的这个 OAuth client 里加回调地址 `https://sync.example/auth/google/callback`。
+3. 应用还在 Testing 状态，只有 consent screen 里列出的 test users 能登录；要给别人用，得发布应用。
+
+测试在 `harness/auth.test.mjs`，共 12 个（A1–A12）：
+- 同账号同步；两个账号互相隔离
+- 登录密码错与锁定；同步口令错时本机数据不受影响
+- 注册时的密码确认；设备码被偷看也拿不走令牌、只能用一次
+- 注销单台设备；两台同时当第一台时只生成一把密钥
+- 服务端只见密文；注销整个账号
+- Google 跳转地址（只测到跳转这一步，登录要真人点）
+- `login.mjs` 端到端
+
+线上 40/40 通过（2026-09-28）。

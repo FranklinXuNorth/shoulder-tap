@@ -156,8 +156,9 @@ function habitsOnly(full) {
 /** 缓存里那句占位的活动，换成你真正说的话。 */
 function fillActivity(plan, prompt) {
   if (!plan) return "";
-  const activity = (prompt || "").replace(/\s+/g, " ").slice(0, 300);
-  return activity ? plan.split(ACTIVITY_SLOT).join(activity) : plan;
+  // 只发了图片 / 附件时 prompt 是空的：占位符原样漏进上下文，模型就不知道他在干什么了
+  const activity = (prompt || "").replace(/\s+/g, " ").slice(0, 300) || "（这一轮没有文字，只发了图片或附件，按内容判断）";
+  return plan.split(ACTIVITY_SLOT).join(activity);
 }
 
 /**
