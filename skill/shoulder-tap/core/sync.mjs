@@ -23,7 +23,7 @@ import path from "node:path";
 export const newSyncKey = () => crypto.randomBytes(32).toString("base64url");
 
 /** shoulder-tap 的同步服务。想自己部署一份，就在 .env 里写 SHOULDER_TAP_SYNC_URL 盖掉它。 */
-export const DEFAULT_SYNC_URL = "https://sync.example";
+export const DEFAULT_SYNC_URL = "https://shoulder-tap-sync.shoulder-tap.workers.dev";
 
 /**
  * 这台设备是谁：主机名 + 用户名 + 主目录算出来的稳定 ID，不用存。同一台机器重新登录，服务端据此作废旧令牌；
