@@ -234,7 +234,28 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 node ~/.claude/skills/shoulder-tap/update.mjs
 ```
 
-在你当初 clone 的那个目录里拉最新版，再重跑一遍安装；数据和设置不动。也可以直接跟 Claude Code 说「更新 shoulder-tap」，或者设置页出现「更新」按钮时点一下。它每天在后台查一次 GitHub，有新版本时模型会提一句（一天一次）。
+在你当初 clone 的那个目录里拉最新版，再重跑一遍安装；数据和设置不动。也可以直接跟 Claude Code 说「更新 shoulder-tap」，或者设置页出现「更新」按钮时点一下。它每天在后台查一次 GitHub，有新版本时模型会提一句（一天一次）。它拉的是仓库当前所在的分支：切到 `sync` 之后，每次更新都拉 `origin/sync`。
+
+### 跨机器同步（`sync` 分支，测试中）
+
+数据放哪三选一：只用一台机器，就存本地，什么都不用做；用你自己的 Notion，在设置页第 4 步选；或者用 shoulder-tap 的 sync service 做端到端加密同步，服务端只见密文，同步口令从不离开你的机器。
+
+> [!TIP]
+> 在另一台机器上把这句贴给 Claude Code 或 Codex：
+>
+> ```
+> 把我的 shoulder-tap 切到 sync 分支并更新，照 skill 里「跨机器同步」那一节做。做完把登录命令给我，我在自己的终端里跑。
+> ```
+
+自己动手，在 shoulder-tap 的仓库目录里：
+
+```bash
+git fetch origin && git switch sync
+node ~/.claude/skills/shoulder-tap/update.mjs     # 更新到 sync 最新版，数据和设置不动
+node ~/.claude/skills/shoulder-tap/login.mjs      # 在你自己的终端里：浏览器登录、输同步口令、立刻同步一次
+```
+
+从没装过 shoulder-tap 的机器：clone 之后 `git switch sync`，再 `node install.mjs --login`，一条命令全做完。原来用 Notion 的机器会先问要不要把 Notion 里的全部记录搬到本地（Notion 里的原样留着）。两台机器以前各有记录也能合：任务取并集，同名习惯并成一个，两边的打卡都保留。细节见 [docs/sync.md](docs/sync.md)。
 
 <br>
 

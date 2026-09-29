@@ -157,11 +157,16 @@ node harness/run.mjs --test-name-pattern=O  # 只跑某一组
 
 ```
 git fetch origin
-git switch sync              # 第一次切：自动跟踪 origin/sync
-node install.mjs --login     # 装新版 → 浏览器登录 → 输同步口令 → 立刻同步一次
+git switch sync                                   # 第一次切：自动跟踪 origin/sync
+node ~/.claude/skills/shoulder-tap/update.mjs     # 更新到 sync 最新版（数据和设置不动）
+node ~/.claude/skills/shoulder-tap/login.mjs      # 在自己的终端里：浏览器登录 → 同步口令 → 立刻同步一次
 ```
 
-`--login` 做完这几件事：
+从没装过 shoulder-tap 的机器，clone 之后 `git switch sync && node install.mjs --login`，一条命令做完。
+让 agent 来做的话，它照 `SKILL.md` 的「跨机器同步」一节：切分支和更新它自己跑，`login.mjs` 交给你在自己的终端里跑。
+`login.mjs` 发现自己跑在没有终端的 shell 里（比如 agent 的 shell）会直接退出，并提示你自己跑：它要开浏览器、要输口令，口令不能经过聊天。
+
+登录这一步做完这几件事：
 - 装好新版的 skill 和钩子。
 - 登录，拆开同步密钥。
 - 这台原来用 Notion 的话，问一句，然后把 Notion 里的全部记录搬到本地（翻页翻到底，Notion 里的原样留着当备份）。

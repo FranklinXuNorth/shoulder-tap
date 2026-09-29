@@ -1,6 +1,6 @@
 ---
 name: shoulder-tap
-description: 接上 shoulder-tap（设置页、MCP、存储），以及在用户跑偏时把他拉回来。当用户说「设置 shoulder-tap」「接上 shoulder-tap」「设置一下专注」「更新 shoulder-tap」，或者 shoulder-tap 的工具报 not_set_up 时使用。
+description: 接上 shoulder-tap（设置页、MCP、存储、跨机器同步登录），以及在用户跑偏时把他拉回来。当用户说「设置 shoulder-tap」「接上 shoulder-tap」「设置一下专注」「更新 shoulder-tap」「登录 shoulder-tap」「跟另一台机器同步」「切到 sync 分支」，或者 shoulder-tap 的工具报 not_set_up 时使用。
 ---
 
 # shoulder-tap
@@ -42,6 +42,45 @@ node ~/.claude/skills/shoulder-tap/update.mjs
 
 它在装的时候那个仓库里 `git pull`，再重跑 `install.mjs`；数据和设置不动。跑完告诉用户重开一次会话。
 报「找不到仓库」就照它说的：重新 clone 再跑 `node install.mjs`。
+它拉的是仓库**当前所在的分支**：切到 `sync` 分支之后，以后每次更新都拉 `origin/sync`。
+
+## 跨机器同步（一条龙：更新 → 登录 → 同步全部记录）
+
+用户说「登录 shoulder-tap」「跟另一台机器同步」「切到 sync 分支」，或者要在一台新机器上接上他已有的数据时。
+三种存数据的方式，按他的意思选，别替他选：只用一台机器 → 本地，什么都不用做；自己用 Notion 同步 →
+设置页第 4 步选 Notion；信得过 shoulder-tap 的 sync service → 下面这条（端到端加密，服务端只见密文）。
+
+**你来做**（仓库位置在 `~/.claude/shoulder-tap/config.json` 的 `repo` 里）：
+
+```bash
+git -C "<repo>" fetch origin
+git -C "<repo>" switch sync          # 第一次切会自动跟踪 origin/sync；已经在 sync 上就跳过
+node ~/.claude/skills/shoulder-tap/update.mjs   # 拉 origin/sync 的最新版，装上新的 skill 和钩子；数据和设置不动
+```
+
+别用裸的 `node install.mjs` 更新已经装过的机器：它会接着打开设置页，没有桌面端时还会挂着一个服务，把你的 shell 卡住。
+这台还从没装过 shoulder-tap 才用 `node install.mjs`（那样的话直接 `node install.mjs --login`，让他在自己的终端里跑）。
+
+仓库里有没提交的改动、`switch` 失败：照实告诉他，别 stash、别 reset。
+
+**交给他在自己的终端窗口里跑**（要开浏览器登录、要输同步口令 —— 你的 shell 没有终端，
+口令也**绝不能**让他发在聊天里）：
+
+```bash
+node ~/.claude/skills/shoulder-tap/login.mjs
+```
+
+或者新装的机器一条命令：`node install.mjs --login`（装完直接进登录）。把命令原样贴给他，并说清它会做什么：
+1. 打开浏览器，用邮箱密码或 Google 登录（同一个账号 = 同一份数据）。
+2. 输同步口令：第一台机器是设一个（至少 8 位），之后每台机器输同一个。忘了口令，云端那份就读不出来，本机的数据还在。
+3. 这台原来用 Notion 的话，会问要不要把 Notion 里的全部记录搬到本地（Notion 里的原样留着）。
+4. 立刻同步一次，打印「拉下来几行、推上去几行、这台现在有多少」。之后每次调 shoulder-tap 都会自动同步，开着的会话不用重开。
+
+他跑完之后，你调一次 `check_focus` 确认清单和习惯都在。两台机器以前各有记录也没关系：任务取并集，
+同名习惯（两台都有「喝水」）自动并成一个，两边的打卡都留着。
+
+查看 / 退出：`login.mjs --status` 看登的是谁；`login.mjs --logout` 注销这台，本机数据留着。
+你自己在 shell 里跑 `login.mjs` 会直接退出、提示「在你自己的终端里跑」—— 这是故意的，照它说的转告他。
 
 ## 工具
 

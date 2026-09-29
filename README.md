@@ -234,7 +234,28 @@ All three platforms read the hand sprites from `~/.claude/skills/shoulder-tap/ui
 node ~/.claude/skills/shoulder-tap/update.mjs
 ```
 
-Pulls the latest version into the folder you cloned and reruns the installer; your data and settings stay. Or just tell Claude Code "update shoulder-tap", or click **Update** on the settings page when it shows up. Once a day it checks GitHub in the background, and when there's something new the model mentions it once.
+Pulls the latest version into the folder you cloned and reruns the installer; your data and settings stay. Or just tell Claude Code "update shoulder-tap", or click **Update** on the settings page when it shows up. Once a day it checks GitHub in the background, and when there's something new the model mentions it once. It follows whatever branch the clone is on, so after switching to `sync` every update pulls `origin/sync`.
+
+### Sync across machines (`sync` branch, in testing)
+
+Three ways to keep your data: one machine only (local, nothing to do); your own Notion (settings page, step 4); or shoulder-tap's sync service relay, end-to-end encrypted: the server only ever sees ciphertext, and your sync passphrase never leaves your machines.
+
+> [!TIP]
+> Paste this to Claude Code or Codex on the other machine:
+>
+> ```
+> Switch my shoulder-tap to the sync branch and update it, following the skill's "cross-machine sync" section. Then give me the login command to run in my own terminal.
+> ```
+
+By hand, in your shoulder-tap clone:
+
+```bash
+git fetch origin && git switch sync
+node ~/.claude/skills/shoulder-tap/update.mjs     # latest sync version; data and settings stay
+node ~/.claude/skills/shoulder-tap/login.mjs      # in your own terminal: browser login, sync passphrase, first sync
+```
+
+On a machine that has never had shoulder-tap: clone, `git switch sync`, then `node install.mjs --login` does all of it in one go. A machine that used Notion is offered a full move of its Notion records to local first (Notion keeps its copy). Two machines that each have history merge: tasks are combined, same-named habits become one, and every check-in from both sides is kept. Details: [docs/sync.md](docs/sync.md).
 
 <br>
 

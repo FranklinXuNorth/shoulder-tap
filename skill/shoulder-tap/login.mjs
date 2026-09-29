@@ -52,6 +52,13 @@ if (process.argv.includes("--logout")) {
   process.exit(0);
 }
 
+// 模型在自己的 shell 里跑（没有终端、没法输口令）：别卡着等输入，说清楚让用户自己跑。口令不能经过聊天。
+if (!process.stdin.isTTY && !env.SHOULDER_TAP_PASSPHRASE) {
+  say("登录要在你自己的终端窗口里跑（要开浏览器、要输同步口令，口令别发在聊天里）：");
+  say(`node "${process.argv[1]}"`);
+  process.exit(2);
+}
+
 say(`连 ${base}`);
 const { token, email } = await deviceLogin(base, {
   onCode: (url, code) => {
