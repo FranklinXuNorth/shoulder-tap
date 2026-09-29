@@ -30,6 +30,7 @@ import { localJudgement } from "./local-jev.mjs";
 import { callText } from "./core/tools.mjs";
 import { loadEnv } from "./core/store.mjs";
 import { readUpdate, writeUpdate, dueForCheck } from "./core/update.mjs";
+import { ensureListener } from "./core/listener.mjs";
 
 const SELF = fileURLToPath(import.meta.url);
 
@@ -256,6 +257,8 @@ async function main() {
 
   if (event === "UserPromptSubmit") {
     tapDesktop(env, "", payload, "bind");
+    try { ensureListener(); } catch {} // 登录过的话：推送监听死了（重启过）就再挂上。只读一个 pid 文件，不碰网络
+
     // 有缓存就立刻用，同时甩一个后台刷新。你感觉到的只有 node 的启动时间。
     if (state.plan) {
       spawnRefresh();

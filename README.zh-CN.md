@@ -238,13 +238,13 @@ node ~/.claude/skills/shoulder-tap/update.mjs
 
 ### 跨机器同步（`sync` 分支，测试中）
 
-数据放哪三选一：只用一台机器，就存本地，什么都不用做；用你自己的 Notion，在设置页第 4 步选；或者用 shoulder-tap 的 sync service 做端到端加密同步，服务端只见密文，同步口令从不离开你的机器。
+数据放哪三选一：只用一台机器，就存本地，什么都不用做；用你自己的 Notion，在设置页第 4 步选；或者登录 shoulder-tap 云：登录同一个账号的机器自动同步，不用记口令。数据在云端加密存放，但钥匙由 shoulder-tap 服务端保管，所以这一档是「信得过 shoulder-tap」，不是端到端加密。不登录什么都照常能用，登录只是多开一条同步的路。
 
 > [!TIP]
 > 在另一台机器上把这句贴给 Claude Code 或 Codex：
 >
 > ```
-> 把我的 shoulder-tap 切到 sync 分支并更新，照 skill 里「跨机器同步」那一节做。做完把登录命令给我，我在自己的终端里跑。
+> 把我的 shoulder-tap 切到 sync 分支并更新，照 skill 里「跨机器同步」那一节做，然后帮我登录。
 > ```
 
 自己动手，在 shoulder-tap 的仓库目录里：
@@ -252,10 +252,9 @@ node ~/.claude/skills/shoulder-tap/update.mjs
 ```bash
 git fetch origin && git switch sync
 node ~/.claude/skills/shoulder-tap/update.mjs     # 更新到 sync 最新版，数据和设置不动
-node ~/.claude/skills/shoulder-tap/login.mjs      # 在你自己的终端里：浏览器登录、输同步口令、立刻同步一次
 ```
 
-从没装过 shoulder-tap 的机器：clone 之后 `git switch sync`，再 `node install.mjs --login`，一条命令全做完。原来用 Notion 的机器会先问要不要把 Notion 里的全部记录搬到本地（Notion 里的原样留着）。两台机器以前各有记录也能合：任务取并集，同名习惯并成一个，两边的打卡都保留。细节见 [docs/sync.md](docs/sync.md)。
+然后打开设置页（`http://127.0.0.1:47823/`），点**右上角「登录」**，在弹出的浏览器页里用邮箱或 Google 登录，回到设置页就已经在同步了。只有终端的机器用 `node ~/.claude/skills/shoulder-tap/login.mjs`，它会打印登录链接。原来用 Notion 的机器登录时会把 Notion 里的记录搬到本地（Notion 里的原样留着）。两台机器以前各有记录也能合：任务取并集，同名习惯并成一个，两边的打卡都保留；两台改了同一条，留最后改的那次。别的机器一改，一秒内这台就跟上。手机上看：https://sync.example/app 。细节见 [docs/sync.md](docs/sync.md)。
 
 <br>
 
@@ -276,6 +275,7 @@ node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # 数据和密钥也�
 | 什么 | 去哪 | 什么时候 |
 | --- | --- | --- |
 | 任务、习惯 | 你自己的 Notion | 只有你选了 Notion |
+| 任务、习惯（加密后的每一行、每行的修改时间）、你的邮箱 | shoulder-tap 的 sync service | 只有你在右上角登录了。钥匙也在那边保管，所以服务端技术上解得开 |
 | 对这个仓库 `git fetch` 一次 | GitHub | 一天一次，看有没有更新 |
 | 其它一切 | 哪儿也不去 | — |
 
@@ -285,7 +285,7 @@ node ~/.claude/skills/shoulder-tap/uninstall.mjs --purge  # 数据和密钥也�
 
 - 每一块是什么、数据长什么样：[docs/architecture.html](docs/architecture.html)
 - 一次拍肩怎么走、三档判断、习惯的规则：[docs/flow.html](docs/flow.html)
-- 跨设备（一台机器跑完、拍到你正盯着的另一台上）：[`cross-machine`](../../tree/cross-machine) 分支，还在测，这一版不带
+- 跨机器同步的设计、测试、线上结果：[docs/sync.md](docs/sync.md)
 
 <br>
 

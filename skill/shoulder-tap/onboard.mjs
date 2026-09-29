@@ -16,7 +16,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { callText } from "./core/tools.mjs";
 import { STATE_DIR, loadEnv, readConfig, writeConfig, machineTz, openStore, syncNow, moveNotionToLocal } from "./core/store.mjs";
-import { startDeviceLogin, pollDeviceLogin, openVault, accountInfo, logout, writeEnv } from "./core/account.mjs";
+import { startDeviceLogin, pollDeviceLogin, openVault, logout, writeEnv } from "./core/account.mjs";
+import { ensureListener, stopListener } from "./core/listener.mjs";
 import * as notion from "./core/focus.mjs";
 import { pageIdFrom, NotionError } from "./core/notion.mjs";
 import { STRINGS } from "./core/strings.mjs";
@@ -196,9 +197,21 @@ async function state() {
 }
 
 // ---------- 登录（右上角）：整个流程在这一页走完，不用开终端 ----------
-// 浏览器登录页（Worker 的 /link，邮箱或 Google）只管「你是谁」；同步口令在这一页输，只到 127.0.0.1，不出这台机器。
+// 浏览器登录页（Worker 的 /link，邮箱或 Google）登好，这里拿到令牌就直接接上同步：没有口令、没有「开始同步」。
+// 用 Notion 的机器顺手把 Notion 里的记录搬到本地（云同步只管本地存储；Notion 里的原样留着）。
 const syncBase = () => (loadEnv().SHOULDER_TAP_SYNC_URL || "https://sync.example").replace(/\/+$/, "");
-let pendingLogin = null; // {code, secret, token?, email?}：只在内存里，服务退出就没了
+let pendingLogin = null; // {code, secret}：只在内存里，服务退出就没了
+
+/** 拿到令牌之后的一整套：取钥匙 →（Notion 就搬到本地）→ 写 .env → 同步一次 → 挂上推送监听。 */
+async function connectSync(token, email) {
+  const { key } = await openVault(syncBase(), token);
+  const moved = openStore().kind === "notion" ? await moveNotionToLocal() : null;
+  writeEnv({ SHOULDER_TAP_SYNC_URL: syncBase(), SHOULDER_TAP_DEVICE_TOKEN: token, SHOULDER_TAP_VAULT_KEY: key.toString("base64url"), SHOULDER_TAP_SYNC_KEY: null });
+  writeConfig({ syncEmail: email });
+  const sync = await syncNow().catch((e) => ({ error: e.message }));
+  ensureListener();
+  return { email, moved, sync };
+}
 
 const loginRoutes = {
   "POST /api/login/start": async () => {
@@ -208,29 +221,11 @@ const loginRoutes = {
   },
   "POST /api/login/poll": async () => {
     if (!pendingLogin) throw new Error("先点「登录」");
-    if (!pendingLogin.token) {
-      const d = await pollDeviceLogin(syncBase(), pendingLogin);
-      if (d.error) { pendingLogin = null; throw new Error(d.error); }
-      if (!d.token) return { pending: true };
-      Object.assign(pendingLogin, { token: d.token, email: d.email });
-    }
-    const me = await accountInfo(syncBase(), pendingLogin.token);
-    return { email: pendingLogin.email, hasVault: Boolean(me.hasVault), notion: openStore().kind === "notion" };
-  },
-  "POST /api/login/finish": async ({ passphrase, moveNotion }) => {
-    const p = pendingLogin;
-    if (!p?.token) throw new Error("先在浏览器里登录");
-    const { key } = await openVault(syncBase(), p.token, String(passphrase || ""));
-    let moved = null;
-    if (openStore().kind === "notion") {
-      if (!moveNotion) throw new Error("这台现在把数据存在 Notion。云同步要用本地存储：勾上「搬到本地」才能继续（Notion 里的原样留着）");
-      moved = await moveNotionToLocal();
-    }
-    writeEnv({ SHOULDER_TAP_SYNC_URL: syncBase(), SHOULDER_TAP_DEVICE_TOKEN: p.token, SHOULDER_TAP_VAULT_KEY: key.toString("base64url"), SHOULDER_TAP_SYNC_KEY: null });
-    writeConfig({ syncEmail: p.email });
+    const d = await pollDeviceLogin(syncBase(), pendingLogin);
+    if (d.error) { pendingLogin = null; throw new Error(d.error); }
+    if (!d.token) return { pending: true };
     pendingLogin = null;
-    const sync = await syncNow().catch((e) => ({ error: e.message }));
-    return { email: p.email, moved, sync };
+    return { done: true, ...(await connectSync(d.token, d.email)) };
   },
   "POST /api/login/cancel": () => { pendingLogin = null; return {}; },
   "POST /api/sync": () => syncNow(),
@@ -239,11 +234,12 @@ const loginRoutes = {
     if (token) await logout(syncBase(), token).catch(() => {});
     writeEnv({ SHOULDER_TAP_DEVICE_TOKEN: null, SHOULDER_TAP_VAULT_KEY: null });
     writeConfig({ syncEmail: null });
+    stopListener();
     return {};
   },
 };
 
-const WRITES = new Set(["/api/task", "/api/log", "/api/today", "/api/habit", "/api/storage", "/api/login/finish", "/api/sync"]);
+const WRITES = new Set(["/api/task", "/api/log", "/api/today", "/api/habit", "/api/storage", "/api/login/poll", "/api/sync"]);
 const routes = {
   ...loginRoutes,
   "GET /api/state": () => state(),
@@ -402,6 +398,7 @@ server.on("error", (e) => {
 server.listen(PORT, "127.0.0.1", () => {
   fs.mkdirSync(STATE_DIR, { recursive: true });
   if (!process.argv.includes("--no-open")) openBrowser(OPEN);
+  ensureListener(); // 登录过的话，推送监听不在就补上
   idle();
   console.log(`shoulder-tap：${URL_}`);
 });

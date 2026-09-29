@@ -219,13 +219,6 @@
       <p data-t="signinWait"></p>
       <p><span class="why" data-t="signinCode"></span> <code id="loginCode"></code> · <a id="loginReopen" target="_blank" data-t="signinReopen"></a></p>
     </div>
-    <form id="loginForm" class="hidden" autocomplete="off"><div id="loginPhrase" class="hidden">
-      <p class="why" id="phraseWhy"></p>
-      <input type="password" id="phrase" minlength="8" data-p="phrasePh">
-      <input type="password" id="phrase2" minlength="8" data-p="phrase2Ph" class="hidden">
-      <label class="opt hidden" id="notionRow"><input type="checkbox" id="moveNotion" checked><div data-t="signinNotion"></div></label>
-      <div class="row" style="margin-top:12px"><button class="primary" id="loginGo" data-t="signinGo"></button></div>
-    </div></form>
     <div id="loginDone" class="hidden"><p id="loginResult"></p><div class="row"><button class="primary" id="loginClose" type="button" data-t="close"></button></div></div>
     <div class="msg err" id="loginErr"></div>
     <div class="row" style="justify-content:flex-end"><button class="ghost small" id="loginCancel" type="button" data-t="cancel"></button></div>
@@ -448,8 +441,8 @@
   $("menuSync").onclick = async () => { try { alert(t("synced")(await api("POST", "/api/sync"))); await load(); } catch (e) { alert(e.message); } };
   $("menuOut").onclick = async () => { await api("POST", "/api/logout"); await load(); };
 
-  let loginTimer = null, loginInfo = null;
-  const loginStep = (n) => { ["loginWait", "loginPhrase", "loginDone"].forEach((id, i) => $(id).classList.toggle("hidden", i !== n)); $("loginForm").classList.toggle("hidden", n !== 1); };
+  let loginTimer = null;
+  const loginStep = (n) => ["loginWait", "loginDone"].forEach((id, i) => $(id).classList.toggle("hidden", i !== n));
   $("signinBtn").onclick = async () => {
     $("loginErr").textContent = ""; loginStep(0); $("loginDlg").showModal();
     try {
@@ -461,25 +454,12 @@
         try {
           const r = await api("POST", "/api/login/poll");
           if (r.pending) return;
-          clearInterval(loginTimer); loginInfo = r;
-          $("phraseWhy").textContent = t(r.hasVault ? "signinPhrase" : "signinPhraseNew");
-          $("phrase2").classList.toggle("hidden", r.hasVault);
-          $("notionRow").classList.toggle("hidden", !r.notion);
-          loginStep(1); $("phrase").focus();
+          clearInterval(loginTimer);
+          $("loginResult").textContent = t("signinDone")(r); loginStep(1);
+          await load();
         } catch (e) { clearInterval(loginTimer); $("loginErr").textContent = e.message; }
       }, 1500);
     } catch (e) { $("loginErr").textContent = e.message; }
-  };
-  $("loginForm").onsubmit = async (e) => {
-    e.preventDefault(); $("loginErr").textContent = "";
-    if (!loginInfo.hasVault && $("phrase").value !== $("phrase2").value) { $("loginErr").textContent = t("phraseMismatch"); return; }
-    $("loginGo").disabled = true;
-    try {
-      const r = await api("POST", "/api/login/finish", { passphrase: $("phrase").value, moveNotion: $("moveNotion").checked });
-      $("loginResult").textContent = t("signinDone")(r); loginStep(2);
-      $("phrase").value = $("phrase2").value = "";
-      await load();
-    } catch (err) { $("loginErr").textContent = err.message; } finally { $("loginGo").disabled = false; }
   };
   $("loginCancel").onclick = () => { clearInterval(loginTimer); api("POST", "/api/login/cancel").catch(() => {}); $("loginDlg").close(); };
   $("loginClose").onclick = () => $("loginDlg").close();

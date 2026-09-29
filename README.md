@@ -238,13 +238,13 @@ Pulls the latest version into the folder you cloned and reruns the installer; yo
 
 ### Sync across machines (`sync` branch, in testing)
 
-Three ways to keep your data: one machine only (local, nothing to do); your own Notion (settings page, step 4); or shoulder-tap's sync service relay, end-to-end encrypted: the server only ever sees ciphertext, and your sync passphrase never leaves your machines.
+Three ways to keep your data: one machine only (local, nothing to do); your own Notion (settings page, step 4); or sign in to shoulder-tap's cloud: every machine signed in to the same account syncs automatically, no passphrase. Rows are stored encrypted, but the key is held by the shoulder-tap server, so this tier means trusting shoulder-tap (it is not end-to-end). Everything works without signing in; signing in only opens the sync channel.
 
 > [!TIP]
 > Paste this to Claude Code or Codex on the other machine:
 >
 > ```
-> Switch my shoulder-tap to the sync branch and update it, following the skill's "cross-machine sync" section. Then give me the login command to run in my own terminal.
+> Switch my shoulder-tap to the sync branch and update it, following the skill's "cross-machine sync" section, then help me sign in.
 > ```
 
 By hand, in your shoulder-tap clone:
@@ -252,10 +252,9 @@ By hand, in your shoulder-tap clone:
 ```bash
 git fetch origin && git switch sync
 node ~/.claude/skills/shoulder-tap/update.mjs     # latest sync version; data and settings stay
-node ~/.claude/skills/shoulder-tap/login.mjs      # in your own terminal: browser login, sync passphrase, first sync
 ```
 
-On a machine that has never had shoulder-tap: clone, `git switch sync`, then `node install.mjs --login` does all of it in one go. A machine that used Notion is offered a full move of its Notion records to local first (Notion keeps its copy). Two machines that each have history merge: tasks are combined, same-named habits become one, and every check-in from both sides is kept. Details: [docs/sync.md](docs/sync.md).
+Then open the settings page (`http://127.0.0.1:47823/`) and click **Sign in** in the top-right corner. Sign in with email or Google in the browser tab that opens; back on the settings page, sync is already running. On a terminal-only machine, `node ~/.claude/skills/shoulder-tap/login.mjs` prints the link instead. A machine that used Notion moves its Notion records to local on sign-in (Notion keeps its copy). Two machines that each have history merge: tasks are combined, same-named habits become one, every check-in is kept, and if both changed the same item the later edit wins. Other machines' changes arrive within a second. On a phone: https://sync.example/app. Details: [docs/sync.md](docs/sync.md).
 
 <br>
 
@@ -276,6 +275,7 @@ You can also just tell Claude Code "uninstall shoulder-tap"; it knows to run thi
 | What | Where | When |
 | --- | --- | --- |
 | Tasks, habits | Your own Notion | Only if you chose Notion |
+| Tasks and habits (each row encrypted, plus its last-modified time), your email | shoulder-tap's sync service | Only if you signed in (top right). The key is held there too, so the server can technically read them |
 | A `git fetch` of this repo | GitHub | Once a day, to see if there's an update |
 | Everything else | Nowhere | — |
 
@@ -285,7 +285,7 @@ You can also just tell Claude Code "uninstall shoulder-tap"; it knows to run thi
 
 - What each part is, what the data looks like: [docs/architecture.html](docs/architecture.html)
 - How one tap works, the three-way judgment, habit rules: [docs/flow.html](docs/flow.html)
-- Cross-device (one machine finishes, the tap lands on the one you're looking at): the [`cross-machine`](../../tree/cross-machine) branch, still in testing, not in this version
+- Cross-machine sync: design, tests and live results in [docs/sync.md](docs/sync.md)
 
 <br>
 
