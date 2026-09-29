@@ -109,6 +109,35 @@ function remove(d, rid) {
 }
 
 /**
+ * 同步进度（拉到哪了、每行上次同步时的样子）按频道记。换了频道 —— 手填密钥换成登录、换账号、重新登录 ——
+ * 就从头对一遍账：先把频道里的全拉下来，本机有而频道没有的全推上去。不这样的话，旧频道的进度会让
+ * 新频道里的行被跳过、本机的行被当成「已经推过」。
+ */
+function stateOf(cfg, d) {
+  const id = hashOf(`${cfg.url} ${cfg.auth}`);
+  if (d.sync?.id !== id) d.sync = { id, cursor: 0, hashes: {} };
+  return d.sync;
+}
+
+/**
+ * 两台机器各自加过「喝水」：是两个 sid 的同名习惯，同步到一起就会催两遍。
+ * 同名（不分大小写）的激活习惯并成一个：取最小的那个 sid，这个名字下所有行（历史也算）都改成它。
+ * 每台机器挑出来的都是同一个 sid，所以会收敛。改过的行下一次推上去。
+ */
+function mergeSameName(d) {
+  const key = (h) => (h.name ?? "").trim().toLowerCase();
+  const canon = new Map();
+  for (const h of d.habits) {
+    if ((h.status ?? "pending") !== "pending") continue;
+    if (!canon.has(key(h)) || h.sid < canon.get(key(h))) canon.set(key(h), h.sid);
+  }
+  for (const h of d.habits) {
+    const sid = canon.get(key(h));
+    if (sid && h.sid !== sid) h.sid = sid;
+  }
+}
+
+/**
  * 两台机器离线时各自记了同一个习惯：会出现同一个 sid 的两行 pending。
  * 留激活时间最晚的那行，别的删掉。每台机器算出来的结果一样，所以会收敛，不会来回打架。
  */
@@ -135,11 +164,11 @@ async function request(cfg, path, init = {}) {
 
 /** 拉下来并进 d（原地改）。返回拉到了几行；连不上抛错，由调用方决定吞掉。 */
 export async function pull(cfg, d) {
-  d.sync ??= { cursor: 0, hashes: {} };
-  const { hashes } = d.sync;
+  const state = stateOf(cfg, d);
+  const { hashes } = state;
   let got = 0;
   for (;;) {
-    const page = await request(cfg, `/pull?since=${d.sync.cursor}`);
+    const page = await request(cfg, `/pull?since=${state.cursor}`);
     const mine = records(d);
     for (const r of page.rows) {
       const local = mine.get(r.rid);
@@ -155,17 +184,17 @@ export async function pull(cfg, d) {
       }
       got++;
     }
-    d.sync.cursor = page.seq;
+    state.cursor = page.seq;
     if (!page.more) break;
   }
+  mergeSameName(d);
   dedupePending(d);
   return got;
 }
 
 /** 本地改过、删过的行推上去。没有要推的就不碰网络。返回推了几行。 */
 export async function push(cfg, d) {
-  d.sync ??= { cursor: 0, hashes: {} };
-  const { hashes } = d.sync;
+  const { hashes } = stateOf(cfg, d);
   const mine = records(d);
   const rows = [];
   for (const [rid, { kind, row }] of mine)

@@ -496,6 +496,33 @@ export async function stopHabit(token, name, note) {
     return hit;
 }
 /** 历史：做过的和跳过的，新的在前。 */
+/**
+ * 整个库倒出来，换成本地存储（local.mjs）的行格式：搬到本地 + 云同步时用。翻页翻到底，一条不漏。
+ * rid 用 Notion 页面 ID 定下来：两台连着同一个 Notion 的机器各自导一遍，同步时是同一行，不会变成两份。
+ */
+export async function exportAll(token) {
+    const ds = await findDataSource(token);
+    const tasks = [], habits = [];
+    let cursor;
+    do {
+        const res = await notion(token, "POST", `/data_sources/${ds}/query`, { page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) });
+        for (const page of res.results ?? []) {
+            const kind = page.properties?.Kind?.select?.name;
+            const rid = `n-${page.id.replace(/-/g, "")}`;
+            if (kind === KIND.task) {
+                const t = parseTask(page);
+                if (t.task && t.day) tasks.push({ rid, sid: t.sid || rid, order: t.order, task: t.task, note: t.note, status: t.status, day: t.day, tz: t.tz });
+            }
+            else if (kind === KIND.habit) {
+                const h = parseHabit(page, Date.now());
+                if (h.name) habits.push({ rid, sid: h.sid || rid, name: h.name, everyMin: h.everyMin, at: h.at ?? "", tz: h.tz, kind: h.kind, status: h.status,
+                    activated: h.activated, ...(h.finished ? { finished: h.finished } : {}), ...(h.note ? { note: h.note } : {}) });
+            }
+        }
+        cursor = res.has_more ? res.next_cursor : undefined;
+    } while (cursor);
+    return { tasks, habits };
+}
 export async function habitHistory(token, limit = 50) {
     const rows = await queryHabits(token, { and: [
         { property: "Status", select: { is_not_empty: true } }, // 老库没填 Status 的算激活中，不是历史

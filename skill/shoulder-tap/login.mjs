@@ -10,7 +10,7 @@
  */
 import { spawn } from "node:child_process";
 import readline from "node:readline";
-import { loadEnv } from "./core/store.mjs";
+import { loadEnv, openStore, syncNow, moveNotionToLocal } from "./core/store.mjs";
 import { deviceLogin, openVault, accountInfo, logout, writeEnv, ENV_FILE } from "./core/account.mjs";
 
 const DEFAULT_URL = "https://sync.example";
@@ -32,6 +32,11 @@ function askHidden(question) {
     rl.question(question, (answer) => { rl.close(); process.stdout.write("\n"); resolve(answer); });
     rl._writeToOutput = (s) => { if (s.includes(question)) rl.output.write(s); };
   });
+}
+
+function askVisible(question) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => rl.question(question, (answer) => { rl.close(); resolve(answer); }));
 }
 
 if (process.argv.includes("--status")) {
@@ -65,6 +70,23 @@ for (let tries = 0; ; tries++) {
   try { result = await openVault(base, token, pass); break; }
   catch (e) { say(e.message); if (tries >= 2 || env.SHOULDER_TAP_PASSPHRASE) process.exit(1); }
 }
-writeEnv({ SHOULDER_TAP_SYNC_URL: base, SHOULDER_TAP_DEVICE_TOKEN: token, SHOULDER_TAP_VAULT_KEY: result.key.toString("base64url"), SHOULDER_TAP_SYNC_KEY: null });
 say(result.created ? "同步密钥建好了。别的机器登同一个账号、输同一个口令就能接上。" : "接上了这个账号的同步。");
-say(`写进了 ${ENV_FILE()}。下一次 Claude Code / Codex 调 shoulder-tap 就开始同步。`);
+
+// 云同步只管本地存储。这台在用 Notion：先把 Notion 里的全部记录搬到本地，Notion 里的原样留着当备份。
+if (openStore().kind === "notion") {
+  say("这台机器现在把数据存在 Notion。云同步要用本地存储：把 Notion 里的全部任务和习惯记录搬到本地，Notion 里的原样留着。");
+  const yes = env.SHOULDER_TAP_PASSPHRASE ? "y" : await askVisible("  搬过来并开始同步？[Y/n] ");
+  if (/^n/i.test(yes.trim())) { say("那这台继续用 Notion，不开云同步。想开的时候再跑一次 node login.mjs。"); process.exit(0); }
+  const moved = await moveNotionToLocal();
+  say(`从 Notion 搬过来 ${moved.tasks} 条任务、${moved.habits} 条习惯记录。`);
+}
+
+writeEnv({ SHOULDER_TAP_SYNC_URL: base, SHOULDER_TAP_DEVICE_TOKEN: token, SHOULDER_TAP_VAULT_KEY: result.key.toString("base64url"), SHOULDER_TAP_SYNC_KEY: null });
+say(`写进了 ${ENV_FILE()}。`);
+try {
+  const r = await syncNow();
+  say(`第一次同步好了：拉下来 ${r.pulled} 行，推上去 ${r.pushed} 行。这台现在有 ${r.tasks} 条任务、${r.habits} 条习惯记录，跟账号里的一致。`);
+} catch (e) {
+  say(`第一次同步没成功（${e.message}）。不要紧：下一次 Claude Code / Codex 调 shoulder-tap 时会接着同步。`);
+}
+say("已经开着的 Claude Code / Codex 会话不用重开：下一次调 shoulder-tap 就是同步过的数据。");

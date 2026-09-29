@@ -198,6 +198,16 @@ else {
   }
 }
 
+// 跨机器同步：--login 装完直接登录（换到新机器、切到新分支时一条命令接上）；没登录过就提一句。
+const loginMjs = path.join(skillDst, "login.mjs");
+if (process.argv.includes("--login")) {
+  const r = spawnSync(process.execPath, [loginMjs], { stdio: "inherit" });
+  if (r.status !== 0) log(`登录没走完，之后再跑：node "${loginMjs}"`);
+  if (config.onboarded) process.exit(0); // 老机器：设置页早就点过了
+} else if (!/^SHOULDER_TAP_VAULT_KEY=\S/m.test(fs.readFileSync(env, "utf8"))) {
+  log(`跨机器同步 → 还没登录。要跟别的机器同步就跑：node "${loginMjs}"`);
+}
+
 if (process.argv.includes("--update")) process.exit(0); // 更新：设置早就做过了
 
 // 5. 设置页。桌面端在跑的话它已经打开了（第一次启动会自己开）；没有桌面端就在这里开，开着直到你点完成。

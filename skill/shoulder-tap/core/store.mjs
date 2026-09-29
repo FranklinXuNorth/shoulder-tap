@@ -92,3 +92,41 @@ export function openStore() {
   for (const n of LOCAL_ONLY) store[n] = useNotion ? async () => undefined : (...args) => localCall(sync, () => local[n](token, ...args));
   return store;
 }
+
+/**
+ * 立刻对一次账（login.mjs 登录之后用）：返回拉下来几行、推上去几行、本机现在有多少。连不上就抛错。
+ * 超时放宽到 15 秒：这是人盯着的一次性操作，可能要搬几千行；sync service 新建频道偶尔也会慢到一两秒。
+ * 钩子和 MCP 那边照旧 1.5 秒 —— 那边卡住的是你的每一句话。
+ */
+export async function syncNow() {
+  const cfg = syncConfig(loadEnv());
+  if (!cfg) throw new Error("还没登录，也没配同步密钥");
+  const sync = { ...cfg, timeoutMs: 15_000 };
+  return withLock(local.DATA, async () => {
+    const d = local.load();
+    const pulled = await pull(sync, d);
+    const pushed = await push(sync, d);
+    local.save(d);
+    return { pulled, pushed, tasks: d.tasks.length, habits: d.habits.length };
+  });
+}
+
+/**
+ * Notion → 本地：整库倒过来，然后这台改用本地存储（云同步只管本地存储）。Notion 里的一条不动，当备份。
+ * 行的 rid 由 Notion 页面定，搬几次、几台机器各搬一次，都不会变成两份。
+ */
+export async function moveNotionToLocal() {
+  const { tasks, habits } = await notion.exportAll(loadEnv().NOTION_TOKEN);
+  const added = await withLock(local.DATA, () => {
+    const d = local.load();
+    const have = new Set([...d.tasks, ...d.habits].map((r) => r.rid));
+    const t = tasks.filter((r) => !have.has(r.rid));
+    const h = habits.filter((r) => !have.has(r.rid));
+    d.tasks.push(...t);
+    d.habits.push(...h);
+    local.save(d);
+    return { tasks: t.length, habits: h.length };
+  });
+  writeConfig({ storage: "local" });
+  return added;
+}

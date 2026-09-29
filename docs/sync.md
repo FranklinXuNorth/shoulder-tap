@@ -150,3 +150,31 @@ node harness/run.mjs --test-name-pattern=O  # 只跑某一组
 - `login.mjs` 端到端
 
 线上 40/40 通过（2026-09-28）。
+
+## 别的机器切到 sync 分支
+
+在那台机器的 shoulder-tap 仓库里：
+
+```
+git fetch origin
+git switch sync              # 第一次切：自动跟踪 origin/sync
+node install.mjs --login     # 装新版 → 浏览器登录 → 输同步口令 → 立刻同步一次
+```
+
+`--login` 做完这几件事：
+- 装好新版的 skill 和钩子。
+- 登录，拆开同步密钥。
+- 这台原来用 Notion 的话，问一句，然后把 Notion 里的全部记录搬到本地（翻页翻到底，Notion 里的原样留着当备份）。
+- 第一次同步用 15 秒超时，最后打印「拉下来几行、推上去几行、这台现在有多少」。
+
+以后更新：`node ~/.claude/skills/shoulder-tap/update.mjs`。它在当前分支上 `git pull`，所以留在 sync 分支就会一直拉 origin/sync。
+
+两台都用了很久、各有记录时（A13 测过）：
+- 任务取并集。
+- 同名习惯（比如两台都有「喝水」）合并成一个，两边的打卡记录都保留。
+- 以前用手填密钥同步过的机器，换成登录时从头对账，一行不落（A14）。
+- 两台连着同一个 Notion 时，各自搬一遍也不会变成两份：每行的同步 ID 由 Notion 页面决定（`core/notion-move.test.mjs`）。
+
+**已知**：
+- 两台机器同一天各自定过清单，合并后当天会有两张单子的并集。要只留一张，在其中一台上 `set_focus` 重排一次。
+- sync service 新建 server storage 偶尔会慢过 1.5 秒（线上见过）。那一次调用会退回单机，下次补推。
