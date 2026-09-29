@@ -80,6 +80,8 @@ node ~/.claude/skills/shoulder-tap/login.mjs
 同名习惯（两台都有「喝水」）自动并成一个，两边的打卡都留着。
 
 查看 / 退出：`login.mjs --status` 看登的是谁；`login.mjs --logout` 注销这台，本机数据留着。
+想在手机或别的电脑的浏览器里看：云端网页版 https://sync.example/app （同一个账号、同一个同步口令，内容在浏览器里解密）。
+想让这台机器在别处一改就马上跟上（不等下一次调工具）：常驻跑 `node ~/.claude/skills/shoulder-tap/listen.mjs`。
 你自己在 shell 里跑 `login.mjs` 会直接退出、提示「在你自己的终端里跑」—— 这是故意的，照它说的转告他。
 
 ## 工具

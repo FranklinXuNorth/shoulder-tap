@@ -13,7 +13,7 @@ import path from "node:path";
 import os from "node:os";
 import * as notion from "./focus.mjs";
 import * as local from "./local.mjs";
-import { syncConfig, withLock, pull, push } from "./sync.mjs";
+import { syncConfig, withLock, pull, push, snapshot, touch } from "./sync.mjs";
 
 export const STATE_DIR = path.join(os.homedir(), ".claude", "shoulder-tap");
 export const CONFIG = path.join(STATE_DIR, "config.json");
@@ -69,7 +69,12 @@ function localCall(sync, fn) {
       const d = local.load();
       try { await pull(sync, d); local.save(d); } catch (e) { lastSyncError = e; }
     }
+    // 每一次保存、修改都记时间戳：操作前拍一张，操作后新出现、变了的行盖上现在的时间，删掉的记下删的时间。
+    const d0 = local.load();
+    const [before, filled] = snapshot(d0);
+    if (filled) local.save(d0); // 老行补上的 rid / updated 要落盘，否则下面对照时认不出来
     const out = await fn();
+    { const d = local.load(); touch(d, before); local.save(d); }
     if (sync) {
       const d = local.load();
       try { if (await push(sync, d)) local.save(d); } catch (e) { lastSyncError = e; local.save(d); }

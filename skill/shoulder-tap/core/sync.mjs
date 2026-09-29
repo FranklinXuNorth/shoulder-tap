@@ -6,8 +6,10 @@
  *
  *   拉：把别的机器推上来的行拉下来并进本地 → 干活（local.mjs 原样）→ 推：把本地改过的行加密推上去
  *
- * 规矩只有一条：谁后到服务端谁赢（按行）。本地改了还没推上去的行，拉下来的旧版本不许盖掉它 ——
- * 它推上去之后自然是后到的那个。连不上就只动本地，没推上去的行下次接着推。
+ * 冲突按时间戳：每一行记着最后一次被改的时刻（row.updated，删掉的记在 d.gone 里）。两台机器改了同一行，
+ * 留最后改的那次 —— 跟谁先连上网、谁先推无关。服务端也按这个收：比它手上旧的不写，退回它那份（stale）。
+ * 连不上就只动本地，没推上去的行下次接着推，时间戳还是当初改的那一刻。
+ * 时间戳用的是各台机器自己的钟：钟差多少，「谁更新」就可能差多少。系统时间都开着自动校准就够了。
  *
  * 一行 = 一个 rid（随机 UUID）。任务、习惯的每一次、偏好（用户在哪个时区）都是一行。
  * 服务端只见 rid、序号和密文；密钥、频道、口令都从 SHOULDER_TAP_SYNC_KEY 派生，跟加密写法跟 relay 那套一致：
@@ -85,6 +87,45 @@ export async function withLock(file, fn, staleMs = 10_000) {
 // ---------- 行 ----------
 
 const hashOf = (row) => crypto.createHash("sha256").update(JSON.stringify(row)).digest("base64url").slice(0, 16);
+/** 内容指纹：不算 updated 自己，不然每盖一次戳都像是又改了一次。 */
+const contentOf = (row) => { const { updated, ...rest } = row; return hashOf(rest); };
+const nowIso = () => new Date().toISOString();
+/** 比上一次更晚：同一毫秒里改两次，也要分得出先后。 */
+const later = (prev) => { const now = Date.now(), p = prev ? Date.parse(prev) : 0; return new Date(Math.max(now, p + 1)).toISOString(); };
+/** 老数据没有 updated：取它自己身上的时间（任务的那一天、习惯的收尾 / 激活时刻），别让它冒充刚改的。 */
+const naturalAt = (row) => row.finished ?? row.activated ?? row.last ?? row.day ?? "1970-01-01T00:00:00.000Z";
+
+const allRows = (d) => [...d.tasks, ...d.habits, ...(d.prefs ? [d.prefs] : [])];
+
+/**
+ * 每次存之前拍一张：rid → 内容指纹。顺手给还没有 rid / updated 的老行补上（这不算改动）。
+ * 返回 [指纹表, 补过没有]。
+ */
+export function snapshot(d) {
+  let filled = false;
+  if (d.prefs) d.prefs.rid ??= "prefs";
+  for (const row of allRows(d)) {
+    if (!row.rid) { row.rid = crypto.randomUUID(); filled = true; }
+    if (!row.updated) { row.updated = naturalAt(row); filled = true; }
+  }
+  return [new Map(allRows(d).map((r) => [r.rid, contentOf(r)])), filled];
+}
+
+/**
+ * 存完之后对照那一张：新出现的行、内容变了的行盖上现在的时间；不见了的行记下删掉的时间（d.gone）。
+ * 这就是「每一次保存、修改都记时间戳」。同步关着也照样记。
+ */
+export function touch(d, before) {
+  if (d.prefs) d.prefs.rid ??= "prefs";
+  const now = new Set();
+  for (const row of allRows(d)) {
+    row.rid ??= crypto.randomUUID();
+    now.add(row.rid);
+    if (!before.has(row.rid) || before.get(row.rid) !== contentOf(row)) row.updated = later(row.updated);
+  }
+  const at = nowIso();
+  for (const rid of before.keys()) if (!now.has(rid)) (d.gone ??= {})[rid] = at;
+}
 
 /** data.json 里所有要同步的行：rid → {kind, row}。老数据没有 rid 的顺手补上。 */
 function records(d) {
@@ -94,8 +135,22 @@ function records(d) {
   return out;
 }
 
+/** 把服务端的一行（拉下来的，或者 push 被退回的 stale）落到本地。 */
+function apply(cfg, d, hashes, r) {
+  if (r.deleted) {
+    remove(d, r.rid);
+    delete hashes[r.rid];
+  } else {
+    const { kind, row } = unseal(cfg.key, r.blob);
+    place(d, kind, r.rid, row);
+    hashes[r.rid] = hashOf(row);
+  }
+  if (d.gone) delete d.gone[r.rid];
+}
+
 function place(d, kind, rid, row) {
   if (kind === "prefs") return void (d.prefs = row);
+  row.rid = rid; // 以服务端这一行的 rid 为准：别的客户端（网页版）换 rid 时行里那份可能还是旧的
   const list = d[kind];
   const i = list.findIndex((r) => r.rid === rid);
   if (i >= 0) list[i] = row;
@@ -114,7 +169,9 @@ function remove(d, rid) {
  * 新频道里的行被跳过、本机的行被当成「已经推过」。
  */
 function stateOf(cfg, d) {
-  const id = hashOf(`${cfg.url} ${cfg.auth}`);
+  // 只认口令 / 令牌：它就代表「哪个频道、哪次登录」。别带上地址 —— 地址写法变了（多个斜杠）、暂时连不上，
+  // 都不该把进度清掉：清掉就忘了自己删过哪些行，别处的旧版会趁机回来。
+  const id = hashOf(cfg.auth);
   if (d.sync?.id !== id) d.sync = { id, cursor: 0, hashes: {} };
   return d.sync;
 }
@@ -133,7 +190,7 @@ function mergeSameName(d) {
   }
   for (const h of d.habits) {
     const sid = canon.get(key(h));
-    if (sid && h.sid !== sid) h.sid = sid;
+    if (sid && h.sid !== sid) { h.sid = sid; h.updated = later(h.updated); }
   }
 }
 
@@ -172,16 +229,10 @@ export async function pull(cfg, d) {
     const mine = records(d);
     for (const r of page.rows) {
       const local = mine.get(r.rid);
-      // 本地改过（或删过）还没推上去：本地这版会后到，留着它。
-      if (local ? hashOf(local.row) !== hashes[r.rid] : r.rid in hashes) continue;
-      if (r.deleted) {
-        remove(d, r.rid);
-        delete hashes[r.rid];
-      } else {
-        const { kind, row } = unseal(cfg.key, r.blob);
-        place(d, kind, r.rid, row);
-        hashes[r.rid] = hashOf(row);
-      }
+      // 本地改过（或删过）还没推上去：比时间戳，本地这次更晚（或一样）就留着，等会儿推上去；拉下来的更晚就听它的。
+      const dirty = local ? hashOf(local.row) !== hashes[r.rid] : r.rid in hashes;
+      if (dirty && (r.at ?? "") <= ((local ? local.row.updated : d.gone?.[r.rid]) ?? "")) continue;
+      apply(cfg, d, hashes, r);
       got++;
     }
     state.cursor = page.seq;
@@ -197,13 +248,45 @@ export async function push(cfg, d) {
   const { hashes } = stateOf(cfg, d);
   const mine = records(d);
   const rows = [];
-  for (const [rid, { kind, row }] of mine)
-    if (hashOf(row) !== hashes[rid]) rows.push({ rid, blob: seal(cfg.key, { kind, row }), hash: hashOf(row) });
-  for (const rid of Object.keys(hashes)) if (!mine.has(rid)) rows.push({ rid, deleted: true });
+  for (const [rid, { kind, row }] of mine) {
+    if (hashOf(row) === hashes[rid]) continue;
+    row.updated ??= naturalAt(row);
+    rows.push({ rid, blob: seal(cfg.key, { kind, row }), at: row.updated, hash: hashOf(row) });
+  }
+  for (const rid of Object.keys(hashes)) if (!mine.has(rid)) rows.push({ rid, deleted: true, at: d.gone?.[rid] ?? nowIso() });
   for (let i = 0; i < rows.length; i += 500) {
     const batch = rows.slice(i, i + 500);
-    await request(cfg, "/push", { method: "POST", body: JSON.stringify({ rows: batch.map(({ hash, ...r }) => r) }) });
-    for (const r of batch) r.deleted ? delete hashes[r.rid] : (hashes[r.rid] = r.hash);
+    const res = await request(cfg, "/push", { method: "POST", body: JSON.stringify({ rows: batch.map(({ hash, ...r }) => r) }) });
+    const lost = new Map((res.stale ?? []).map((r) => [r.rid, r]));
+    for (const r of batch) {
+      if (lost.has(r.rid)) apply(cfg, d, hashes, lost.get(r.rid)); // 服务端那份更新：改回它
+      else if (r.deleted) { delete hashes[r.rid]; if (d.gone) delete d.gone[r.rid]; }
+      else hashes[r.rid] = r.hash;
+    }
   }
   return rows.length;
+}
+
+/**
+ * 挂一条 WebSocket 在频道上：别的机器一推，服务端就发 {type:"changed", seq}，onChange 被叫一次（再去 pull）。
+ * 断了两秒后自己重连；每 30 秒 ping 一下，免得被中间的网络设备掐掉。返回 { ready, close }。
+ * 口令放在 Sec-WebSocket-Protocol 里（"st", 口令），不进 URL。
+ */
+export function listen(cfg, onChange, { retryMs = 2000 } = {}) {
+  const url = cfg.url.replace(/^http/, "ws") + "/ws";
+  let ws, timer, closed = false, resolveReady;
+  const ready = new Promise((r) => (resolveReady = r));
+  const open = () => {
+    ws = new WebSocket(url, ["st", cfg.auth]);
+    ws.onopen = () => resolveReady();
+    ws.onmessage = (e) => {
+      if (e.data === "pong") return;
+      try { const m = JSON.parse(e.data); if (m.type === "changed") onChange(m); } catch {}
+    };
+    ws.onclose = () => { if (!closed) timer = setTimeout(open, retryMs); };
+    ws.onerror = () => {};
+  };
+  open();
+  const ping = setInterval(() => { if (ws?.readyState === 1) ws.send("ping"); }, 30_000);
+  return { ready, close() { closed = true; clearTimeout(timer); clearInterval(ping); try { ws?.close(); } catch {} } };
 }

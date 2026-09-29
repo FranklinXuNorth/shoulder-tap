@@ -185,6 +185,12 @@ async function state() {
     motion: readConfig().motion ?? "system", // "always" = 无视系统的「减弱动态效果」，照常逐帧播
     skins: listSkins(),
     desktop: fs.existsSync(APP),
+    // 跨机器同步：登录过没有、云端网页版在哪。首页那个「云端版」按钮用
+    sync: {
+      loggedIn: Boolean(loadEnv().SHOULDER_TAP_DEVICE_TOKEN && loadEnv().SHOULDER_TAP_VAULT_KEY),
+      url: (loadEnv().SHOULDER_TAP_SYNC_URL || "https://sync.example").replace(/\/+$/, ""),
+      login: `node "${path.join(path.dirname(fileURLToPath(import.meta.url)), "login.mjs")}"`,
+    },
   };
 }
 

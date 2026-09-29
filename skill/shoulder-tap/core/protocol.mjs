@@ -20,7 +20,7 @@ export function dayStartHour() {
  */
 function todayDueAt(at, tz, now) {
     const m = /^(\d{1,2}):(\d{2})$/.exec(at.trim());
-    if (!m)
+    if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) // 「25:99」格式对但不是时刻：凌晨那几小时会被当成前一天的延长，误报到点
         return undefined;
     let wall;
     try {

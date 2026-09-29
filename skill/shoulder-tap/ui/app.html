@@ -26,7 +26,7 @@
   body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 ui-sans-serif, system-ui, "Microsoft YaHei UI", "PingFang SC", sans-serif; }
   /* 整页锁在一屏高：页面不滚，只有卡片里面的列表滚 */
   html, body { height: 100%; overflow: hidden; }
-  main { max-width: 880px; margin: 0 auto; padding: 20px 16px 14px; height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+  main { max-width: 880px; margin: 0 auto; padding: 40px 16px 36px; height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
   main > * { flex: none; }
   main > section.card:not(.hidden) { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; } /* 引导、选皮肤：卡片自己滚 */
   #home { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -205,6 +205,7 @@
     <div class="actions">
       <button class="action" data-go="setup"><span class="ico">↻</span><span><b id="goSetupLabel"></b><small data-t="goSetupWhy"></small></span></button>
       <button class="action" data-go="hands"><span class="ico"><div id="skinIco"></div></span><span><b data-t="goHands"></b><small data-t="goHandsWhy"></small></span></button>
+      <button class="action" id="cloudBtn"><span class="ico">☁</span><span><b id="goCloudLabel"></b><small id="goCloudWhy"></small></span></button>
     </div>
     <!-- 这一页能点的，在 coding agent 里说一句也行：它们调的是同一套工具 -->
     <p class="agent-hint"><b data-t="agentHintH"></b> <span id="agentHint"></span></p>
@@ -222,7 +223,6 @@
         <div class="msg" id="msg-habits"></div>
       </div>
     </div>
-    <p class="foot"><span data-t="uninstall"></span><code id="uninstallCmd"></code></p>
   </div>
 
   <div class="wizard-only">
@@ -398,6 +398,7 @@
   }
   $("lang").onclick = () => { lang = lang === "zh" ? "en" : "zh"; try { localStorage.setItem("lang", lang); } catch {} applyLang(); };
   document.querySelectorAll("[data-go]").forEach((b) => b.onclick = () => location.hash = b.dataset.go);
+  $("cloudBtn").onclick = () => window.open(S.sync.url + "/app", "_blank", "noopener");
   window.onhashchange = route;
 
   // ---------- 数据 ----------
@@ -411,7 +412,9 @@
     renderClients(); renderToday(); renderTasks(); renderHabits(); renderHands();
     $("agentHint").innerHTML = t("agentSays").map((x) => `<q>${esc(x)}</q>`).join("");
     $("logo").style.backgroundImage = $("skinIco").style.backgroundImage = `url(/skins/${S.skin}/tap.webp)`;
-    $("uninstallCmd").textContent = `node "${S.mcp.onboard.replace(/onboard\.mjs$/, "uninstall.mjs")}"`;
+    // 跨机器同步：登录过就是「打开云端版」，没登录就是「登录云端版」—— 点了都去 sync service 上那个网页版
+    $("goCloudLabel").textContent = t(S.sync.loggedIn ? "goCloudIn" : "goCloud");
+    $("goCloudWhy").textContent = S.sync.loggedIn ? t("goCloudWhyIn") : t("goCloudWhy")(S.sync.login);
     $("update").classList.toggle("hidden", !S.update.behind);
     $("updateText").textContent = t("updateAvail")(S.update.behind);
   }
