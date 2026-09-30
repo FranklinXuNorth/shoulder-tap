@@ -28,6 +28,10 @@ struct TapRequest: Codable {
     var text = ""
     var caption = ""
     var quit = false
+    // 到点习惯的提醒才有：字条下面放按钮，点了用 node 跑 habit.mjs 记一笔（跟 Windows 版一样）
+    var habit: String? = nil
+    var node: String? = nil
+    var skippable: Bool? = nil
 
     var hasMessage: Bool { mode == "complete" || mode == "snap" || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
@@ -38,6 +42,9 @@ struct TapRequest: Codable {
         r.text = arg("text") ?? arg("t") ?? ""
         r.caption = (arg("caption") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         r.quit = args.contains("--quit") || args.contains("--exit")
+        r.habit = arg("habit") ?? ""
+        r.node = arg("node") ?? ""
+        r.skippable = args.contains("--skippable")
         return r
     }
 }
@@ -70,6 +77,9 @@ let resourceDir: URL = {
 /// 说明那一条的字：Resources/Fonts 里的像素字体（Info.plist 的 ATSApplicationFontsPath 已让系统注册），
 /// 跟 Windows 端同一份 ttf，中英文都在里面。取不到就退回系统字体 —— 字体的事不该让拍肩消失。
 let captionFont: NSFont = NSFont(name: "Fusion Pixel 12px Prop zh_hans", size: 16) ?? .systemFont(ofSize: 14)
+
+/// 字条下面那几个按钮的字：同一套像素字体，小一号。
+let buttonFont: NSFont = NSFont(name: "Fusion Pixel 12px Prop zh_hans", size: 14) ?? .systemFont(ofSize: 12)
 
 /// 深色跟随系统，两个颜色跟 Windows 端 ApplySystemTheme 用同一组 hex。
 func captionColors() -> (ink: NSColor, paper: NSColor) {
@@ -165,6 +175,63 @@ func activeScreen() -> NSScreen {
 }
 
 
+// MARK: - 习惯按钮
+
+/// 点了按钮：跟聊天里说「做了」一样记一笔（habit.mjs 里调 log_habit，再刷新钩子的缓存）。
+/// 钩子传来的 --node 是它自己那个 node 的绝对路径；没有就走登录 shell 找（LaunchAgent 的 PATH 很短）。
+func logHabit(_ cmd: String, habit: String, node: String) {
+    let script = home.appendingPathComponent(".claude/skills/shoulder-tap/habit.mjs").path
+    let p = Process()
+    if !node.isEmpty && FileManager.default.isExecutableFile(atPath: node) {
+        p.executableURL = URL(fileURLWithPath: node)
+        p.arguments = [script, cmd, habit]
+    } else {
+        p.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        p.arguments = ["-lc", "node \"$0\" \"$@\"", script, cmd, habit]
+    }
+    p.standardOutput = nil; p.standardError = nil
+    do { try p.run(); log("habit \(cmd) \(habit)") } catch { log("habit \(cmd) failed \(habit): \(error.localizedDescription)") }
+}
+
+/// 像素风的小按钮：一个实心，其余描边。面板是 nonactivating 的，第一下点击就得算数，不先去激活 App。
+final class PixelButton: NSView {
+    private let action: () -> Void
+    init(title: String, filled: Bool, ink: NSColor, paper: NSColor, action: @escaping () -> Void) {
+        self.action = action
+        let label = NSTextField(labelWithString: title)
+        label.font = buttonFont
+        label.textColor = filled ? paper : ink
+        let size = label.intrinsicContentSize
+        super.init(frame: NSRect(x: 0, y: 0, width: ceil(size.width) + 20, height: 26))
+        wantsLayer = true
+        layer?.backgroundColor = (filled ? ink : paper).cgColor
+        layer?.borderColor = ink.cgColor
+        layer?.borderWidth = filled ? 0 : 2
+        label.frame = NSRect(x: 10, y: (26 - ceil(size.height)) / 2, width: ceil(size.width), height: ceil(size.height))
+        addSubview(label)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { frame.contains(point) ? self : nil } // 点在字上也算点按钮
+    override func mouseDown(with event: NSEvent) {}
+    override func mouseUp(with event: NSEvent) { if bounds.contains(convert(event.locationInWindow, from: nil)) { action() } }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
+}
+
+/// 字条那个框。带按钮时：鼠标停在上面就别收，挪开再给 1.5 秒。
+final class HoverBox: NSView {
+    var onEnter: (() -> Void)?
+    var onExit: (() -> Void)?
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        if onEnter != nil { addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)) }
+    }
+    override func mouseEntered(with event: NSEvent) { onEnter?() }
+    override func mouseExited(with event: NSEvent) { onExit?() }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 // MARK: - 一条道：一扇窗、一个队列
 
 final class Lane {
@@ -185,14 +252,16 @@ final class Lane {
         let sheet = loadSheet(sheetName(for: req.mode))
         guard !sheet.frames.isEmpty else { log("no frames for \(req.mode)"); next(); return }
         playing = true
-        play(sheet: sheet, ends: frameEnds(for: req.mode), caption: req.caption) { [weak self] in
+        play(sheet: sheet, ends: frameEnds(for: req.mode), req: req) { [weak self] in
             self?.playing = false
             self?.onDone?()
             self?.next()
         }
     }
 
-    private func play(sheet: Sheet, ends: [Int], caption: String, done: @escaping () -> Void) {
+    private func play(sheet: Sheet, ends: [Int], req: TapRequest, done: @escaping () -> Void) {
+        let caption = req.caption
+        let habit = caption.isEmpty ? "" : (req.habit ?? "") // 没字条就没地方放按钮
         let frames = sheet.frames
         let hand = NSSize(width: CGFloat(frames[0].width * 3), height: 240) // 裁过的宽 ×3，高 80×3，最近邻
         let captionMax: CGFloat = 440
@@ -213,7 +282,29 @@ final class Lane {
             captionSize = NSSize(width: min(ceil(fit.width), inner), height: ceil(fit.height))
             captionLabel = label
         }
-        let boxHeight = captionLabel == nil ? 0 : captionSize.height + 15
+        // 按钮那一行：已经做了 = 记一次完成；今天不做 = 硬习惯才有；还没做 = 收起来，到点照样再提
+        let (ink, paper) = captionColors()
+        var buttons: [PixelButton] = []
+        // 收起：到点自动收、点了按钮收，都走 dismiss，只收一次（下面挂上窗口之后才赋值）
+        var dismiss: () -> Void = {}
+        var finished = false
+        var hideItem: DispatchWorkItem?
+        func schedule(_ after: Double) {
+            hideItem?.cancel()
+            let item = DispatchWorkItem { dismiss() }
+            hideItem = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + after, execute: item)
+        }
+        if !habit.isEmpty {
+            let node = req.node ?? ""
+            buttons.append(PixelButton(title: "已经做了", filled: true, ink: ink, paper: paper) { logHabit("done", habit: habit, node: node); dismiss() })
+            if req.skippable == true { buttons.append(PixelButton(title: "今天不做", filled: false, ink: ink, paper: paper) { logHabit("skip", habit: habit, node: node); dismiss() }) }
+            buttons.append(PixelButton(title: "还没做", filled: false, ink: ink, paper: paper) { dismiss() })
+        }
+        let buttonRow: CGFloat = buttons.isEmpty ? 0 : 26 + 8
+        let buttonsWidth = buttons.reduce(CGFloat(0)) { $0 + $1.frame.width } + CGFloat(max(buttons.count - 1, 0)) * 8
+        if !buttons.isEmpty { captionSize.width = min(max(captionSize.width, buttonsWidth), captionMax - 24) }
+        let boxHeight = captionLabel == nil ? 0 : captionSize.height + 15 + buttonRow
         let height = max(hand.height, boxHeight)
 
         let work = activeScreen().visibleFrame
@@ -225,7 +316,7 @@ final class Lane {
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.level = .statusBar
-        panel.ignoresMouseEvents = true // 鼠标穿透
+        panel.ignoresMouseEvents = habit.isEmpty // 平时鼠标穿透，只有带按钮的那一次例外
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.alphaValue = 1
         self.panel = panel
@@ -241,22 +332,41 @@ final class Lane {
         root.layer?.addSublayer(handLayer)
 
         if let label = captionLabel {
-            let (ink, paper) = captionColors()
             label.textColor = ink
             let (w, h) = (captionSize.width, captionSize.height)
-            let box = NSView(frame: NSRect(x: width - hand.width - gap - (w + 24), y: (height - boxHeight) / 2, width: w + 24, height: boxHeight))
+            let box = HoverBox(frame: NSRect(x: width - hand.width - gap - (w + 24), y: (height - boxHeight) / 2, width: w + 24, height: boxHeight))
             box.wantsLayer = true
             box.layer?.backgroundColor = paper.cgColor
             box.layer?.borderColor = ink.cgColor
             box.layer?.borderWidth = 2
             box.layer?.cornerRadius = 6
-            label.frame = NSRect(x: 12, y: 7, width: w, height: h)
+            label.frame = NSRect(x: 12, y: 7 + buttonRow, width: w, height: h)
             box.addSubview(label)
+            var x: CGFloat = 12
+            for b in buttons { b.setFrameOrigin(NSPoint(x: x, y: 7)); box.addSubview(b); x += b.frame.width + 8 }
+            if !buttons.isEmpty {
+                box.onEnter = { [weak panel] in hideItem?.cancel(); panel?.animator().alphaValue = 1 }
+                box.onExit = { schedule(1.5) }
+                box.updateTrackingAreas()
+            }
             root.addSubview(box)
         }
 
         panel.orderFrontRegardless()
 
+        dismiss = { [weak self] in
+            guard !finished else { return }
+            finished = true
+            hideItem?.cancel()
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.24
+                panel.animator().alphaValue = 0
+            }, completionHandler: {
+                panel.orderOut(nil)
+                self?.panel = nil
+                done()
+            })
+        }
         // 时间轴：帧动画，停到 showSec（设置页「手」里改，默认 8 秒），最后 0.24 秒淡出，收。
         let start = Date()
         let last = ends[8]
@@ -274,16 +384,7 @@ final class Lane {
             handLayer.contents = frames[sheet.peak] // 不动，但至少是手势张开的样子，不是起手第一帧
         }
         let hold = max(Double(last) / 1000 + 0.5, min(cfgNumber("showSec") ?? 8, 60)) - 0.24
-        DispatchQueue.main.asyncAfter(deadline: .now() + hold) { [weak self] in
-            NSAnimationContext.runAnimationGroup({ ctx in
-                ctx.duration = 0.24
-                panel.animator().alphaValue = 0
-            }, completionHandler: {
-                panel.orderOut(nil)
-                self?.panel = nil
-                done()
-            })
-        }
+        schedule(hold)
     }
 }
 
