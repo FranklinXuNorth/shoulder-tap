@@ -106,12 +106,16 @@ async function fallbackTz(store, a, note) {
 
 export async function call(name, a) {
   const store = openStore();
-  const tzOr = await fallbackTz(store, a, name === "check_focus");
+  // check_focus 每次开口都跑（钩子后台刷新），三样东西放进一次 together：只问一次同步服务，而不是三次
+  const tzOr = name === "check_focus" ? null : await fallbackTz(store, a, false);
   switch (name) {
     case "check_focus": {
-      const z = zoneOf(a.tz, a.day, tzOr);
-      const [items, habits] = await Promise.all([store.listDay(z.win), store.overdueHabits().catch(() => [])]);
-      return `${z.line}\n\n${renderCheck(items, z.win.day, a.activity, habits)}`;
+      return store.together(async (s) => {
+        const z = zoneOf(a.tz, a.day, await fallbackTz(s, a, true));
+        const items = await s.listDay(z.win);
+        const habits = await s.overdueHabits().catch(() => []);
+        return `${z.line}\n\n${renderCheck(items, z.win.day, a.activity, habits)}`;
+      });
     }
     case "set_focus": {
       const z = zoneOf(a.tz, a.day, tzOr);

@@ -1,4 +1,7 @@
 /**
+ * 2026-09-29 暂停：钩子和 listen.mjs 都不再调它，每台在线设备照拍。要恢复，在 watch.mjs 的两处 tapDesktop、
+ * listen.mjs 的 remoteTap 开头加回 shouldShowHere(env) 的判断即可（git log 里 75d861c 是原样）。
+ *
  * 内部开关：这台机器最近有没有人在用（只在本机判断，什么都不上传）。默认关。
  *
  * 打开：config.json 里 "trackActive": true，或者环境变量 SHOULDER_TAP_TRACK_ACTIVE=1。设置页里没有这个开关。
