@@ -95,6 +95,12 @@ export function openStore() {
   const store = { kind: useNotion ? "notion" : "local", token, synced: Boolean(sync) };
   for (const n of NAMES) store[n] = useNotion ? (...args) => impl[n](token, ...args) : (...args) => localCall(sync, () => impl[n](token, ...args));
   for (const n of LOCAL_ONLY) store[n] = useNotion ? async () => undefined : (...args) => localCall(sync, () => local[n](token, ...args));
+  // 一次要读好几样（check_focus：记时区、今天的清单、到点的习惯）：整段只锁一次、只拉一次、只推一次。
+  // 上面每个函数单独调都各走一遍 localCall，每一遍都要问一次同步服务；fn 拿到的是不带锁的那一套，里面别再调 store 本身（锁不可重入）。
+  const bare = {};
+  for (const n of NAMES) bare[n] = (...args) => impl[n](token, ...args);
+  for (const n of LOCAL_ONLY) bare[n] = useNotion ? async () => undefined : (...args) => local[n](token, ...args);
+  store.together = useNotion ? (fn) => fn(store) : (fn) => localCall(sync, () => fn(bare));
   return store;
 }
 
