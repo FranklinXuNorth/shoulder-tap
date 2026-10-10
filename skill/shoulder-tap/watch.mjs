@@ -251,8 +251,9 @@ async function main() {
   // 模型要停下来问你。你可能早切去别的窗口了 —— 拍拍你，把问题贴在手旁边。
   // 不输出任何东西：不拦这次调用，也不往上下文里塞话。
   if (event === "PreToolUse") {
-    if (payload.tool_name === "AskUserQuestion") {
-      const question = withAgent(agentName(payload), questionLine(payload.tool_input));
+    if (["AskUserQuestion", "request_user_input", "request_user_input_async"].includes(payload.tool_name)) {
+      const toolInput = { ...payload.tool_input, questions: payload.tool_input?.questions?.map((q) => ({ ...q, question: q.question || q.title })) };
+      const question = withAgent(agentName(payload), questionLine(toolInput));
       tapDesktop(env, "", payload, "complete", question); // 问你话 → 拍拍你
       await relayTap(env, { mode: "complete", text: "", caption: question });
     }

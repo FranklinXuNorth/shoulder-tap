@@ -25,13 +25,14 @@ import { STRINGS } from "./core/strings.mjs";
 import { readUpdate, repoDir } from "./core/update.mjs";
 import * as local from "./core/local.mjs";
 import { claudeDesktopState, addToClaudeDesktop } from "./core/claude-desktop.mjs";
+import { codexState, connectCodex, codexMcpBlock } from "./core/codex.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.SHOULDER_TAP_PORT) || 47823; // 测试时换个端口，别撞上正在用的那个
 const URL_ = `http://127.0.0.1:${PORT}/`;
 const MCP = path.join(HERE, "mcp.mjs");
 const ENV = path.join(HERE, ".env");
-const CODEX = path.join(os.homedir(), ".codex", "config.toml");
+const CODEX = path.join(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"), "config.toml");
 const APP = path.join(STATE_DIR, "app", // 跟 watch.mjs 里同一个位置
   process.platform === "win32" ? "shoulder-tap-tap.exe" : process.platform === "darwin" ? "ShoulderTap.app/Contents/MacOS/shoulder-tap-tap" : "shoulder-tap-tap");
 
@@ -80,19 +81,19 @@ const sh = (cmd, args) => spawnSync(resolveBin(cmd) || cmd, args, { encoding: "u
 
 // 路径里有空格也不怕：两边都用绝对路径，node 也用当前这个。
 const claudeArgs = ["mcp", "add", "-s", "user", "shoulder-tap", "--", process.execPath, MCP];
-const codexBlock = `\n[mcp_servers.shoulder-tap]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(MCP)}]\n`;
+const codexBlock = codexMcpBlock(process.execPath, HERE);
 const quote = (a) => (/\s/.test(a) ? `"${a}"` : a);
 
 function mcpState() {
-  const codexText = fs.existsSync(CODEX) ? fs.readFileSync(CODEX, "utf8") : "";
   // 只有指向本机 mcp.mjs 的才算接上；以前接的远程版（http）要能一键换掉。
   const got = has("claude") ? sh("claude", ["mcp", "get", "shoulder-tap"]) : { status: 1, stdout: "" };
   return {
     claude: { installed: has("claude"), connected: got.status === 0 && got.stdout.includes("mcp.mjs"), remote: got.status === 0 && !got.stdout.includes("mcp.mjs") },
-    codex: { installed: has("codex") || fs.existsSync(CODEX), connected: codexText.includes("[mcp_servers.shoulder-tap]") },
+    codex: { installed: has("codex") || fs.existsSync(CODEX), ...codexState() },
     desktop: claudeDesktopState(), // Claude Desktop：只有工具，没有钩子
     command: ["claude", ...claudeArgs].map(quote).join(" "),
     codexBlock: codexBlock.trim(),
+    codexCommand: [process.execPath, path.join(HERE, "onboard.mjs"), "--connect-codex"].map((a) => JSON.stringify(a)).join(" "),
     onboard: path.join(HERE, "onboard.mjs"),
   };
 }
@@ -106,9 +107,8 @@ function connect(client, lang) {
     return m.claude;
   }
   if (client === "codex") {
-    fs.mkdirSync(path.dirname(CODEX), { recursive: true });
-    const text = fs.existsSync(CODEX) ? fs.readFileSync(CODEX, "utf8") : "";
-    if (!text.includes("[mcp_servers.shoulder-tap]")) fs.writeFileSync(CODEX, text.trimEnd() + "\n" + codexBlock);
+    const state = connectCodex();
+    if (!state.connected) throw new Error("Codex setup incomplete");
     return m.codex;
   }
   if (client === "desktop") {
@@ -117,6 +117,12 @@ function connect(client, lang) {
     return m.desktop;
   }
   throw new Error(m.unknownClient);
+}
+
+// 手动安装也走同一个入口，不起设置页服务、不改用户的任务与习惯。
+if (process.argv.includes("--connect-codex")) {
+  console.log(connect("codex", "zh"));
+  process.exit(0);
 }
 
 function setEnv(key, value) {

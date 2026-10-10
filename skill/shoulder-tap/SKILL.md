@@ -29,6 +29,16 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs --setup
 claude mcp add -s user shoulder-tap -- node ~/.claude/skills/shoulder-tap/mcp.mjs
 ```
 
+Codex 用完整接入命令，不要只添加 MCP 表：
+
+```bash
+node ~/.claude/skills/shoulder-tap/onboard.mjs --connect-codex
+```
+
+它会同时配置 Codex 的 MCP、生命周期钩子、全局 `AGENTS.md` 专注规则，保留其它设置；尊重 `CODEX_HOME`。
+重复运行能修复不完整的安装和旧远程 MCP。重开 Codex 后检查 `/mcp`，并在 `/hooks` 中让用户审核、信任新钩子。
+不要绕过 hook 信任审查；配置已写入和钩子已生效是两件事。
+
 接完 MCP 只是第一步：跑一次上面的 `onboard.mjs` 把设置页打开，让他自己填习惯、今天的事、数据放哪。
 然后告诉他重开一次会话让工具生效。
 

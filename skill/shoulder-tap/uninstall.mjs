@@ -13,6 +13,7 @@
  * Notion 里那个库不动 —— 那是你自己的。
  */
 import fs from "node:fs";
+import { removeCodexMcp, removeCodexHooks, removeCodexRules } from "./core/codex.mjs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -64,10 +65,11 @@ rm(appDir);
 
 // 2. MCP
 const mcpGone = run("claude", ["mcp", "remove", "-s", "user", "shoulder-tap"]).status === 0;
-const codex = path.join(home, ".codex", "config.toml");
+const codexHome = process.env.CODEX_HOME || path.join(home, ".codex");
+const codex = path.join(codexHome, "config.toml");
 if (fs.existsSync(codex)) {
   const text = fs.readFileSync(codex, "utf8");
-  const cleaned = text.replace(/\n*\[mcp_servers\.shoulder-tap\][\s\S]*?(?=\n\[|$)/, "\n").trimEnd() + "\n"; // 到下一个 [段] 为止
+  const cleaned = removeCodexMcp(text);
   if (cleaned !== text) { fs.writeFileSync(codex, cleaned); log(`Codex → 去掉了 [mcp_servers.shoulder-tap]`); }
 }
 log(mcpGone ? "MCP → 去掉了" : "MCP → 没去掉（claude 不在 PATH 上，或本来就没接）");
@@ -96,6 +98,19 @@ if (fs.existsSync(claudeMd)) {
   const text = fs.readFileSync(claudeMd, "utf8");
   const cleaned = text.replace(/\n*## 专注\n[\s\S]*?(?=\n## |$)/, "\n").trimEnd() + "\n";
   if (cleaned !== text) { fs.writeFileSync(claudeMd, cleaned.trim() ? cleaned : ""); log("CLAUDE.md → 去掉了「## 专注」"); }
+}
+
+// Codex 只清自己的 hook 和带标记的规则块，保留混合组内的其它 hook。
+const codexHooks = path.join(codexHome, "hooks.json");
+if (fs.existsSync(codexHooks)) {
+  const settings = JSON.parse(fs.readFileSync(codexHooks, "utf8"));
+  fs.writeFileSync(codexHooks, JSON.stringify(removeCodexHooks(settings), null, 2) + "\n");
+}
+const codexAgents = path.join(codexHome, "AGENTS.md");
+if (fs.existsSync(codexAgents)) {
+  const text = fs.readFileSync(codexAgents, "utf8");
+  const cleaned = removeCodexRules(text);
+  if (cleaned !== text) fs.writeFileSync(codexAgents, cleaned);
 }
 
 // 5. 数据（可选）和 skill

@@ -36,6 +36,7 @@ for (const name of fs.readdirSync(skillSrc)) {
 }
 const env = path.join(skillDst, ".env");
 if (!fs.existsSync(env)) fs.copyFileSync(path.join(skillSrc, ".env.example"), env);
+fs.copyFileSync(path.join(root, "skill", "CLAUDE.md.snippet"), path.join(skillDst, "AGENTS.md.snippet"));
 log(`skill → ${skillDst}`);
 // 设置页的后台服务可能还开着旧代码（页面关了它也要 30 分钟才自己停），请它退掉。没开就算了。
 // 光 POST 一下不算数：/api/quit 是后来才加的，旧进程会回 404 —— fetch 照样 resolve，
@@ -106,6 +107,15 @@ if (merged === have) log("CLAUDE.md 的「## 专注」已经是最新的，不�
 else {
   fs.writeFileSync(claudeMd, merged);
   log(have.includes("## 专注") ? "CLAUDE.md ← 「## 专注」里更新了 shoulder-tap 的规则块（你自己写的没动）" : "CLAUDE.md ← 专注那一节");
+}
+
+// 已接过 Codex 的更新也补齐 hooks / AGENTS.md；新安装仍由设置页选择客户端。
+const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
+const codexConfig = path.join(codexHome, "config.toml");
+if (fs.existsSync(codexConfig) && /\[mcp_servers\.(?:shoulder-tap|"shoulder-tap"|'shoulder-tap')\]/.test(fs.readFileSync(codexConfig, "utf8"))) {
+  const { connectCodex } = await import(pathToFileURL(path.join(skillDst, "core", "codex.mjs")).href);
+  connectCodex();
+  log("Codex → MCP、hooks、AGENTS.md 已补齐；重开会话，并在 /hooks 中审核信任钩子");
 }
 
 // 4. 桌面端

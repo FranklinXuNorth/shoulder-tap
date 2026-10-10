@@ -125,6 +125,7 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
 
    ```bash
    mkdir -p ~/.claude/skills && cp -r skill/shoulder-tap ~/.claude/skills/
+   cp skill/CLAUDE.md.snippet ~/.claude/skills/shoulder-tap/AGENTS.md.snippet
    ```
 
 2. **MCP**：
@@ -133,13 +134,14 @@ node ~/.claude/skills/shoulder-tap/onboard.mjs
    claude mcp add -s user shoulder-tap -- node ~/.claude/skills/shoulder-tap/mcp.mjs
    ```
 
-   Codex 在 `~/.codex/config.toml` 里加：
+   Codex 请运行完整接入命令（安装 MCP、hooks 和全局 AGENTS.md 规则）：
 
-   ```toml
-   [mcp_servers.shoulder-tap]
-   command = "node"
-   args = ["/Users/你/.claude/skills/shoulder-tap/mcp.mjs"]
+   ```bash
+   node ~/.claude/skills/shoulder-tap/onboard.mjs --connect-codex
    ```
+
+   会保留其它配置，尊重 `CODEX_HOME`，重复运行可以修复旧远程配置或缺失的钩子。重开 Codex 后检查 `/mcp`，并在 `/hooks` 中审核、信任新钩子；安装器不会代替用户授予信任。
+
 
    Claude Desktop（聊天那个 App）：在 `claude_desktop_config.json` 里加（设置 → Developer → Edit Config），然后彻底退出再打开：
 

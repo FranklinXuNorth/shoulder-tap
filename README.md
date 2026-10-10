@@ -73,7 +73,7 @@ The installer opens a settings page in your browser (reachable only from this ma
 1. **Connect your coding tool** — click "Connect" to hook shoulder-tap into Claude Code / Codex. Claude Desktop can be connected here too, tools only (see below).
    Don't want to click? Expand "do it yourself" for a block you can paste straight to your coding agent.
    Says Claude Code **Not found** on macOS when you know it is installed? The settings page comes from the menu bar app, which doesn't see your shell PATH. Expand "do it yourself" and run that command in a terminal.
-   Then restart your Claude Code session: `/mcp` shows `shoulder-tap`, `/hooks` shows four hooks.
+   Then restart your coding session. Claude Code: `/mcp` shows `shoulder-tap`, `/hooks` shows four hooks. Codex: Connect installs MCP, lifecycle hooks and global `AGENTS.md` rules together; after restarting, check `/mcp` and review and trust the new hooks in `/hooks`. Hook trust is a separate step; the installer does not grant it.
 2. **First habit** — any name you like.
    A **soft habit** (drink water) is quick, so it can't be skipped: it reminds you until you say you did it.
    A **hard habit** (workout) depends on the day, so you can say "not today".
@@ -121,10 +121,11 @@ If you'd rather not let a script touch `~/.claude`, do each step yourself.
 >
 > Replace `you` with your user name. The examples below use the macOS path.
 
-1. **Skill**: copy `skill/shoulder-tap/` to `~/.claude/skills/shoulder-tap/`.
+1. **Skill**: copy `skill/shoulder-tap/` to `~/.claude/skills/shoulder-tap/`, including the agent rules:
 
    ```bash
    mkdir -p ~/.claude/skills && cp -r skill/shoulder-tap ~/.claude/skills/
+   cp skill/CLAUDE.md.snippet ~/.claude/skills/shoulder-tap/AGENTS.md.snippet
    ```
 
 2. **MCP**:
@@ -133,13 +134,13 @@ If you'd rather not let a script touch `~/.claude`, do each step yourself.
    claude mcp add -s user shoulder-tap -- node ~/.claude/skills/shoulder-tap/mcp.mjs
    ```
 
-   For Codex, add to `~/.codex/config.toml`:
+   For Codex, run after copying the skill (this installs MCP, hooks and global rules together):
 
-   ```toml
-   [mcp_servers.shoulder-tap]
-   command = "node"
-   args = ["/Users/you/.claude/skills/shoulder-tap/mcp.mjs"]
+   ```bash
+   node ~/.claude/skills/shoulder-tap/onboard.mjs --connect-codex
    ```
+
+   It preserves other settings in `~/.codex/config.toml`, `hooks.json` and `AGENTS.md` (or `$CODEX_HOME`). Repeating it repairs partial or old remote installations. Restart Codex, check `/mcp`, and review and trust shoulder-tap hooks in `/hooks`.
 
    For Claude Desktop (the chat app), add to `claude_desktop_config.json` (Settings → Developer → Edit Config), then fully quit and reopen it:
 
