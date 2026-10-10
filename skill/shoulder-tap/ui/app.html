@@ -654,7 +654,7 @@
   function renderClients() {
     const m = S.mcp;
     $("cmd").textContent = m.command;
-    $("codex").textContent = m.codexBlock;
+    $("codex").textContent = m.codexCommand;
     const manual = t("agentMd")(m);
     $("manual").textContent = manual;
     $("copyManual").onclick = async () => {
@@ -666,7 +666,7 @@
       const c = m[key];
       const row = document.createElement("div");
       row.className = "client";
-      row.innerHTML = `<div><b>${label}</b><small>${t(c.connected ? "connected" : c.remote ? "remote" : c.installed ? "installed" : "missing")}${key === "desktop" ? " · " + t("desktopNote") : ""}</small></div>`;
+      row.innerHTML = `<div><b>${label}</b><small>${t(c.connected ? (key === "codex" ? "codexConfigured" : "connected") : c.remote ? "remote" : c.installed ? "installed" : "missing")}${key === "desktop" ? " · " + t("desktopNote") : ""}</small></div>`;
       const btn = document.createElement("button");
       if (c.connected) { btn.textContent = "✓ " + t("connected"); btn.disabled = true; btn.className = "ok"; }
       else {
